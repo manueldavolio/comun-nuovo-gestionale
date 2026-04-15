@@ -1,0 +1,88 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import { signIn } from "next-auth/react";
+
+type LoginFormProps = {
+  callbackUrl: string;
+};
+
+export function LoginForm({ callbackUrl }: LoginFormProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      callbackUrl,
+      redirect: false,
+    });
+
+    setIsSubmitting(false);
+
+    if (!result) {
+      setError("Servizio di autenticazione non raggiungibile.");
+      return;
+    }
+
+    if (result.error) {
+      setError("Credenziali non valide. Riprova.");
+      return;
+    }
+
+    window.location.href = result.url ?? callbackUrl;
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="space-y-1">
+        <label htmlFor="email" className="text-sm font-medium text-zinc-700">
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-emerald-500 focus:ring-2"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="password" className="text-sm font-medium text-zinc-700">
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-emerald-500 focus:ring-2"
+        />
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+      >
+        {isSubmitting ? "Accesso in corso..." : "Accedi"}
+      </button>
+    </form>
+  );
+}
