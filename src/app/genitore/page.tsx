@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
+import { DashboardCard } from "@/components/layout/dashboard-card";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 
@@ -17,23 +18,45 @@ export default async function ParentDashboardPage() {
     where: { isActive: true },
     orderBy: { name: "asc" },
   });
+  const activeCategories = categories.length;
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 md:p-8">
+    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
         <AreaHeader
           title="Area Genitore"
-          subtitle="Panoramica categorie disponibili"
+          subtitle="Panoramica rapida famiglia e iscrizioni"
           userName={session.user.name ?? "Genitore"}
         />
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <section className="grid gap-4 md:grid-cols-3">
+          <DashboardCard
+            title="Figlio associato"
+            value="Da completare"
+            description="Collega il profilo figlio alla tua utenza"
+          />
+          <DashboardCard
+            title="Stato iscrizione"
+            value="In verifica"
+            description="Controlla documenti e conferme segreteria"
+          />
+          <DashboardCard
+            title="Pagamenti"
+            value="Nessuna scadenza"
+            description="Monitoraggio quota annuale e rate"
+          />
+        </section>
+
+        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">Categorie attive</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Al momento il club ha {activeCategories} categorie disponibili.
+          </p>
           <ul className="mt-3 space-y-2">
             {categories.map((category) => (
               <li
                 key={category.id}
-                className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700"
+                className="rounded-lg border border-blue-100 px-3 py-2 text-sm text-zinc-700"
               >
                 <p className="font-medium text-zinc-900">{category.name}</p>
                 {category.description && <p>{category.description}</p>}
