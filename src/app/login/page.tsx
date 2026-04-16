@@ -10,6 +10,12 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await getAuthSession();
   if (session?.user?.role) {
+    console.info("[AUTH_DEBUG] login page redirect for authenticated user", {
+      userId: session.user.id,
+      email: session.user.email,
+      role: session.user.role,
+      redirectTo: ROLE_HOME_PATH[session.user.role],
+    });
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 

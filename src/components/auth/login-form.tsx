@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
+import { ROLE_HOME_PATH } from "@/lib/permissions";
 
 type LoginFormProps = {
   callbackUrl: string;
@@ -34,6 +35,25 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
 
     if (result.error) {
       setError("Credenziali non valide. Riprova.");
+      return;
+    }
+
+    const isGenericCallback =
+      !callbackUrl || callbackUrl === "/" || callbackUrl === "/login" || callbackUrl === "/register";
+
+    if (isGenericCallback) {
+      const session = await getSession();
+      const role = session?.user?.role;
+      const roleHome = role ? ROLE_HOME_PATH[role] : undefined;
+
+      console.info("[AUTH_DEBUG] login redirect logic", {
+        callbackUrl,
+        resultUrl: result.url,
+        role,
+        roleHome,
+      });
+
+      window.location.href = roleHome ?? result.url ?? "/login";
       return;
     }
 
