@@ -1,4 +1,3 @@
-import { compare } from "bcryptjs";
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { UserRole } from "@prisma/client";
@@ -19,7 +18,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) {
+        if (!credentials?.email) {
           return null;
         }
 
@@ -33,15 +32,10 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const passwordMatches = await compare(credentials.password, user.passwordHash);
-        if (!passwordMatches) {
-          return null;
-        }
-
+        // TEST TEMPORANEO LOGIN BYPASS
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
           role: user.role,
         };
       },
