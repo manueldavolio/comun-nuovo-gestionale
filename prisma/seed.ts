@@ -1,15 +1,8 @@
+import "dotenv/config";
 import { hash } from "bcryptjs";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set");
-}
-
-const adapter = new PrismaPg({ connectionString });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function upsertUser(params: {
   email: string;
@@ -80,18 +73,18 @@ async function upsertCategory(params: {
     },
     update: {
       birthYearsLabel: params.birthYearsLabel,
-      annualFee: new Prisma.Decimal(params.annualFee),
-      depositFee: new Prisma.Decimal(params.depositFee),
-      balanceFee: new Prisma.Decimal(params.balanceFee),
+      annualFee: params.annualFee,
+      depositFee: params.depositFee,
+      balanceFee: params.balanceFee,
       isActive: true,
     },
     create: {
       name: params.name,
       birthYearsLabel: params.birthYearsLabel,
       seasonLabel: params.seasonLabel,
-      annualFee: new Prisma.Decimal(params.annualFee),
-      depositFee: new Prisma.Decimal(params.depositFee),
-      balanceFee: new Prisma.Decimal(params.balanceFee),
+      annualFee: params.annualFee,
+      depositFee: params.depositFee,
+      balanceFee: params.balanceFee,
       isActive: true,
     },
   });
@@ -354,11 +347,10 @@ async function main() {
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
   .catch(async (error) => {
     console.error("Seed failed:", error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
     await prisma.$disconnect();
-    process.exit(1);
   });
