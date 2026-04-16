@@ -36,6 +36,14 @@ export default function Home() {
             </div>
             <div>
               <Link
+                href="/register"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+              >
+                Registrati
+              </Link>
+            </div>
+            <div>
+              <Link
                 href="/login?callbackUrl=/admin"
                 className="inline-flex w-full items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
               >
@@ -43,7 +51,8 @@ export default function Home() {
               </Link>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              In caso di credenziali non disponibili, contatta la segreteria del club.
+              Se sei un genitore senza credenziali usa il pulsante Registrati, altrimenti
+              contatta la segreteria del club.
             </div>
           </div>
         </div>

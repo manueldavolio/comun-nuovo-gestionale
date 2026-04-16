@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
-import type { Role } from "@/generated/prisma/enums";
+import type { UserRole } from "@/generated/prisma/enums";
 
 const PROTECTED_PATHS = ["/admin", "/genitore", "/mister"];
-const VALID_ROLES: Role[] = ["ADMIN", "PARENT", "COACH", "YOUTH_DIRECTOR"];
+const VALID_ROLES: UserRole[] = ["ADMIN", "PARENT", "COACH", "YOUTH_DIRECTOR"];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some(
@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   const role = VALID_ROLES.find((candidate) => candidate === tokenRole);
   const isLoggedIn = Boolean(token && role);
 
-  if (pathname === "/login" && isLoggedIn && role) {
+  if ((pathname === "/login" || pathname === "/register") && isLoggedIn && role) {
     return NextResponse.redirect(new URL(ROLE_HOME_PATH[role], request.url));
   }
 
@@ -41,5 +41,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/genitore/:path*", "/mister/:path*", "/login"],
+  matcher: ["/admin/:path*", "/genitore/:path*", "/mister/:path*", "/login", "/register"],
 };

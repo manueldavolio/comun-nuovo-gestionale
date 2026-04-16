@@ -1,7 +1,7 @@
 import { compare } from "bcryptjs";
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import type { Role } from "@/generated/prisma/enums";
+import type { UserRole } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
@@ -29,7 +29,7 @@ export const authOptions: NextAuthOptions = {
           },
         });
 
-        if (!user || !user.isActive) {
+        if (!user) {
           return null;
         }
 
@@ -41,7 +41,7 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           email: user.email,
-          name: user.fullName,
+          name: user.name,
           role: user.role,
         };
       },
@@ -51,7 +51,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
-        token.role = (user as { role: Role }).role;
+        token.role = (user as { role: UserRole }).role;
       }
 
       return token;
@@ -59,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
-        session.user.role = (token.role as Role | undefined) ?? "PARENT";
+        session.user.role = (token.role as UserRole | undefined) ?? "PARENT";
       }
 
       return session;

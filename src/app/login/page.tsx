@@ -4,7 +4,7 @@ import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 
 type LoginPageProps = {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; registered?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -15,6 +15,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   const params = await searchParams;
   const callbackUrl = params.callbackUrl ?? "/";
+  const showRegisteredMessage = params.registered === "1";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-sky-50 to-blue-100 px-4 py-8">
@@ -24,6 +25,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <p className="text-sm text-zinc-600">
             Inserisci le credenziali per accedere al gestionale.
           </p>
+          {showRegisteredMessage && (
+            <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              Registrazione completata. Ora puoi accedere con le tue credenziali.
+            </p>
+          )}
         </div>
         <LoginForm callbackUrl={callbackUrl} />
       </section>

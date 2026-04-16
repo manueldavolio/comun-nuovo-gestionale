@@ -1,0 +1,3 @@
+-- Intentionally left blank.
+-- The previous SQL attempted to alter receipt/consent columns before they existed
+-- in the migration timeline, causing P3006 on shadow database creation.

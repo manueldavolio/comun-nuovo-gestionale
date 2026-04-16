@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -12,30 +7,479 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Role {
+enum UserRole {
   ADMIN
   PARENT
   COACH
   YOUTH_DIRECTOR
 }
 
+enum EnrollmentStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum PaymentType {
+  DEPOSIT
+  BALANCE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum EventType {
+  TRAINING
+  LEAGUE_MATCH
+  FRIENDLY
+  TOURNAMENT
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  JUSTIFIED_ABSENCE
+  INJURED
+}
+
+enum MedicalVisitStatus {
+  VALID
+  EXPIRING
+  EXPIRED
+}
+
+enum DocumentType {
+  ID_CARD
+  TAX_CODE
+  MEDICAL_CERTIFICATE
+  PRIVACY_FORM
+  IMAGE_CONSENT
+  OTHER
+}
+
+enum AnnouncementAudience {
+  ALL
+  PARENTS
+  COACHES
+  CATEGORY_ONLY
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+}
+
+enum EvaluationPeriodType {
+  FIRST_TRIMESTER
+  END_OF_SEASON
+}
+
+enum AccountingEntryType {
+  INCOME
+  EXPENSE
+}
+
+enum AthleteGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 model User {
   id           String   @id @default(cuid())
+  name         String
   email        String   @unique
-  fullName     String
   passwordHash String
-  role         Role
-  isActive     Boolean  @default(true)
+  role         UserRole
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  parentProfile     ParentProfile?
+  coachProfile      CoachProfile?
+  adminProfile      AdminProfile?
+  createdEvents     Event[]
+  createdByMessages Announcement[]
+  createdMediaItems MediaItem[]
+  evaluationsGiven  Evaluation[]
+  accountingEntries AccountingEntry[]
+
+  @@index([role])
 }
 
 model Category {
+  id             String   @id @default(cuid())
+  name           String
+  birthYearsLabel String
+  seasonLabel    String
+  annualFee      Decimal  @db.Decimal(10, 2)
+  depositFee     Decimal  @db.Decimal(10, 2)
+  balanceFee     Decimal  @db.Decimal(10, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  athletes            Athlete[]
+  enrollments         Enrollment[]
+  events              Event[]
+  announcements       Announcement[]
+  mediaItems          MediaItem[]
+  monthlyCoachReports MonthlyCoachReport[]
+  coachAssignments    CoachCategoryAssignment[]
+
+  @@unique([name, seasonLabel])
+  @@index([isActive])
+  @@index([seasonLabel])
+}
+
+model ParentProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  firstName  String
+  lastName   String
+  taxCode    String   @unique
+  phone      String
+  address    String
+  city       String
+  postalCode String
+  province   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  athletes Athlete[]
+
+  @@index([lastName, firstName])
+}
+
+model CoachProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  firstName String
+  lastName  String
+  phone     String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthlyCoachReports MonthlyCoachReport[]
+  categoryAssignments CoachCategoryAssignment[]
+
+  @@index([lastName, firstName])
+}
+
+model AdminProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  firstName String
+  lastName  String
+  phone     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lastName, firstName])
+}
+
+model Athlete {
+  id           String       @id @default(cuid())
+  firstName    String
+  lastName     String
+  gender       AthleteGender
+  birthDate    DateTime
+  birthPlace   String
+  taxCode      String       @unique
+  nationality  String
+  address      String
+  city         String
+  postalCode   String
+  province     String
+  clothingSize String?
+  medicalNotes String?
+  parentId     String
+  categoryId   String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  parent       ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Restrict)
+  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  enrollments  Enrollment[]
+  attendances  Attendance[]
+  medicalVisits MedicalVisit[]
+  documents    Document[]
+  evaluations  Evaluation[]
+
+  @@index([lastName, firstName])
+  @@index([parentId])
+  @@index([categoryId])
+}
+
+model Enrollment {
+  id          String           @id @default(cuid())
+  athleteId   String
+  categoryId  String
+  seasonLabel String
+  receiptFirstName String
+  receiptLastName  String
+  receiptTaxCode   String
+  receiptPhone     String
+  receiptAddress   String
+  receiptCity      String
+  receiptPostalCode String
+  receiptProvince  String
+  receiptEmail     String
+  privacyConsent   Boolean
+  regulationConsent Boolean
+  imageConsent     Boolean      @default(false)
+  status      EnrollmentStatus @default(DRAFT)
+  submittedAt DateTime?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  athlete  Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  category Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@unique([athleteId, categoryId, seasonLabel])
+  @@index([status])
+  @@index([seasonLabel])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  enrollmentId  String
+  type          PaymentType
+  amount        Decimal       @db.Decimal(10, 2)
+  dueDate       DateTime
+  paidAt        DateTime?
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  receipt    Receipt?
+  accountingEntry AccountingEntry?
+
+  @@index([enrollmentId])
+  @@index([status, dueDate])
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  paymentId     String   @unique
+  receiptNumber String   @unique
+  issueDate     DateTime
+  amount        Decimal  @db.Decimal(10, 2)
+  headerName    String
+  headerTaxCode String
+  filePath      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model Event {
   id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
+  title       String
   description String?
-  isActive    Boolean  @default(true)
+  type        EventType
+  startAt     DateTime
+  endAt       DateTime?
+  location    String?
+  categoryId  String?
+  createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  attendances Attendance[]
+
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([startAt])
+}
+
+model CoachCategoryAssignment {
+  id         String   @id @default(cuid())
+  coachId    String
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  coach    CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  category Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([coachId, categoryId])
+  @@index([categoryId])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  athleteId String
+  eventId   String
+  status    AttendanceStatus @default(PRESENT)
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, eventId])
+  @@index([eventId, status])
+}
+
+model MedicalVisit {
+  id                  String            @id @default(cuid())
+  athleteId           String
+  visitDate           DateTime
+  expiryDate          DateTime
+  status              MedicalVisitStatus @default(VALID)
+  certificateFilePath String?
+  notes               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([expiryDate, status])
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  athleteId  String
+  type       DocumentType
+  title      String
+  filePath   String
+  expiryDate DateTime?
+  notes      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId])
+  @@index([type])
+  @@index([expiryDate])
+}
+
+model Announcement {
+  id          String                @id @default(cuid())
+  title       String
+  content     String
+  audience    AnnouncementAudience
+  categoryId  String?
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([audience])
+  @@index([categoryId])
+  @@index([publishedAt])
+  @@index([createdById])
+}
+
+model MediaItem {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  filePath    String?
+  mediaUrl    String?
+  mediaType   MediaType
+  categoryId  String
+  createdById String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  category  Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([publishedAt])
+  @@index([mediaType])
+}
+
+model MonthlyCoachReport {
+  id               String   @id @default(cuid())
+  coachId          String
+  categoryId       String
+  month            Int
+  year             Int
+  technicalFocus   String?
+  tacticalFocus    String?
+  groupIssues      String?
+  playersToMonitor String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  coach    CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  category Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([coachId, categoryId, month, year])
+  @@index([categoryId, year, month])
+}
+
+model Evaluation {
+  id              String                @id @default(cuid())
+  athleteId       String
+  evaluatorId     String
+  periodType      EvaluationPeriodType
+  technicalScore  Int?
+  behavioralScore Int?
+  strengths       String?
+  improvements    String?
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  evaluator User    @relation(fields: [evaluatorId], references: [id], onDelete: Restrict)
+
+  @@index([athleteId, periodType])
+  @@index([evaluatorId])
+}
+
+model AccountingEntry {
+  id            String              @id @default(cuid())
+  type          AccountingEntryType
+  category      String
+  description   String
+  amount        Decimal             @db.Decimal(10, 2)
+  date          DateTime            @map("entryDate")
+  createdById   String?
+  paymentId     String?             @unique
+  paymentMethod String?
+  isForecast    Boolean             @default(false)
+  notes         String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  createdBy     User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  payment       Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([type, date])
+  @@index([category])
+  @@index([isForecast])
+  @@index([createdById])
 }

@@ -1,20 +1,20 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { UserRole } from "@/generated/prisma/enums";
 
-export const ROLE_HOME_PATH: Record<Role, string> = {
+export const ROLE_HOME_PATH: Record<UserRole, string> = {
   ADMIN: "/admin",
   PARENT: "/genitore",
   COACH: "/mister",
   YOUTH_DIRECTOR: "/admin",
 };
 
-export const ROLE_PROTECTED_PREFIXES: Record<Role, string[]> = {
-  ADMIN: ["/admin"],
+export const ROLE_PROTECTED_PREFIXES: Record<UserRole, string[]> = {
+  ADMIN: ["/admin", "/mister"],
   PARENT: ["/genitore"],
   COACH: ["/mister"],
   YOUTH_DIRECTOR: ["/admin"],
 };
 
-export function canAccessPath(role: Role, pathname: string): boolean {
+export function canAccessPath(role: UserRole, pathname: string): boolean {
   const allowedPrefixes = ROLE_PROTECTED_PREFIXES[role] ?? [];
   return allowedPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
