@@ -132,8 +132,8 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      const safeUrl = url.startsWith("/") ? `${baseUrl}${url}` : url;
-      const finalUrl = safeUrl.startsWith(baseUrl) ? safeUrl : baseUrl;
+      // TEST TEMPORANEO: redirect post-login forzato per debug utente ADMIN
+      const finalUrl = `${baseUrl}/admin`;
 
       console.info(`${AUTH_DEBUG_PREFIX} redirect callback`, {
         requestedUrl: url,
