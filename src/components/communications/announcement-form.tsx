@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { AnnouncementAudience } from "@/generated/prisma/enums";
+import type { AnnouncementAudience } from "@prisma/client";
 import {
   createAnnouncementSchema,
   type CreateAnnouncementInput,

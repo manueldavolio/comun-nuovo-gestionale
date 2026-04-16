@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { DocumentType } from "@/generated/prisma/enums";
+import type { DocumentType } from "@prisma/client";
 import { upsertDocumentSchema, type UpsertDocumentInput } from "@/lib/validation/documents";
 import { DOCUMENT_TYPE_CHOICES } from "@/lib/document-types";
 

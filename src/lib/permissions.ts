@@ -1,4 +1,4 @@
-import type { UserRole } from "@/generated/prisma/enums";
+import type { UserRole } from "@prisma/client";
 
 export const ROLE_HOME_PATH: Record<UserRole, string> = {
   ADMIN: "/admin",

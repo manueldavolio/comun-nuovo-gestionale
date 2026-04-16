@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DocumentType as DocumentTypeEnum } from "@/generated/prisma/enums";
+import { DocumentType as DocumentTypeEnum } from "@prisma/client";
 
 const dateInputRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
 

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
-import type { MedicalVisitStatus } from "@/generated/prisma/enums";
+import type { MedicalVisitStatus } from "@prisma/client";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",

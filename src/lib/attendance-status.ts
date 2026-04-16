@@ -1,4 +1,4 @@
-import type { AttendanceStatus } from "@/generated/prisma/enums";
+import type { AttendanceStatus } from "@prisma/client";
 
 export const ATTENDANCE_STATUS_LABEL: Record<AttendanceStatus, string> = {
   PRESENT: "Presente",

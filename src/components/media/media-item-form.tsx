@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { MediaType } from "@/generated/prisma/enums";
+import type { MediaType } from "@prisma/client";
 import { createMediaItemSchema, type CreateMediaItemInput } from "@/lib/validation/media";
 import { MEDIA_TYPE_CHOICES } from "@/lib/media";
 

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@prisma/client";
 import { getAuthSession } from "@/lib/auth";
 import { sendReceiptMail } from "@/lib/mail";
 import { generateReceiptPdf } from "@/lib/pdf";

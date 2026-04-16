@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { AccountingEntryType } from "@/generated/prisma/enums";
+import type { AccountingEntryType } from "@prisma/client";
 import { FINANCE_CATEGORY_LABEL, FINANCE_CATEGORY_VALUES, type FinanceCategory } from "@/lib/finance";
 import { createFinanceEntrySchema, type CreateFinanceEntryInput } from "@/lib/validation/finance";
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { EventType } from "@/generated/prisma/enums";
+import type { EventType } from "@prisma/client";
 import { EVENT_TYPE_CHOICES } from "@/lib/events";
 import { bulkTrainingSchema, createEventSchema } from "@/lib/validation/events";
 

@@ -1,4 +1,4 @@
-import type { MedicalVisitStatus } from "@/generated/prisma/enums";
+import type { MedicalVisitStatus } from "@prisma/client";
 
 export type ExpiryBadgeStatus = "VALID" | "EXPIRING" | "EXPIRED" | "NO_EXPIRY";
 

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
-import type { UserRole } from "@/generated/prisma/enums";
+import type { UserRole } from "@prisma/client";
 
 const PROTECTED_PATHS = ["/admin", "/genitore", "/mister"];
 const VALID_ROLES: UserRole[] = ["ADMIN", "PARENT", "COACH", "YOUTH_DIRECTOR"];

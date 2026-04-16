@@ -1,4 +1,4 @@
-import type { MediaType } from "@/generated/prisma/enums";
+import type { MediaType } from "@prisma/client";
 
 export const MEDIA_TYPE_CHOICES: Array<{ value: MediaType; label: string }> = [
   { value: "PHOTO", label: "Foto" },

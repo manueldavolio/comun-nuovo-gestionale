@@ -1,4 +1,4 @@
-import type { MedicalVisitStatus } from "@/generated/prisma/enums";
+import type { MedicalVisitStatus } from "@prisma/client";
 import { buildMedicalVisitReminderEmail } from "@/lib/medical-visits/reminders/email";
 import { getMedicalVisitReminderTargets } from "@/lib/medical-visits/reminders/search";
 import { sendMedicalVisitReminderMail } from "@/lib/mail";

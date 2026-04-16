@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { EventType } from "@/generated/prisma/enums";
+import type { EventType } from "@prisma/client";
 import { formatEventType } from "@/lib/events";
 
 type EventListItem = {

@@ -1,4 +1,4 @@
-import type { AnnouncementAudience } from "@/generated/prisma/enums";
+import type { AnnouncementAudience } from "@prisma/client";
 
 export const ANNOUNCEMENT_AUDIENCE_CHOICES: Array<{ value: AnnouncementAudience; label: string }> = [
   { value: "ALL", label: "Tutti" },

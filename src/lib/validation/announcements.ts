@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AnnouncementAudience as AnnouncementAudienceEnum } from "@/generated/prisma/enums";
+import { AnnouncementAudience as AnnouncementAudienceEnum } from "@prisma/client";
 
 const dateInputRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
 

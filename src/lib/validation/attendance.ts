@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AttendanceStatus } from "@/generated/prisma/enums";
+import { AttendanceStatus } from "@prisma/client";
 
 const attendanceEntrySchema = z.object({
   athleteId: z.string().cuid("Atleta non valido."),

@@ -1,4 +1,4 @@
-import type { EventType } from "@/generated/prisma/enums";
+import type { EventType } from "@prisma/client";
 
 export const EVENT_TYPE_LABEL: Record<EventType, string> = {
   TRAINING: "Allenamento",

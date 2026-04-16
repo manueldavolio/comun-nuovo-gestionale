@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AccountingEntryType as AccountingEntryTypeEnum } from "@/generated/prisma/enums";
+import { AccountingEntryType as AccountingEntryTypeEnum } from "@prisma/client";
 import { FINANCE_CATEGORY_VALUES } from "@/lib/finance";
 
 const dateInputRegex = /^(\d{4})-(\d{2})-(\d{2})$/;

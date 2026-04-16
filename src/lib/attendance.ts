@@ -1,5 +1,5 @@
 import "server-only";
-import type { UserRole } from "@/generated/prisma/enums";
+import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function getCoachCategoryIdsForUser(userId: string) {

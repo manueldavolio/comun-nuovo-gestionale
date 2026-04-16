@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validation/register";
 

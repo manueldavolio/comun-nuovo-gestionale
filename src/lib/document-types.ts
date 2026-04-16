@@ -1,4 +1,4 @@
-import type { DocumentType } from "@/generated/prisma/enums";
+import type { DocumentType } from "@prisma/client";
 
 export const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
   ID_CARD: "Carta d'identita",

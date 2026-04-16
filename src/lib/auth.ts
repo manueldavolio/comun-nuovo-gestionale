@@ -1,7 +1,7 @@
 import { compare } from "bcryptjs";
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import type { UserRole } from "@/generated/prisma/enums";
+import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {

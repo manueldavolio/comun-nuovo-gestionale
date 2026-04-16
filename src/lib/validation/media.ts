@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MediaType as MediaTypeEnum } from "@/generated/prisma/enums";
+import { MediaType as MediaTypeEnum } from "@prisma/client";
 
 const dateInputRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
 

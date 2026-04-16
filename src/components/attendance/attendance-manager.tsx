@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AttendanceStatus } from "@/generated/prisma/enums";
+import type { AttendanceStatus } from "@prisma/client";
 import { ATTENDANCE_STATUS_CHOICES, ATTENDANCE_STATUS_LABEL } from "@/lib/attendance-status";
 
 type AthleteRow = {
