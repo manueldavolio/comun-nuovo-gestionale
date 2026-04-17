@@ -1,8 +1,24 @@
 import "dotenv/config";
 import { hash } from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required to run prisma seed.");
+}
+
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Supabase requires TLS; disable CA verification to avoid local cert chain issues.
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function upsertUser(params: {
   email: string;
