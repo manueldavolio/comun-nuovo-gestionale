@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const ADMIN_EMAIL = "admin@comunnuovo.it";
