@@ -1,6 +1,7 @@
 import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 const AUTH_DEBUG_PREFIX = "[AUTH_DEBUG]";
@@ -21,24 +22,45 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email) {
-          console.info(`${AUTH_DEBUG_PREFIX} authorize: missing email`);
+        console.info(`${AUTH_DEBUG_PREFIX} authorize: start`, {
+          email: credentials?.email?.toLowerCase().trim() ?? null,
+        });
+
+        if (!credentials?.email || !credentials.password) {
           return null;
         }
 
         const normalizedEmail = credentials.email.toLowerCase().trim();
-        console.info(`${AUTH_DEBUG_PREFIX} authorize: start`, {
-          email: normalizedEmail,
-        });
-
         const user = await prisma.user.findUnique({
           where: {
             email: normalizedEmail,
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            passwordHash: true,
           },
         });
 
         if (!user) {
           console.info(`${AUTH_DEBUG_PREFIX} authorize: user not found`, {
+            email: normalizedEmail,
+          });
+          return null;
+        }
+
+        if (!user.passwordHash) {
+          console.info(`${AUTH_DEBUG_PREFIX} authorize: invalid password`, {
+            email: normalizedEmail,
+          });
+          return null;
+        }
+
+        const isValidPassword = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!isValidPassword) {
+          console.info(`${AUTH_DEBUG_PREFIX} authorize: invalid password`, {
             email: normalizedEmail,
           });
           return null;
@@ -50,7 +72,6 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
         });
 
-        // TEST TEMPORANEO LOGIN BYPASS
         return {
           id: user.id,
           email: user.email,
@@ -132,8 +153,21 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // TEST TEMPORANEO: redirect post-login forzato per debug utente ADMIN
-      const finalUrl = `${baseUrl}/admin`;
+      const resolvedUrl = new URL(url, baseUrl);
+      const appOrigin = new URL(baseUrl).origin;
+      const roleHomeByRole: Partial<Record<UserRole, string>> = {
+        ADMIN: "/admin",
+        COACH: "/mister",
+        PARENT: "/genitore",
+      };
+
+      if (resolvedUrl.origin !== appOrigin) {
+        return baseUrl;
+      }
+
+      const roleFromQuery = resolvedUrl.searchParams.get("role") as UserRole | null;
+      const mappedRolePath = roleFromQuery ? roleHomeByRole[roleFromQuery] : undefined;
+      const finalUrl = mappedRolePath ? `${baseUrl}${mappedRolePath}` : resolvedUrl.toString();
 
       console.info(`${AUTH_DEBUG_PREFIX} redirect callback`, {
         requestedUrl: url,
