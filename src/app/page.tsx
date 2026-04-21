@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -16,8 +17,17 @@ export default function Home() {
                 club. Accesso rapido alle aree dedicate per segreteria, genitori e staff tecnico.
               </p>
             </div>
-            <div className="rounded-xl border border-blue-200/40 bg-white/10 p-4 text-sm text-blue-50">
-              Spazio riservato al logo del club (inseribile in una prossima iterazione).
+            <div className="rounded-xl border border-blue-200/40 bg-white/10 p-4">
+              <div className="relative h-24 w-full">
+                <Image
+                  src="/logo.png"
+                  alt="Logo Comun Nuovo Calcio"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 40vw"
+                  className="object-contain"
+                  priority
+                />
+              </div>
             </div>
           </div>
 
