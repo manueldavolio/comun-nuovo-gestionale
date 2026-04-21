@@ -79,6 +79,32 @@ export default async function AdminDashboardPage() {
     ]);
 
   const nextAttendanceEvent = upcomingEvents.find((event) => Boolean(event.category));
+  const summaryCards = [
+    {
+      title: "Utenti totali",
+      value: totalUsers,
+      description: "Anagrafiche presenti a sistema",
+      href: "/admin/utenti",
+    },
+    {
+      title: "Categorie totali",
+      value: totalCategories,
+      description: "Fasce/squadre censite",
+      href: "/admin/categorie",
+    },
+    {
+      title: "Categorie attive",
+      value: activeCategories,
+      description: "Categorie operative in stagione",
+      href: "/admin/categorie?filter=active",
+    },
+    {
+      title: "Staff tecnico",
+      value: activeStaff,
+      description: "Admin, direzione tecnica e mister registrati",
+      href: "/admin/staff",
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -89,26 +115,16 @@ export default async function AdminDashboardPage() {
           userName={session.user.name ?? "Amministratore"}
         />
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <DashboardCard
-            title="Utenti totali"
-            value={totalUsers}
-            description="Anagrafiche presenti a sistema"
-          />
-          <DashboardCard
-            title="Categorie totali"
-            value={totalCategories}
-            description="Fasce/squadre censite"
-          />
-          <DashboardCard
-            title="Categorie attive"
-            value={activeCategories}
-            description="Categorie operative in stagione"
-          />
-          <DashboardCard
-            title="Staff tecnico"
-            value={activeStaff}
-            description="Admin, direzione tecnica e mister registrati"
-          />
+          {summaryCards.map((card) => (
+            <Link key={card.title} href={card.href} className="block rounded-xl">
+              <DashboardCard
+                title={card.title}
+                value={card.value}
+                description={card.description}
+                className="cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+              />
+            </Link>
+          ))}
         </section>
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
