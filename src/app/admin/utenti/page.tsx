@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import type { UserRole } from "@prisma/client";
+import type { Prisma, UserRole } from "@prisma/client";
 import { AreaHeader } from "@/components/layout/area-header";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -63,26 +63,29 @@ async function getAdminUsers({
   role: UserRole | "";
   status: "active" | "inactive" | "";
 }): Promise<UsersQueryResult> {
-  const baseFilters = [
-    q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { email: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : null,
-    role ? { role } : null,
-  ].filter(Boolean);
+  const baseFilters: Prisma.UserWhereInput[] = [];
+
+  if (q) {
+    baseFilters.push({
+      OR: [
+        { name: { contains: q, mode: "insensitive" as const } },
+        { email: { contains: q, mode: "insensitive" as const } },
+      ],
+    });
+  }
+
+  if (role) {
+    baseFilters.push({ role });
+  }
+
+  const advancedFilters = [...baseFilters];
+  if (status) {
+    advancedFilters.push({ isActive: status === "active" } as Prisma.UserWhereInput);
+  }
 
   try {
     const users = await prisma.user.findMany({
-      where: {
-        AND: [
-          ...baseFilters,
-          status ? { isActive: status === "active" } : {},
-        ],
-      },
+      where: advancedFilters.length > 0 ? { AND: advancedFilters } : undefined,
       orderBy: [{ createdAt: "desc" }],
       select: {
         id: true,
@@ -100,9 +103,7 @@ async function getAdminUsers({
     };
   } catch {
     const users = await prisma.user.findMany({
-      where: {
-        AND: baseFilters,
-      },
+      where: baseFilters.length > 0 ? { AND: baseFilters } : undefined,
       orderBy: [{ name: "asc" }],
       select: {
         id: true,
