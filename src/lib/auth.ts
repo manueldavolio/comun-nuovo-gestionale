@@ -40,6 +40,7 @@ export const authOptions: NextAuthOptions = {
             email: true,
             name: true,
             role: true,
+            isActive: true,
             passwordHash: true,
           },
         });
@@ -53,6 +54,13 @@ export const authOptions: NextAuthOptions = {
 
         if (!user.passwordHash) {
           console.info(`${AUTH_DEBUG_PREFIX} authorize: invalid password`, {
+            email: normalizedEmail,
+          });
+          return null;
+        }
+
+        if (!user.isActive) {
+          console.info(`${AUTH_DEBUG_PREFIX} authorize: inactive user`, {
             email: normalizedEmail,
           });
           return null;
