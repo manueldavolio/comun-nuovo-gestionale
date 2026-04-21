@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import {
+  sendAdminNewUserNotification,
+  sendRegistrationConfirmationEmail,
+} from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validation/register";
 
@@ -104,6 +108,8 @@ export async function POST(request: Request) {
   const lastName = parsed.data.lastName.trim();
   const email = parsed.data.email.toLowerCase().trim();
   const passwordHash = await hash(parsed.data.password, 12);
+  const userRole = "PARENT";
+  const fullName = `${firstName} ${lastName}`.trim();
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -112,10 +118,10 @@ export async function POST(request: Request) {
       try {
         user = await tx.user.create({
           data: {
-            name: `${firstName} ${lastName}`.trim(),
+            name: fullName,
             email,
             passwordHash,
-            role: "PARENT",
+            role: userRole,
           },
           select: {
             id: true,
@@ -216,6 +222,53 @@ export async function POST(request: Request) {
       { error: "Errore durante la registrazione." },
       { status: 500 },
     );
+  }
+
+  const emailResults = await Promise.allSettled([
+    sendRegistrationConfirmationEmail({
+      to: email,
+      name: fullName,
+    }),
+    sendAdminNewUserNotification({
+      name: fullName,
+      email,
+      role: userRole,
+      registeredAt: new Date(),
+    }),
+  ]);
+
+  const registrationMailResult = emailResults[0];
+  if (registrationMailResult.status === "rejected") {
+    console.error("[register] Registration confirmation email rejected", {
+      email,
+      message:
+        registrationMailResult.reason instanceof Error
+          ? registrationMailResult.reason.message
+          : String(registrationMailResult.reason),
+    });
+  } else if (!registrationMailResult.value.sent) {
+    console.warn("[register] Registration confirmation email not sent", {
+      email,
+      skipped: registrationMailResult.value.skipped,
+      reason: registrationMailResult.value.reason,
+    });
+  }
+
+  const adminMailResult = emailResults[1];
+  if (adminMailResult.status === "rejected") {
+    console.error("[register] Admin notification email rejected", {
+      email,
+      message:
+        adminMailResult.reason instanceof Error
+          ? adminMailResult.reason.message
+          : String(adminMailResult.reason),
+    });
+  } else if (!adminMailResult.value.sent) {
+    console.warn("[register] Admin notification email not sent", {
+      email,
+      skipped: adminMailResult.value.skipped,
+      reason: adminMailResult.value.reason,
+    });
   }
 
   return NextResponse.json({ success: true }, { status: 201 });

@@ -121,6 +121,26 @@ export type SendMedicalVisitReminderMailResult =
   | { sent: false; skipped: true; reason: string }
   | { sent: false; skipped: false; reason: string };
 
+export type SendRegistrationMailResult =
+  | { sent: true }
+  | { sent: false; skipped: true; reason: string }
+  | { sent: false; skipped: false; reason: string };
+
+function buildFriendlyName(name?: string): string | null {
+  const trimmed = (name ?? "").trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function formatAdminRegistrationDate(date: Date): string {
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export async function sendMedicalVisitReminderMail(
   input: SendMedicalVisitReminderMailInput,
 ): Promise<SendMedicalVisitReminderMailResult> {
@@ -159,6 +179,145 @@ export async function sendMedicalVisitReminderMail(
       sent: false,
       skipped: false,
       reason: message,
+    };
+  }
+}
+
+export async function sendRegistrationConfirmationEmail(input: {
+  to: string;
+  name?: string;
+}): Promise<SendRegistrationMailResult> {
+  const config = getMailerConfig();
+  if (!config.enabled) {
+    const reason = `Configurazione mail incompleta: ${config.missingVars.join(", ")}`;
+    console.warn("[mail] Skipping registration confirmation email", {
+      to: input.to,
+      reason,
+    });
+    return {
+      sent: false,
+      skipped: true,
+      reason,
+    };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+
+  const greetingName = buildFriendlyName(input.name);
+  const text = [
+    greetingName ? `Ciao ${greetingName},` : "Ciao,",
+    "la tua registrazione al gestionale Comun Nuovo Calcio e stata completata correttamente.",
+    "Ora puoi accedere con la tua email.",
+    "Se non hai richiesto tu questa registrazione, contatta la segreteria del club.",
+  ].join("\n");
+
+  try {
+    await transporter.sendMail({
+      from: config.from,
+      to: input.to,
+      subject: "Registrazione completata - Comun Nuovo Calcio",
+      text,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Errore imprevisto durante l'invio mail";
+    console.error("[mail] Failed to send registration confirmation email", {
+      to: input.to,
+      reason,
+    });
+    return {
+      sent: false,
+      skipped: false,
+      reason,
+    };
+  }
+}
+
+export async function sendAdminNewUserNotification(input: {
+  name?: string;
+  email: string;
+  role: string;
+  registeredAt?: Date;
+}): Promise<SendRegistrationMailResult> {
+  const adminEmail = (process.env.ADMIN_NOTIFICATION_EMAIL ?? "").trim();
+  if (!adminEmail) {
+    const reason = "ADMIN_NOTIFICATION_EMAIL non configurata.";
+    console.warn("[mail] Skipping admin new user notification", {
+      email: input.email,
+      reason,
+    });
+    return {
+      sent: false,
+      skipped: true,
+      reason,
+    };
+  }
+
+  const config = getMailerConfig();
+  if (!config.enabled) {
+    const reason = `Configurazione mail incompleta: ${config.missingVars.join(", ")}`;
+    console.warn("[mail] Skipping admin new user notification", {
+      email: input.email,
+      reason,
+    });
+    return {
+      sent: false,
+      skipped: true,
+      reason,
+    };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+
+  const displayName = buildFriendlyName(input.name) ?? "Nome non specificato";
+  const registeredAt = input.registeredAt ?? new Date();
+  const text = [
+    "E stato registrato un nuovo utente nel gestionale.",
+    `Nome: ${displayName}`,
+    `Email: ${input.email}`,
+    `Ruolo: ${input.role}`,
+    `Data: ${formatAdminRegistrationDate(registeredAt)}`,
+  ].join("\n");
+
+  try {
+    await transporter.sendMail({
+      from: config.from,
+      to: adminEmail,
+      subject: "Nuovo utente registrato - Comun Nuovo Calcio",
+      text,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Errore imprevisto durante l'invio mail";
+    console.error("[mail] Failed to send admin new user notification", {
+      email: input.email,
+      adminEmail,
+      reason,
+    });
+    return {
+      sent: false,
+      skipped: false,
+      reason,
     };
   }
 }
