@@ -4,15 +4,7 @@ import type { UserRole } from "@prisma/client";
 import { AreaHeader } from "@/components/layout/area-header";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const STAFF_ROLE_OPTIONS: UserRole[] = ["ADMIN", "YOUTH_DIRECTOR", "COACH"];
-
-const roleLabelMap: Record<UserRole, string> = {
-  ADMIN: "Admin",
-  YOUTH_DIRECTOR: "Direttore tecnico",
-  COACH: "Mister",
-  PARENT: "Genitore",
-};
+import { STAFF_ROLE_OPTIONS, roleLabelMap, splitFullName } from "@/lib/staff";
 
 type AdminStaffPageProps = {
   searchParams: Promise<{ q?: string; role?: string }>;
@@ -59,6 +51,8 @@ export default async function AdminStaffPage({ searchParams }: AdminStaffPagePro
       role: true,
       coachProfile: {
         select: {
+          firstName: true,
+          lastName: true,
           categoryAssignments: {
             orderBy: [{ category: { name: "asc" } }],
             select: {
@@ -87,43 +81,54 @@ export default async function AdminStaffPage({ searchParams }: AdminStaffPagePro
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm text-zinc-600">{staff.length} profilo/i staff</p>
-              <p className="mt-1 text-xs text-zinc-500">Elenco admin, direzione tecnica e mister.</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Elenco admin, direzione tecnica e mister con relative categorie.
+              </p>
             </div>
 
-            <form method="get" className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
-              <input
-                name="q"
-                defaultValue={q}
-                placeholder="Cerca nome o email"
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 md:w-64"
-              />
-              <select
-                name="role"
-                defaultValue={role}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            <div className="flex w-full flex-col gap-2 md:w-auto md:items-end">
+              <Link
+                href="/admin/staff/nuovo"
+                className="inline-flex w-full items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 md:w-fit"
               >
-                <option value="">Tutti i ruoli staff</option>
-                {STAFF_ROLE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {roleLabelMap[option]}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
-              >
-                Filtra
-              </button>
-              {(q || role) && (
-                <Link
-                  href="/admin/staff"
-                  className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                Nuovo membro staff
+              </Link>
+
+              <form method="get" className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
+                <input
+                  name="q"
+                  defaultValue={q}
+                  placeholder="Cerca nome o email"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 md:w-64"
+                />
+                <select
+                  name="role"
+                  defaultValue={role}
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                 >
-                  Reset
-                </Link>
-              )}
-            </form>
+                  <option value="">Tutti i ruoli staff</option>
+                  {STAFF_ROLE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {roleLabelMap[option]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                >
+                  Filtra
+                </button>
+                {(q || role) && (
+                  <Link
+                    href="/admin/staff"
+                    className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    Reset
+                  </Link>
+                )}
+              </form>
+            </div>
           </div>
 
           {staff.length === 0 ? (
@@ -135,14 +140,19 @@ export default async function AdminStaffPage({ searchParams }: AdminStaffPagePro
               <table className="min-w-full divide-y divide-blue-100 text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
-                    <th className="px-3 py-2 font-semibold">Nome</th>
+                    <th className="px-3 py-2 font-semibold">Nome completo</th>
                     <th className="px-3 py-2 font-semibold">Email</th>
                     <th className="px-3 py-2 font-semibold">Ruolo</th>
                     <th className="px-3 py-2 font-semibold">Categorie assegnate</th>
+                    <th className="px-3 py-2 font-semibold">Azioni</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50 text-zinc-700">
                   {staff.map((staffUser) => {
+                    const fallbackName = splitFullName(staffUser.name);
+                    const fullName = `${staffUser.coachProfile?.firstName || fallbackName.firstName} ${
+                      staffUser.coachProfile?.lastName || fallbackName.lastName
+                    }`.trim();
                     const assignedCategories =
                       staffUser.coachProfile?.categoryAssignments
                         .map((assignment) => assignment.category.name)
@@ -150,10 +160,18 @@ export default async function AdminStaffPage({ searchParams }: AdminStaffPagePro
 
                     return (
                       <tr key={staffUser.id}>
-                        <td className="px-3 py-2 font-medium text-zinc-900">{staffUser.name}</td>
+                        <td className="px-3 py-2 font-medium text-zinc-900">{fullName || staffUser.name}</td>
                         <td className="px-3 py-2">{staffUser.email}</td>
                         <td className="px-3 py-2">{roleLabelMap[staffUser.role]}</td>
                         <td className="px-3 py-2">{assignedCategories || "-"}</td>
+                        <td className="px-3 py-2">
+                          <Link
+                            href={`/admin/staff/${staffUser.id}/modifica`}
+                            className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            Modifica
+                          </Link>
+                        </td>
                       </tr>
                     );
                   })}
