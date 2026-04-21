@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma, UserRole } from "@prisma/client";
 import { AreaHeader } from "@/components/layout/area-header";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { ChangeUserRoleInline } from "./change-user-role-inline";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -94,6 +95,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           subtitle="Elenco utenti piattaforma"
           userName={session.user.name ?? "Amministratore"}
         />
+        <AdminBackLink />
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

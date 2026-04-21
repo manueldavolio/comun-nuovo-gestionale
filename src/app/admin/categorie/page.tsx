@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AreaHeader } from "@/components/layout/area-header";
 import { CategoryStatusToggleButton } from "@/components/categories/category-status-toggle-button";
 import { getAuthSession } from "@/lib/auth";
@@ -91,6 +92,7 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
           subtitle="Fasce annata e assegnazioni tecniche"
           userName={session.user.name ?? "Amministratore"}
         />
+        <AdminBackLink />
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
