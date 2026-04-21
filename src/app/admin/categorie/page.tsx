@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
+import { CategoryStatusToggleButton } from "@/components/categories/category-status-toggle-button";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -100,37 +101,46 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
               </p>
             </div>
 
-            <form method="get" className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
-              <input
-                name="q"
-                defaultValue={q}
-                placeholder="Cerca nome o fascia annata"
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 md:w-64"
-              />
-              <select
-                name="status"
-                defaultValue={status}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            <div className="flex w-full flex-col gap-2 md:w-auto md:items-end">
+              <Link
+                href="/admin/categorie/nuovo"
+                className="inline-flex w-full items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 md:w-fit"
               >
-                <option value="all">Tutte</option>
-                <option value="active">Attive</option>
-                <option value="inactive">Non attive</option>
-              </select>
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
-              >
-                Filtra
-              </button>
-              {(q || status !== "all") && (
-                <Link
-                  href="/admin/categorie"
-                  className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                Nuova categoria
+              </Link>
+
+              <form method="get" className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
+                <input
+                  name="q"
+                  defaultValue={q}
+                  placeholder="Cerca nome o fascia annata"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 md:w-64"
+                />
+                <select
+                  name="status"
+                  defaultValue={status}
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                 >
-                  Reset
-                </Link>
-              )}
-            </form>
+                  <option value="all">Tutte</option>
+                  <option value="active">Attive</option>
+                  <option value="inactive">Non attive</option>
+                </select>
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                >
+                  Filtra
+                </button>
+                {(q || status !== "all") && (
+                  <Link
+                    href="/admin/categorie"
+                    className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    Reset
+                  </Link>
+                )}
+              </form>
+            </div>
           </div>
 
           {categories.length === 0 ? (
@@ -147,6 +157,7 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
                     <th className="px-3 py-2 font-semibold">Stato</th>
                     <th className="px-3 py-2 font-semibold">Atleti iscritti</th>
                     <th className="px-3 py-2 font-semibold">Mister assegnato</th>
+                    <th className="px-3 py-2 font-semibold">Azioni</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50 text-zinc-700">
@@ -176,6 +187,17 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
                         </td>
                         <td className="px-3 py-2">{category._count.athletes}</td>
                         <td className="px-3 py-2">{assignedCoaches || "-"}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col items-start gap-2">
+                            <Link
+                              href={`/admin/categorie/${category.id}/modifica`}
+                              className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                            >
+                              Modifica
+                            </Link>
+                            <CategoryStatusToggleButton categoryId={category.id} isActive={category.isActive} />
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
