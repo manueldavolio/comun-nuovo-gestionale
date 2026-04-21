@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { UserRole } from "@prisma/client";
-import { AdminUserRowActions } from "@/components/admin/admin-user-row-actions";
 import { AreaHeader } from "@/components/layout/area-header";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { roleLabelMap } from "@/lib/staff";
 
 const ROLE_OPTIONS: UserRole[] = ["ADMIN", "YOUTH_DIRECTOR", "COACH", "PARENT"];
+
+const roleLabelMap: Record<UserRole, string> = {
+  ADMIN: "Admin",
+  YOUTH_DIRECTOR: "Direttore settore giovanile",
+  COACH: "Mister",
+  PARENT: "Genitore",
+};
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -16,11 +21,107 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
 });
 
 type AdminUsersPageProps = {
-  searchParams: Promise<{ q?: string; role?: string; status?: string }>;
+  searchParams?: Promise<{ q?: string; role?: string; status?: string }>;
 };
+
+type AdminUserListItem = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: UserRole | null;
+  isActive?: boolean | null;
+  createdAt?: Date | string | null;
+};
+
+type UsersQueryResult = {
+  users: AdminUserListItem[];
+  supportsAdvancedFields: boolean;
+};
+
+function isUserRole(value: string): value is UserRole {
+  return ROLE_OPTIONS.includes(value as UserRole);
+}
+
+function formatRole(role: UserRole | null): string {
+  if (!role) return "-";
+  return roleLabelMap[role] ?? role;
+}
+
+function formatDate(value: Date | string | null | undefined): string {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return dateFormatter.format(date);
+}
+
+async function getAdminUsers({
+  q,
+  role,
+  status,
+}: {
+  q: string;
+  role: UserRole | "";
+  status: "active" | "inactive" | "";
+}): Promise<UsersQueryResult> {
+  const baseFilters = [
+    q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : null,
+    role ? { role } : null,
+  ].filter(Boolean);
+
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [
+          ...baseFilters,
+          status ? { isActive: status === "active" } : {},
+        ],
+      },
+      orderBy: [{ createdAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      users,
+      supportsAdvancedFields: true,
+    };
+  } catch {
+    const users = await prisma.user.findMany({
+      where: {
+        AND: baseFilters,
+      },
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    return {
+      users,
+      supportsAdvancedFields: false,
+    };
+  }
+}
 
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
   const session = await getAuthSession();
+
   if (!session?.user) {
     redirect("/login?callbackUrl=/admin/utenti");
   }
@@ -29,36 +130,13 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     redirect("/unauthorized");
   }
 
-  const params = await searchParams;
-  const q = (params.q ?? "").trim();
-  const role = ROLE_OPTIONS.includes(params.role as UserRole) ? (params.role as UserRole) : "";
-  const status = params.status === "active" || params.status === "inactive" ? params.status : "";
+  const params = searchParams ? await searchParams : {};
+  const q = (params?.q ?? "").trim();
+  const role = isUserRole(params?.role ?? "") ? (params?.role as UserRole) : "";
+  const status =
+    params?.status === "active" || params?.status === "inactive" ? params.status : "";
 
-  const users = await prisma.user.findMany({
-    where: {
-      AND: [
-        q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" } },
-                { email: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {},
-        role ? { role } : {},
-        status ? { isActive: status === "active" } : {},
-      ],
-    },
-    orderBy: [{ createdAt: "desc" }],
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      isActive: true,
-      createdAt: true,
-    },
-  });
+  const { users, supportsAdvancedFields } = await getAdminUsers({ q, role, status });
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -73,7 +151,14 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm text-zinc-600">{users.length} utente/i</p>
-              <p className="mt-1 text-xs text-zinc-500">Cerca per nome o email, con filtro ruolo opzionale.</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Cerca per nome o email, con filtro ruolo opzionale.
+              </p>
+              {!supportsAdvancedFields ? (
+                <p className="mt-1 text-xs text-amber-700">
+                  Alcuni metadati utente non sono disponibili in questo ambiente; la tabella mostra solo i dati base.
+                </p>
+              ) : null}
             </div>
 
             <form method="get" className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
@@ -83,6 +168,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 placeholder="Cerca nome o email"
                 className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 md:w-64"
               />
+
               <select
                 name="role"
                 defaultValue={role}
@@ -95,6 +181,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                   </option>
                 ))}
               </select>
+
               <select
                 name="status"
                 defaultValue={status}
@@ -104,12 +191,14 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 <option value="active">Attivi</option>
                 <option value="inactive">Non attivi</option>
               </select>
+
               <button
                 type="submit"
                 className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
               >
                 Filtra
               </button>
+
               {(q || role || status) && (
                 <Link
                   href="/admin/utenti"
@@ -141,30 +230,25 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 <tbody className="divide-y divide-blue-50 text-zinc-700">
                   {users.map((user) => (
                     <tr key={user.id}>
-                      <td className="px-3 py-2 font-medium text-zinc-900">{user.name}</td>
-                      <td className="px-3 py-2">{user.email}</td>
-                      <td className="px-3 py-2">{roleLabelMap[user.role]}</td>
+                      <td className="px-3 py-2 font-medium text-zinc-900">{user.name || "-"}</td>
+                      <td className="px-3 py-2">{user.email || "-"}</td>
+                      <td className="px-3 py-2">{formatRole(user.role)}</td>
                       <td className="px-3 py-2">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
-                            user.isActive
+                            user.isActive === true
                               ? "bg-emerald-100 text-emerald-800"
-                              : "bg-zinc-200 text-zinc-700"
+                              : user.isActive === false
+                                ? "bg-zinc-200 text-zinc-700"
+                                : "bg-amber-100 text-amber-800"
                           }`}
                         >
-                          {user.isActive ? "Attivo" : "Non attivo"}
+                          {user.isActive === true ? "Attivo" : user.isActive === false ? "Non attivo" : "N/D"}
                         </span>
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {dateFormatter.format(new Date(user.createdAt))}
-                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">{formatDate(user.createdAt)}</td>
                       <td className="px-3 py-2">
-                        <AdminUserRowActions
-                          userId={user.id}
-                          initialRole={user.role}
-                          initialIsActive={user.isActive}
-                          isCurrentUser={session.user.id === user.id}
-                        />
+                        <span className="text-xs text-zinc-500">Azioni in arrivo</span>
                       </td>
                     </tr>
                   ))}
