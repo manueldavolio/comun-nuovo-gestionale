@@ -17,16 +17,18 @@ export default function Home() {
                 club. Accesso rapido alle aree dedicate per segreteria, genitori e staff tecnico.
               </p>
             </div>
-            <div className="rounded-xl border border-blue-200/40 bg-white/10 p-4">
-              <div className="relative h-24 w-full">
-                <Image
-                  src="/logo.png"
-                  alt="Logo Comun Nuovo Calcio"
-                  fill
-                  sizes="(max-width: 768px) 100vw, 40vw"
-                  className="object-contain"
-                  priority
-                />
+            <div className="rounded-2xl border border-blue-100/30 bg-white/15 p-4 shadow-lg shadow-blue-950/25 ring-1 ring-white/10 md:p-5">
+              <div className="mx-auto w-full max-w-sm">
+                <div className="relative h-36 w-full sm:h-40 md:h-44">
+                  <Image
+                    src="/logo.png"
+                    alt="Logo Comun Nuovo Calcio"
+                    fill
+                    sizes="(max-width: 640px) 70vw, (max-width: 768px) 50vw, 22rem"
+                    className="object-contain drop-shadow-[0_6px_18px_rgba(15,23,42,0.35)]"
+                    priority
+                  />
+                </div>
               </div>
             </div>
           </div>

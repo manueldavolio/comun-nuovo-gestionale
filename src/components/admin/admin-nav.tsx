@@ -34,7 +34,7 @@ export function AdminNav() {
   return (
     <nav className="sticky top-0 z-30 border-b border-blue-100 bg-sky-50/95 backdrop-blur">
       <div className="mx-auto w-full max-w-6xl px-4 py-3 md:px-8">
-        <ul className="flex min-w-max gap-2 overflow-x-auto md:min-w-0 md:flex-wrap md:overflow-visible">
+        <ul className="flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100/80 bg-white/80 p-2.5 shadow-sm shadow-blue-950/5">
           {ADMIN_NAV_ITEMS.map((item) => {
             const active = isItemActive(pathname, item.href);
 
@@ -42,10 +42,10 @@ export function AdminNav() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`inline-flex whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                  className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
                     active
-                      ? "border-blue-300 bg-blue-100 text-blue-900"
-                      : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                      ? "border-blue-300 bg-blue-100 text-blue-900 shadow-sm"
+                      : "border-blue-200 bg-white text-blue-700 hover:border-blue-300 hover:bg-blue-50"
                   }`}
                   aria-current={active ? "page" : undefined}
                 >
