@@ -21,6 +21,18 @@ type MailerConfig = {
   missingVars: string[];
 };
 
+type RegistrationConfirmationEmailInput = {
+  to: string;
+  name?: string;
+};
+
+type AdminNewUserNotificationInput = {
+  name?: string;
+  email: string;
+  role: string;
+  registeredAt?: Date;
+};
+
 function getMailerConfig(): MailerConfig {
   const host = process.env.MAIL_HOST ?? process.env.SMTP_HOST;
   const user = process.env.MAIL_USER ?? process.env.SMTP_USER;
@@ -59,6 +71,18 @@ function getMailerConfig(): MailerConfig {
   };
 }
 
+function createMailerTransporter(config: MailerConfig) {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+}
+
 export type SendReceiptMailResult =
   | { sent: true; skipped: false }
   | { sent: false; skipped: true; reason: string };
@@ -73,15 +97,7 @@ export async function sendReceiptMail(input: SendReceiptMailInput): Promise<Send
     };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  });
+  const transporter = createMailerTransporter(config);
 
   await transporter.sendMail({
     from: config.from,
@@ -141,6 +157,34 @@ function formatAdminRegistrationDate(date: Date): string {
   }).format(date);
 }
 
+function buildRegistrationConfirmationText(name?: string): string {
+  const greetingName = buildFriendlyName(name);
+
+  return [
+    greetingName ? `Ciao ${greetingName},` : "Ciao,",
+    "la tua registrazione al gestionale Comun Nuovo Calcio e stata completata correttamente.",
+    "Ora puoi accedere con la tua email.",
+    "Se non hai richiesto tu questa registrazione, contatta la segreteria del club.",
+  ].join("\n");
+}
+
+function buildAdminNewUserNotificationText(input: {
+  name?: string;
+  email: string;
+  role: string;
+  registeredAt: Date;
+}): string {
+  const displayName = buildFriendlyName(input.name) ?? "Nome non specificato";
+
+  return [
+    "E stato registrato un nuovo utente nel gestionale.",
+    `Nome: ${displayName}`,
+    `Email: ${input.email}`,
+    `Ruolo: ${input.role}`,
+    `Data: ${formatAdminRegistrationDate(input.registeredAt)}`,
+  ].join("\n");
+}
+
 export async function sendMedicalVisitReminderMail(
   input: SendMedicalVisitReminderMailInput,
 ): Promise<SendMedicalVisitReminderMailResult> {
@@ -153,15 +197,7 @@ export async function sendMedicalVisitReminderMail(
     };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  });
+  const transporter = createMailerTransporter(config);
 
   try {
     await transporter.sendMail({
@@ -183,10 +219,9 @@ export async function sendMedicalVisitReminderMail(
   }
 }
 
-export async function sendRegistrationConfirmationEmail(input: {
-  to: string;
-  name?: string;
-}): Promise<SendRegistrationMailResult> {
+export async function sendRegistrationConfirmationEmail(
+  input: RegistrationConfirmationEmailInput,
+): Promise<SendRegistrationMailResult> {
   const config = getMailerConfig();
   if (!config.enabled) {
     const reason = `Configurazione mail incompleta: ${config.missingVars.join(", ")}`;
@@ -201,23 +236,8 @@ export async function sendRegistrationConfirmationEmail(input: {
     };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  });
-
-  const greetingName = buildFriendlyName(input.name);
-  const text = [
-    greetingName ? `Ciao ${greetingName},` : "Ciao,",
-    "la tua registrazione al gestionale Comun Nuovo Calcio e stata completata correttamente.",
-    "Ora puoi accedere con la tua email.",
-    "Se non hai richiesto tu questa registrazione, contatta la segreteria del club.",
-  ].join("\n");
+  const transporter = createMailerTransporter(config);
+  const text = buildRegistrationConfirmationText(input.name);
 
   try {
     await transporter.sendMail({
@@ -243,12 +263,9 @@ export async function sendRegistrationConfirmationEmail(input: {
   }
 }
 
-export async function sendAdminNewUserNotification(input: {
-  name?: string;
-  email: string;
-  role: string;
-  registeredAt?: Date;
-}): Promise<SendRegistrationMailResult> {
+export async function sendAdminNewUserNotification(
+  input: AdminNewUserNotificationInput,
+): Promise<SendRegistrationMailResult> {
   const adminEmail = (process.env.ADMIN_NOTIFICATION_EMAIL ?? "").trim();
   if (!adminEmail) {
     const reason = "ADMIN_NOTIFICATION_EMAIL non configurata.";
@@ -277,25 +294,14 @@ export async function sendAdminNewUserNotification(input: {
     };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  });
-
-  const displayName = buildFriendlyName(input.name) ?? "Nome non specificato";
   const registeredAt = input.registeredAt ?? new Date();
-  const text = [
-    "E stato registrato un nuovo utente nel gestionale.",
-    `Nome: ${displayName}`,
-    `Email: ${input.email}`,
-    `Ruolo: ${input.role}`,
-    `Data: ${formatAdminRegistrationDate(registeredAt)}`,
-  ].join("\n");
+  const transporter = createMailerTransporter(config);
+  const text = buildAdminNewUserNotificationText({
+    name: input.name,
+    email: input.email,
+    role: input.role,
+    registeredAt,
+  });
 
   try {
     await transporter.sendMail({
