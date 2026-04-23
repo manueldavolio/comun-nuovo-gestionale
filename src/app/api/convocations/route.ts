@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import {
+  CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
+  isMissingConvocationsSchemaError,
+} from "@/lib/convocations-db";
 import { saveConvocationSchema } from "@/lib/validation/convocations";
 import { canManageCategoryForConvocations } from "@/lib/convocations";
 import { sendConvocationEmails } from "@/lib/mail";
@@ -145,7 +149,10 @@ export async function POST(request: Request) {
     });
 
     convocationId = savedConvocation.id;
-  } catch {
+  } catch (error) {
+    if (isMissingConvocationsSchemaError(error)) {
+      return NextResponse.json({ error: CONVOCATIONS_SCHEMA_MISSING_MESSAGE }, { status: 503 });
+    }
     return NextResponse.json({ error: "Errore durante il salvataggio convocazione." }, { status: 500 });
   }
 
@@ -210,6 +217,23 @@ export async function POST(request: Request) {
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Errore imprevisto durante invio email convocazioni.";
+      if (isMissingConvocationsSchemaError(error)) {
+        emailSummary = {
+          attempted: true,
+          totalRecipients: 0,
+          sentCount: 0,
+          failedCount: 0,
+          skippedReason: CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
+        };
+        return NextResponse.json(
+          {
+            success: true,
+            data: { convocationId, eventId: event.id },
+            emailSummary,
+          },
+          { status: 200 },
+        );
+      }
       emailSummary = {
         attempted: true,
         totalRecipients: 0,

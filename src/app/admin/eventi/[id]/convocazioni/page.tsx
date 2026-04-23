@@ -4,6 +4,10 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { ConvocationManager } from "@/components/convocations/convocation-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import {
+  CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
+  isMissingConvocationsSchemaError,
+} from "@/lib/convocations-db";
 import { formatEventType } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
@@ -62,17 +66,6 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
           },
         },
       },
-      convocation: {
-        select: {
-          notes: true,
-          athletes: {
-            select: {
-              athleteId: true,
-              responseStatus: true,
-            },
-          },
-        },
-      },
     },
   });
 
@@ -80,9 +73,38 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
     redirect("/unauthorized");
   }
 
-  const selectedByAthleteId = new Set(event.convocation?.athletes.map((entry) => entry.athleteId) ?? []);
+  let convocation:
+    | {
+        notes: string | null;
+        athletes: Array<{ athleteId: string; responseStatus: "PENDING" | "PRESENT" | "ABSENT" }>;
+      }
+    | null = null;
+  let isConvocationsSchemaMissing = false;
+
+  try {
+    convocation = await prisma.convocation.findUnique({
+      where: { eventId: event.id },
+      select: {
+        notes: true,
+        athletes: {
+          select: {
+            athleteId: true,
+            responseStatus: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    if (isMissingConvocationsSchemaError(error)) {
+      isConvocationsSchemaMissing = true;
+    } else {
+      throw error;
+    }
+  }
+
+  const selectedByAthleteId = new Set(convocation?.athletes.map((entry) => entry.athleteId) ?? []);
   const responseByAthleteId = new Map(
-    event.convocation?.athletes.map((entry) => [entry.athleteId, entry.responseStatus]) ?? [],
+    convocation?.athletes.map((entry) => [entry.athleteId, entry.responseStatus]) ?? [],
   );
   const athletes = event.category.athletes.map((athlete) => ({
     id: athlete.id,
@@ -108,14 +130,20 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
           Torna alla dashboard admin
         </Link>
 
-        <ConvocationManager
-          eventId={event.id}
-          eventTitle={`${event.title} (${formatEventType(event.type)})`}
-          eventCategoryName={`Categoria: ${event.category.name}`}
-          eventDateLabel={dateFormatter.format(new Date(event.startAt))}
-          initialNotes={event.convocation?.notes ?? ""}
-          athletes={athletes}
-        />
+        {isConvocationsSchemaMissing ? (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {CONVOCATIONS_SCHEMA_MISSING_MESSAGE}
+          </section>
+        ) : (
+          <ConvocationManager
+            eventId={event.id}
+            eventTitle={`${event.title} (${formatEventType(event.type)})`}
+            eventCategoryName={`Categoria: ${event.category.name}`}
+            eventDateLabel={dateFormatter.format(new Date(event.startAt))}
+            initialNotes={convocation?.notes ?? ""}
+            athletes={athletes}
+          />
+        )}
       </div>
     </main>
   );
