@@ -142,6 +142,17 @@ export type SendRegistrationMailResult =
   | { sent: false; skipped: true; reason: string }
   | { sent: false; skipped: false; reason: string };
 
+export type SendAnnouncementEmailsInput = {
+  recipients: string[];
+  title: string;
+  content: string;
+};
+
+export type SendAnnouncementEmailsResult =
+  | { sent: true; totalRecipients: number; sentCount: number; failedCount: number }
+  | { sent: false; skipped: true; reason: string }
+  | { sent: false; skipped: false; reason: string };
+
 function buildFriendlyName(name?: string): string | null {
   const trimmed = (name ?? "").trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -182,6 +193,16 @@ function buildAdminNewUserNotificationText(input: {
     `Email: ${input.email}`,
     `Ruolo: ${input.role}`,
     `Data: ${formatAdminRegistrationDate(input.registeredAt)}`,
+  ].join("\n");
+}
+
+function buildAnnouncementEmailText(input: { title: string; content: string }): string {
+  return [
+    `Titolo: ${input.title}`,
+    "Messaggio:",
+    input.content,
+    "",
+    "Accedi al gestionale Comun Nuovo Calcio per maggiori dettagli.",
   ].join("\n");
 }
 
@@ -326,4 +347,69 @@ export async function sendAdminNewUserNotification(
       reason,
     };
   }
+}
+
+export async function sendAnnouncementEmails(
+  input: SendAnnouncementEmailsInput,
+): Promise<SendAnnouncementEmailsResult> {
+  const recipients = Array.from(
+    new Set(
+      input.recipients
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.length > 0),
+    ),
+  );
+
+  if (recipients.length === 0) {
+    return {
+      sent: true,
+      totalRecipients: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+
+  const config = getMailerConfig();
+  if (!config.enabled) {
+    return {
+      sent: false,
+      skipped: true,
+      reason: `Configurazione mail incompleta: ${config.missingVars.join(", ")}`,
+    };
+  }
+
+  const transporter = createMailerTransporter(config);
+  const text = buildAnnouncementEmailText({
+    title: input.title.trim(),
+    content: input.content.trim(),
+  });
+
+  const results = await Promise.allSettled(
+    recipients.map((recipientEmail) =>
+      transporter.sendMail({
+        from: config.from,
+        to: recipientEmail,
+        subject: "Nuova comunicazione - Comun Nuovo Calcio",
+        text,
+      }),
+    ),
+  );
+
+  const failedCount = results.filter((result) => result.status === "rejected").length;
+  const sentCount = recipients.length - failedCount;
+
+  if (failedCount === recipients.length) {
+    return {
+      sent: false,
+      skipped: false,
+      reason: "Invio email comunicazioni fallito per tutti i destinatari.",
+    };
+  }
+
+  return {
+    sent: true,
+    totalRecipients: recipients.length,
+    sentCount,
+    failedCount,
+  };
 }

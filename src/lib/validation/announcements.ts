@@ -20,6 +20,7 @@ export const createAnnouncementSchema = z
     audience: z.nativeEnum(AnnouncementAudienceEnum),
     categoryId: z.string().cuid("Categoria non valida.").optional().nullable(),
     publishedAt: publicationDateSchema,
+    sendEmail: z.boolean().optional().default(false),
   })
   .superRefine((value, ctx) => {
     if (value.audience === "CATEGORY_ONLY" && !value.categoryId) {

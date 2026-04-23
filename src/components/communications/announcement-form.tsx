@@ -33,6 +33,7 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
     audience: "ALL" as AnnouncementAudience,
     categoryId: "",
     publishedAt: "",
+    sendEmail: false,
   });
   const [fieldErrors, setFieldErrors] = useState<AnnouncementFieldErrors>({});
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +71,18 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      const body = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            emailSummary?: {
+              attempted: boolean;
+              totalRecipients: number;
+              sentCount: number;
+              failedCount: number;
+              skippedReason?: string;
+            };
+          }
+        | null;
 
       if (!response.ok) {
         setError(body?.error ?? "Operazione non riuscita. Riprova.");
@@ -78,13 +90,21 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
         return;
       }
 
-      setOk("Comunicazione pubblicata correttamente.");
+      const summary = body?.emailSummary;
+      const successMessage =
+        summary?.attempted && summary.skippedReason
+          ? `Comunicazione salvata. Email non inviate: ${summary.skippedReason}`
+          : summary?.attempted
+            ? `Comunicazione salvata. Email inviate: ${summary.sentCount}, fallite: ${summary.failedCount}.`
+          : "Comunicazione pubblicata correttamente.";
+      setOk(successMessage);
       setFormData({
         title: "",
         content: "",
         audience: "ALL",
         categoryId: "",
         publishedAt: "",
+        sendEmail: false,
       });
       router.refresh();
     } catch {
@@ -185,6 +205,27 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
           />
           <FieldError message={fieldErrors.content} />
+        </div>
+
+        <div className="md:col-span-2">
+          <label
+            htmlFor="announcement-send-email"
+            className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700"
+          >
+            <input
+              id="announcement-send-email"
+              type="checkbox"
+              checked={formData.sendEmail}
+              onChange={(event) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  sendEmail: event.target.checked,
+                }))
+              }
+              className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
+            />
+            Invia anche email
+          </label>
         </div>
       </div>
 
