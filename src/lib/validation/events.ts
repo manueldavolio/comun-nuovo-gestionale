@@ -21,6 +21,7 @@ export const createEventSchema = z.object({
   location: z.string().trim().max(120, "Luogo troppo lungo").optional().default(""),
   categoryId: z.string().trim().min(1, "Categoria obbligatoria"),
   notes: z.string().trim().max(1000, "Note troppo lunghe").optional().default(""),
+  sendEmail: z.boolean().optional().default(false),
 });
 
 export const bulkTrainingSchema = z

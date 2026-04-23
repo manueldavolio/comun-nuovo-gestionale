@@ -1,7 +1,52 @@
 import { NextResponse } from "next/server";
+import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { createEventSchema } from "@/lib/validation/events";
+import { sendEventEmails } from "@/lib/mail";
+
+type EmailSummary = {
+  attempted: boolean;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  skippedReason?: string;
+};
+
+async function resolveCategoryEventRecipientEmails(categoryId: string) {
+  const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        {
+          role: UserRole.PARENT,
+          parentProfile: {
+            athletes: {
+              some: {
+                categoryId,
+              },
+            },
+          },
+        },
+        {
+          role: UserRole.COACH,
+          coachProfile: {
+            categoryAssignments: {
+              some: {
+                categoryId,
+              },
+            },
+          },
+        },
+      ],
+    } satisfies Prisma.UserWhereInput,
+    select: {
+      email: true,
+    },
+  });
+
+  return users.map((user) => user.email);
+}
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
@@ -32,7 +77,7 @@ export async function POST(request: Request) {
 
   const category = await prisma.category.findUnique({
     where: { id: parsed.data.categoryId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!category) {
@@ -52,10 +97,68 @@ export async function POST(request: Request) {
         categoryId: category.id,
         createdById: session.user.id,
       },
-      select: { id: true },
+      select: { id: true, categoryId: true },
     });
 
-    return NextResponse.json({ success: true, data: createdEvent }, { status: 201 });
+    let emailSummary: EmailSummary = {
+      attempted: false,
+      totalRecipients: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+
+    if (parsed.data.sendEmail && createdEvent.categoryId) {
+      try {
+        const recipients = await resolveCategoryEventRecipientEmails(createdEvent.categoryId);
+        const emailResult = await sendEventEmails({
+          recipients,
+          title: parsed.data.title,
+          type: parsed.data.type,
+          categoryName: category.name,
+          startAt,
+          location: parsed.data.location,
+          notes: parsed.data.notes,
+        });
+
+        if (emailResult.sent) {
+          emailSummary = {
+            attempted: true,
+            totalRecipients: emailResult.totalRecipients,
+            sentCount: emailResult.sentCount,
+            failedCount: emailResult.failedCount,
+          };
+        } else {
+          console.error("[events] Failed to send event emails", {
+            eventId: createdEvent.id,
+            categoryId: createdEvent.categoryId,
+            reason: emailResult.reason,
+          });
+          emailSummary = {
+            attempted: true,
+            totalRecipients: recipients.length,
+            sentCount: 0,
+            failedCount: emailResult.skipped ? 0 : recipients.length,
+            skippedReason: emailResult.reason,
+          };
+        }
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Errore imprevisto durante invio email.";
+        console.error("[events] Unexpected error while sending event emails", {
+          eventId: createdEvent.id,
+          categoryId: createdEvent.categoryId,
+          reason,
+        });
+        emailSummary = {
+          attempted: true,
+          totalRecipients: 0,
+          sentCount: 0,
+          failedCount: 0,
+          skippedReason: reason,
+        };
+      }
+    }
+
+    return NextResponse.json({ success: true, data: createdEvent, emailSummary }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Errore durante la creazione evento." }, { status: 500 });
   }

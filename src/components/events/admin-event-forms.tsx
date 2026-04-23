@@ -37,6 +37,7 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
     location: "",
     categoryId: defaultCategoryId,
     notes: "",
+    sendEmail: false,
   });
   const [bulkForm, setBulkForm] = useState({
     categoryId: defaultCategoryId,
@@ -84,8 +85,16 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
       });
 
       const data = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | { success: boolean }
+        | {
+            error?: string;
+            emailSummary?: {
+              attempted: boolean;
+              totalRecipients: number;
+              sentCount: number;
+              failedCount: number;
+              skippedReason?: string;
+            };
+          }
         | null;
 
       if (!response.ok) {
@@ -94,8 +103,23 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
         return;
       }
 
-      setSingleStatus({ ok: "Evento creato correttamente." });
-      setSingleForm((prev) => ({ ...prev, title: "", startAt: "", location: "", notes: "" }));
+      const summary = data?.emailSummary;
+      const successMessage =
+        summary?.attempted && summary.skippedReason
+          ? `Evento salvato. Email non inviate: ${summary.skippedReason}`
+          : summary?.attempted
+            ? `Evento salvato. Email inviate: ${summary.sentCount}, fallite: ${summary.failedCount}.`
+            : "Evento creato correttamente.";
+
+      setSingleStatus({ ok: successMessage });
+      setSingleForm((prev) => ({
+        ...prev,
+        title: "",
+        startAt: "",
+        location: "",
+        notes: "",
+        sendEmail: false,
+      }));
       router.refresh();
     } catch {
       setSingleStatus({ error: "Errore imprevisto. Riprova." });
@@ -232,6 +256,21 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
                   onChange={(event) => setSingleForm((prev) => ({ ...prev, notes: event.target.value }))}
                   className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
                 />
+              </label>
+
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+                <input
+                  type="checkbox"
+                  checked={singleForm.sendEmail}
+                  onChange={(event) =>
+                    setSingleForm((prev) => ({
+                      ...prev,
+                      sendEmail: event.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
+                />
+                Invia anche email
               </label>
             </div>
 

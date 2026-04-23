@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import type { EventType } from "@prisma/client";
+import { formatEventType } from "@/lib/events";
 
 type SendReceiptMailInput = {
   to: string;
@@ -153,6 +155,21 @@ export type SendAnnouncementEmailsResult =
   | { sent: false; skipped: true; reason: string }
   | { sent: false; skipped: false; reason: string };
 
+export type SendEventEmailsInput = {
+  recipients: string[];
+  title: string;
+  type: EventType;
+  categoryName: string;
+  startAt: Date;
+  location?: string | null;
+  notes?: string | null;
+};
+
+export type SendEventEmailsResult =
+  | { sent: true; totalRecipients: number; sentCount: number; failedCount: number }
+  | { sent: false; skipped: true; reason: string }
+  | { sent: false; skipped: false; reason: string };
+
 function buildFriendlyName(name?: string): string | null {
   const trimmed = (name ?? "").trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -203,6 +220,42 @@ function buildAnnouncementEmailText(input: { title: string; content: string }): 
     input.content,
     "",
     "Accedi al gestionale Comun Nuovo Calcio per maggiori dettagli.",
+  ].join("\n");
+}
+
+function formatEventDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function buildEventEmailText(input: {
+  title: string;
+  type: EventType;
+  categoryName: string;
+  startAt: Date;
+  location?: string | null;
+  notes?: string | null;
+}): string {
+  const location = (input.location ?? "").trim();
+  const notes = (input.notes ?? "").trim();
+
+  return [
+    "E stato pubblicato un nuovo evento nel gestionale Comun Nuovo Calcio.",
+    "",
+    "Dettagli:",
+    `- Titolo: ${input.title.trim()}`,
+    `- Tipo: ${formatEventType(input.type)}`,
+    `- Categoria: ${input.categoryName.trim()}`,
+    `- Data e ora: ${formatEventDateTime(input.startAt)}`,
+    ...(location ? [`- Luogo: ${location}`] : []),
+    ...(notes ? [`- Note: ${notes}`] : []),
+    "",
+    "Accedi al gestionale per maggiori dettagli.",
   ].join("\n");
 }
 
@@ -403,6 +456,66 @@ export async function sendAnnouncementEmails(
       sent: false,
       skipped: false,
       reason: "Invio email comunicazioni fallito per tutti i destinatari.",
+    };
+  }
+
+  return {
+    sent: true,
+    totalRecipients: recipients.length,
+    sentCount,
+    failedCount,
+  };
+}
+
+export async function sendEventEmails(input: SendEventEmailsInput): Promise<SendEventEmailsResult> {
+  const recipients = Array.from(
+    new Set(
+      input.recipients
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.length > 0),
+    ),
+  );
+
+  if (recipients.length === 0) {
+    return {
+      sent: true,
+      totalRecipients: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+
+  const config = getMailerConfig();
+  if (!config.enabled) {
+    return {
+      sent: false,
+      skipped: true,
+      reason: `Configurazione mail incompleta: ${config.missingVars.join(", ")}`,
+    };
+  }
+
+  const transporter = createMailerTransporter(config);
+  const text = buildEventEmailText(input);
+
+  const results = await Promise.allSettled(
+    recipients.map((recipientEmail) =>
+      transporter.sendMail({
+        from: config.from,
+        to: recipientEmail,
+        subject: "Nuovo evento - Comun Nuovo Calcio",
+        text,
+      }),
+    ),
+  );
+
+  const failedCount = results.filter((result) => result.status === "rejected").length;
+  const sentCount = recipients.length - failedCount;
+
+  if (failedCount === recipients.length) {
+    return {
+      sent: false,
+      skipped: false,
+      reason: "Invio email evento fallito per tutti i destinatari.",
     };
   }
 
