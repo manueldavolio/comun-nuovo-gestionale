@@ -86,60 +86,96 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
     );
   }
 
+  const openItems = items.filter((item) => item.responseStatus === "PENDING");
+  const answeredItems = items.filter((item) => item.responseStatus !== "PENDING");
+
+  function renderItem(item: ParentConvocationItem, allowEditsHint: boolean) {
+    const itemFeedback = feedback[item.convocationAthleteId] ?? {};
+    const isPending = pendingId === item.convocationAthleteId;
+
+    return (
+      <article key={item.convocationAthleteId} className="rounded-lg border border-blue-100 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-zinc-900">{item.athleteFullName}</p>
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[item.responseStatus]}`}
+          >
+            {CONVOCATION_RESPONSE_LABEL[item.responseStatus]}
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-zinc-700">{item.eventTitle}</p>
+        <p className="text-xs text-zinc-600">
+          {item.categoryName} - {item.eventStartAtLabel}
+        </p>
+        <p className="text-xs text-zinc-600">Luogo: {item.eventLocation || "-"}</p>
+        {item.notes ? <p className="mt-1 text-xs text-zinc-600">Note: {item.notes}</p> : null}
+        {allowEditsHint ? (
+          <p className="mt-2 text-xs text-zinc-500">
+            Se serve, puoi aggiornare la risposta con i pulsanti qui sotto.
+          </p>
+        ) : null}
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => saveResponse(item.convocationAthleteId, "PRESENT")}
+            disabled={isPending}
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+          >
+            Conferma presenza
+          </button>
+          <button
+            type="button"
+            onClick={() => saveResponse(item.convocationAthleteId, "ABSENT")}
+            disabled={isPending}
+            className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+          >
+            Segna assenza
+          </button>
+        </div>
+
+        {itemFeedback.error ? (
+          <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {itemFeedback.error}
+          </p>
+        ) : null}
+        {itemFeedback.ok ? (
+          <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            {itemFeedback.ok}
+          </p>
+        ) : null}
+      </article>
+    );
+  }
+
   return (
-    <div className="mt-3 space-y-3">
-      {items.map((item) => {
-        const itemFeedback = feedback[item.convocationAthleteId] ?? {};
-        const isPending = pendingId === item.convocationAthleteId;
-        return (
-          <article key={item.convocationAthleteId} className="rounded-lg border border-blue-100 bg-white p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-zinc-900">{item.athleteFullName}</p>
-              <span
-                className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[item.responseStatus]}`}
-              >
-                {CONVOCATION_RESPONSE_LABEL[item.responseStatus]}
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-zinc-700">{item.eventTitle}</p>
-            <p className="text-xs text-zinc-600">
-              {item.categoryName} - {item.eventStartAtLabel}
-            </p>
-            <p className="text-xs text-zinc-600">Luogo: {item.eventLocation || "-"}</p>
-            {item.notes ? <p className="mt-1 text-xs text-zinc-600">Note: {item.notes}</p> : null}
+    <div className="mt-3 space-y-4">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          Convocazioni aperte: {openItems.length}
+        </p>
+        <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
+          Gia risposte: {answeredItems.length}
+        </p>
+      </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => saveResponse(item.convocationAthleteId, "PRESENT")}
-                disabled={isPending}
-                className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-              >
-                Presente
-              </button>
-              <button
-                type="button"
-                onClick={() => saveResponse(item.convocationAthleteId, "ABSENT")}
-                disabled={isPending}
-                className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-              >
-                Assente
-              </button>
-            </div>
+      {openItems.length > 0 ? (
+        <section>
+          <h5 className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+            Da confermare
+          </h5>
+          <div className="mt-2 space-y-3">{openItems.map((item) => renderItem(item, false))}</div>
+        </section>
+      ) : null}
 
-            {itemFeedback.error ? (
-              <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {itemFeedback.error}
-              </p>
-            ) : null}
-            {itemFeedback.ok ? (
-              <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                {itemFeedback.ok}
-              </p>
-            ) : null}
-          </article>
-        );
-      })}
+      {answeredItems.length > 0 ? (
+        <section>
+          <h5 className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+            Gia risposte
+          </h5>
+          <div className="mt-2 space-y-3">{answeredItems.map((item) => renderItem(item, true))}</div>
+        </section>
+      ) : null}
     </div>
   );
 }

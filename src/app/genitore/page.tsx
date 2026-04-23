@@ -6,6 +6,10 @@ import { StatusBadge } from "@/components/layout/status-badge";
 import { ParentConvocations } from "@/components/convocations/parent-convocations";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import {
+  CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
+  isMissingConvocationsSchemaError,
+} from "@/lib/convocations-db";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
@@ -185,7 +189,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     return count;
   }, 0);
   const categoryIds = Array.from(new Set(athleteRows.map((row) => row.categoryId)));
-  const [categoryCalendarEvents, relevantAnnouncements, convocationEntries] = await Promise.all([
+  const [categoryCalendarEvents, relevantAnnouncements, convocationResult] = await Promise.all([
     categoryIds.length === 0
       ? Promise.resolve([])
       : prisma.event.findMany({
@@ -244,9 +248,13 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         },
       },
     }),
-    athleteRows.length === 0
-      ? Promise.resolve([])
-      : prisma.convocationAthlete.findMany({
+    (async () => {
+      if (athleteRows.length === 0) {
+        return { entries: [], isSchemaMissing: false };
+      }
+
+      try {
+        const entries = await prisma.convocationAthlete.findMany({
           where: {
             athleteId: {
               in: athleteRows.map((row) => row.id),
@@ -293,7 +301,16 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
               },
             },
           },
-        }),
+        });
+
+        return { entries, isSchemaMissing: false };
+      } catch (error) {
+        if (isMissingConvocationsSchemaError(error)) {
+          return { entries: [], isSchemaMissing: true };
+        }
+        throw error;
+      }
+    })(),
   ]);
 
   const calendarEventsByCategory = new Map(
@@ -319,7 +336,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const generalCommunications = relevantAnnouncements
     .filter((announcement) => announcement.audience !== "CATEGORY_ONLY")
     .slice(0, 3);
-  const parentConvocations = convocationEntries
+  const parentConvocations = convocationResult.entries
     .filter((entry) => Boolean(entry.convocation.event))
     .map((entry) => ({
       convocationAthleteId: entry.id,
@@ -401,6 +418,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             >
               Apri media categoria
             </Link>
+            <Link
+              href="/genitore/convocazioni"
+              className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+            >
+              Apri convocazioni
+            </Link>
           </div>
 
           <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
@@ -429,11 +452,25 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </section>
 
           <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
-            <h4 className="text-sm font-semibold text-zinc-900">Convocazioni ricevute</h4>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold text-zinc-900">Convocazioni ricevute</h4>
+              <Link
+                href="/genitore/convocazioni"
+                className="text-xs font-semibold text-blue-700 hover:text-blue-800"
+              >
+                Vedi tutte
+              </Link>
+            </div>
             <p className="mt-1 text-xs text-zinc-600">
               Per ogni atleta conferma rapidamente presenza o assenza.
             </p>
-            <ParentConvocations items={parentConvocations} />
+            {convocationResult.isSchemaMissing ? (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {CONVOCATIONS_SCHEMA_MISSING_MESSAGE}
+              </p>
+            ) : (
+              <ParentConvocations items={parentConvocations.slice(0, 8)} />
+            )}
           </section>
 
           {athleteRows.length === 0 ? (

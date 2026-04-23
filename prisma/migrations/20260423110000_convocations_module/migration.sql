@@ -1,4 +1,8 @@
+DO $$ BEGIN
 CREATE TYPE "ConvocationResponseStatus" AS ENUM ('PENDING', 'PRESENT', 'ABSENT');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
 
 CREATE TABLE "Convocation" (
     "id" TEXT NOT NULL,

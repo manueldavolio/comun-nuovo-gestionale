@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
+import {
+  CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
+  isMissingConvocationsSchemaError,
+} from "@/lib/convocations-db";
 import { prisma } from "@/lib/prisma";
 import { respondConvocationSchema } from "@/lib/validation/convocations";
 
@@ -38,21 +42,38 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
-  const convocationAthlete = await prisma.convocationAthlete.findUnique({
-    where: { id: convocationAthleteId },
-    select: {
-      id: true,
-      athlete: {
-        select: {
+  let convocationAthlete:
+    | {
+        id: string;
+        athlete: {
           parent: {
-            select: {
-              userId: true,
+            userId: string;
+          };
+        };
+      }
+    | null = null;
+  try {
+    convocationAthlete = await prisma.convocationAthlete.findUnique({
+      where: { id: convocationAthleteId },
+      select: {
+        id: true,
+        athlete: {
+          select: {
+            parent: {
+              select: {
+                userId: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (isMissingConvocationsSchemaError(error)) {
+      return NextResponse.json({ error: CONVOCATIONS_SCHEMA_MISSING_MESSAGE }, { status: 503 });
+    }
+    return NextResponse.json({ error: "Errore durante lettura convocazione." }, { status: 500 });
+  }
 
   if (!convocationAthlete) {
     return NextResponse.json({ error: "Convocazione non trovata." }, { status: 404 });
@@ -70,7 +91,10 @@ export async function PUT(request: Request, context: RouteContext) {
         respondedAt: new Date(),
       },
     });
-  } catch {
+  } catch (error) {
+    if (isMissingConvocationsSchemaError(error)) {
+      return NextResponse.json({ error: CONVOCATIONS_SCHEMA_MISSING_MESSAGE }, { status: 503 });
+    }
     return NextResponse.json({ error: "Errore durante il salvataggio risposta." }, { status: 500 });
   }
 

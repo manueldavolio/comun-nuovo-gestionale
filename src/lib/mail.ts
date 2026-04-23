@@ -285,15 +285,11 @@ function buildConvocationEmailText(input: {
   const location = (input.location ?? "").trim();
 
   return [
-    `E stata pubblicata una nuova convocazione per ${input.athleteFullName.trim()}.`,
-    "",
-    "Dettagli convocazione:",
-    `- Evento: ${input.eventTitle.trim()}`,
-    `- Categoria: ${input.categoryName.trim()}`,
-    `- Data e ora: ${formatEventDateTime(input.startAt)}`,
-    ...(location ? [`- Luogo: ${location}`] : []),
-    "",
-    "Accedi al gestionale per confermare presenza o assenza.",
+    `E disponibile una nuova convocazione per ${input.athleteFullName.trim()}.`,
+    `Evento: ${input.eventTitle.trim()} (${input.categoryName.trim()}) - ${formatEventDateTime(input.startAt)}`,
+    ...(location ? [`Luogo: ${location}`] : []),
+    "Accedi al gestionale/app per confermare presenza o assenza.",
+    "La conferma non avviene via email.",
   ].join("\n");
 }
 

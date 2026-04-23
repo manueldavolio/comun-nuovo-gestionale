@@ -4,6 +4,10 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { ConvocationManager } from "@/components/convocations/convocation-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import {
+  CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
+  isMissingConvocationsSchemaError,
+} from "@/lib/convocations-db";
 import { formatEventType } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
@@ -46,39 +50,100 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
     redirect("/unauthorized");
   }
 
-  const event = await prisma.event.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      title: true,
-      type: true,
-      startAt: true,
-      category: {
-        select: {
-          name: true,
-          athletes: {
-            orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
+  let event:
+    | {
+        id: string;
+        title: string;
+        type: Parameters<typeof formatEventType>[0];
+        startAt: Date;
+        category: {
+          name: string;
+          athletes: Array<{
+            id: string;
+            firstName: string;
+            lastName: string;
+          }>;
+        } | null;
+        convocation: {
+          notes: string | null;
+          athletes: Array<{
+            athleteId: string;
+            responseStatus: "PENDING" | "PRESENT" | "ABSENT";
+          }>;
+        } | null;
+      }
+    | null = null;
+  let isConvocationsSchemaMissing = false;
+
+  try {
+    event = await prisma.event.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        startAt: true,
+        category: {
+          select: {
+            name: true,
+            athletes: {
+              orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        convocation: {
+          select: {
+            notes: true,
+            athletes: {
+              select: {
+                athleteId: true,
+                responseStatus: true,
+              },
             },
           },
         },
       },
-      convocation: {
+    });
+  } catch (error) {
+    if (isMissingConvocationsSchemaError(error)) {
+      const fallbackEvent = await prisma.event.findUnique({
+        where: { id },
         select: {
-          notes: true,
-          athletes: {
+          id: true,
+          title: true,
+          type: true,
+          startAt: true,
+          category: {
             select: {
-              athleteId: true,
-              responseStatus: true,
+              name: true,
+              athletes: {
+                orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
             },
           },
         },
-      },
-    },
-  });
+      });
+      event = fallbackEvent
+        ? {
+            ...fallbackEvent,
+            convocation: null,
+          }
+        : null;
+      isConvocationsSchemaMissing = true;
+    } else {
+      throw error;
+    }
+  }
 
   if (!event || !event.category) {
     redirect("/unauthorized");
@@ -115,14 +180,20 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
           Torna alla dashboard
         </Link>
 
-        <ConvocationManager
-          eventId={event.id}
-          eventTitle={`${event.title} (${formatEventType(event.type)})`}
-          eventCategoryName={`Categoria: ${event.category.name}`}
-          eventDateLabel={dateFormatter.format(new Date(event.startAt))}
-          initialNotes={event.convocation?.notes ?? ""}
-          athletes={athletes}
-        />
+        {isConvocationsSchemaMissing ? (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {CONVOCATIONS_SCHEMA_MISSING_MESSAGE}
+          </section>
+        ) : (
+          <ConvocationManager
+            eventId={event.id}
+            eventTitle={`${event.title} (${formatEventType(event.type)})`}
+            eventCategoryName={`Categoria: ${event.category.name}`}
+            eventDateLabel={dateFormatter.format(new Date(event.startAt))}
+            initialNotes={event.convocation?.notes ?? ""}
+            athletes={athletes}
+          />
+        )}
       </div>
     </main>
   );

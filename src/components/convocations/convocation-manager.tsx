@@ -79,6 +79,15 @@ export function ConvocationManager({
     return counts;
   }, [responseByAthlete, selectedAthletes]);
 
+  const selectedAthletesWithStatus = useMemo(
+    () =>
+      selectedAthletes.map((athlete) => ({
+        ...athlete,
+        status: responseByAthlete[athlete.id] ?? "PENDING",
+      })),
+    [responseByAthlete, selectedAthletes],
+  );
+
   async function saveConvocation() {
     setFeedback({});
 
@@ -208,6 +217,33 @@ export function ConvocationManager({
         })}
       </ul>
 
+      <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
+        <h3 className="text-sm font-semibold text-zinc-900">Elenco convocati con stato risposta</h3>
+        {selectedAthletesWithStatus.length === 0 ? (
+          <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+            Nessun atleta selezionato nella convocazione.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {selectedAthletesWithStatus.map((athlete) => (
+              <li
+                key={`summary-${athlete.id}`}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-100 bg-white px-3 py-2"
+              >
+                <span className="text-sm font-medium text-zinc-900">
+                  {athlete.firstName} {athlete.lastName}
+                </span>
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[athlete.status]}`}
+                >
+                  {CONVOCATION_RESPONSE_LABEL[athlete.status]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <label className="mt-4 inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
         <input
           type="checkbox"
@@ -215,7 +251,7 @@ export function ConvocationManager({
           onChange={(event) => setSendEmail(event.target.checked)}
           className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
         />
-        Invia convocazione ai genitori via email
+        Invia email di notifica convocazione ai genitori
       </label>
 
       {feedback.error ? (
