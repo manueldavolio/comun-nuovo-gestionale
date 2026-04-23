@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { DashboardCard } from "@/components/layout/dashboard-card";
 import { StatusBadge } from "@/components/layout/status-badge";
+import { ParentConvocations } from "@/components/convocations/parent-convocations";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
@@ -184,7 +185,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     return count;
   }, 0);
   const categoryIds = Array.from(new Set(athleteRows.map((row) => row.categoryId)));
-  const [categoryCalendarEvents, relevantAnnouncements] = await Promise.all([
+  const [categoryCalendarEvents, relevantAnnouncements, convocationEntries] = await Promise.all([
     categoryIds.length === 0
       ? Promise.resolve([])
       : prisma.event.findMany({
@@ -243,6 +244,56 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         },
       },
     }),
+    athleteRows.length === 0
+      ? Promise.resolve([])
+      : prisma.convocationAthlete.findMany({
+          where: {
+            athleteId: {
+              in: athleteRows.map((row) => row.id),
+            },
+            convocation: {
+              event: {
+                startAt: {
+                  gte: now,
+                },
+              },
+            },
+          },
+          orderBy: {
+            convocation: {
+              event: {
+                startAt: "asc",
+              },
+            },
+          },
+          select: {
+            id: true,
+            responseStatus: true,
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+            convocation: {
+              select: {
+                notes: true,
+                category: {
+                  select: {
+                    name: true,
+                  },
+                },
+                event: {
+                  select: {
+                    title: true,
+                    startAt: true,
+                    location: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
   ]);
 
   const calendarEventsByCategory = new Map(
@@ -268,6 +319,21 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const generalCommunications = relevantAnnouncements
     .filter((announcement) => announcement.audience !== "CATEGORY_ONLY")
     .slice(0, 3);
+  const parentConvocations = convocationEntries
+    .filter((entry) => Boolean(entry.convocation.event))
+    .map((entry) => ({
+      convocationAthleteId: entry.id,
+      athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
+      categoryName: entry.convocation.category.name,
+      eventTitle: entry.convocation.event!.title,
+      eventStartAtLabel: dateTimeFormatter.format(new Date(entry.convocation.event!.startAt)),
+      eventLocation: entry.convocation.event!.location,
+      notes: entry.convocation.notes,
+      responseStatus: entry.responseStatus,
+    }));
+  const pendingConvocations = parentConvocations.filter(
+    (entry) => entry.responseStatus === "PENDING",
+  ).length;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -284,7 +350,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </p>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <DashboardCard
             title="Figli iscritti"
             value={athleteRows.length}
@@ -304,6 +370,11 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             title="Visite da controllare"
             value={medicalAlerts}
             description="Visite mediche in scadenza o scadute"
+          />
+          <DashboardCard
+            title="Convocazioni"
+            value={pendingConvocations}
+            description="Risposte presenza/assenza in attesa"
           />
         </section>
 
@@ -355,6 +426,14 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 ))}
               </ul>
             )}
+          </section>
+
+          <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
+            <h4 className="text-sm font-semibold text-zinc-900">Convocazioni ricevute</h4>
+            <p className="mt-1 text-xs text-zinc-600">
+              Per ogni atleta conferma rapidamente presenza o assenza.
+            </p>
+            <ParentConvocations items={parentConvocations} />
           </section>
 
           {athleteRows.length === 0 ? (

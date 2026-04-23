@@ -20,6 +20,7 @@ type EventListProps = {
   events: EventListItem[];
   emptyMessage: string;
   attendanceBasePath?: string;
+  convocationBasePath?: string;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -37,6 +38,7 @@ export function EventList({
   events,
   emptyMessage,
   attendanceBasePath,
+  convocationBasePath,
 }: EventListProps) {
   return (
     <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -69,19 +71,29 @@ export function EventList({
                 <p>Luogo: {event.location || "-"}</p>
                 {event.description ? <p>Note: {event.description}</p> : null}
               </div>
-              {attendanceBasePath ? (
+              {attendanceBasePath || convocationBasePath ? (
                 event.category ? (
-                  <div className="mt-3">
-                    <Link
-                      href={`${attendanceBasePath}/${event.id}/presenze`}
-                      className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-                    >
-                      Gestisci presenze
-                    </Link>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {attendanceBasePath ? (
+                      <Link
+                        href={`${attendanceBasePath}/${event.id}/presenze`}
+                        className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                      >
+                        Gestisci presenze
+                      </Link>
+                    ) : null}
+                    {convocationBasePath ? (
+                      <Link
+                        href={`${convocationBasePath}/${event.id}/convocazioni`}
+                        className="inline-flex rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                      >
+                        Gestisci convocazione
+                      </Link>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-600">
-                    Presenze non disponibili: evento senza categoria.
+                    Presenze/convocazioni non disponibili: evento senza categoria.
                   </p>
                 )
               ) : null}

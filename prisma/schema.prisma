@@ -48,6 +48,12 @@ enum AttendanceStatus {
   INJURED
 }
 
+enum ConvocationResponseStatus {
+  PENDING
+  PRESENT
+  ABSENT
+}
+
 enum MedicalVisitStatus {
   VALID
   EXPIRING
@@ -107,6 +113,7 @@ model User {
   createdEvents     Event[]
   createdByMessages Announcement[]
   createdMediaItems MediaItem[]
+  createdConvocations Convocation[]
   evaluationsGiven  Evaluation[]
   accountingEntries AccountingEntry[]
 
@@ -131,6 +138,7 @@ model Category {
   events              Event[]
   announcements       Announcement[]
   mediaItems          MediaItem[]
+  convocations        Convocation[]
   monthlyCoachReports MonthlyCoachReport[]
   coachAssignments    CoachCategoryAssignment[]
 
@@ -214,6 +222,7 @@ model Athlete {
   category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   enrollments  Enrollment[]
   attendances  Attendance[]
+  convocationEntries ConvocationAthlete[]
   medicalVisits MedicalVisit[]
   documents    Document[]
   evaluations  Evaluation[]
@@ -307,10 +316,45 @@ model Event {
   category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
   attendances Attendance[]
+  convocation Convocation?
 
   @@index([categoryId])
   @@index([createdById])
   @@index([startAt])
+}
+
+model Convocation {
+  id          String   @id @default(cuid())
+  eventId     String?  @unique
+  categoryId  String
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  event      Event?               @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  category   Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy  User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  athletes   ConvocationAthlete[]
+
+  @@index([categoryId, createdAt])
+  @@index([createdById])
+}
+
+model ConvocationAthlete {
+  id             String                    @id @default(cuid())
+  convocationId  String
+  athleteId      String
+  responseStatus ConvocationResponseStatus @default(PENDING)
+  respondedAt    DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  convocation Convocation @relation(fields: [convocationId], references: [id], onDelete: Cascade)
+  athlete     Athlete     @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([convocationId, athleteId])
+  @@index([athleteId, responseStatus])
 }
 
 model CoachCategoryAssignment {

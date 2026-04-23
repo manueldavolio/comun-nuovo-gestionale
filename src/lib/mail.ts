@@ -165,7 +165,23 @@ export type SendEventEmailsInput = {
   notes?: string | null;
 };
 
+export type SendConvocationEmailsInput = {
+  recipients: Array<{
+    email: string;
+    athleteFullName: string;
+  }>;
+  eventTitle: string;
+  categoryName: string;
+  startAt: Date;
+  location?: string | null;
+};
+
 export type SendEventEmailsResult =
+  | { sent: true; totalRecipients: number; sentCount: number; failedCount: number }
+  | { sent: false; skipped: true; reason: string }
+  | { sent: false; skipped: false; reason: string };
+
+export type SendConvocationEmailsResult =
   | { sent: true; totalRecipients: number; sentCount: number; failedCount: number }
   | { sent: false; skipped: true; reason: string }
   | { sent: false; skipped: false; reason: string };
@@ -256,6 +272,28 @@ function buildEventEmailText(input: {
     ...(notes ? [`- Note: ${notes}`] : []),
     "",
     "Accedi al gestionale per maggiori dettagli.",
+  ].join("\n");
+}
+
+function buildConvocationEmailText(input: {
+  athleteFullName: string;
+  eventTitle: string;
+  categoryName: string;
+  startAt: Date;
+  location?: string | null;
+}): string {
+  const location = (input.location ?? "").trim();
+
+  return [
+    `E stata pubblicata una nuova convocazione per ${input.athleteFullName.trim()}.`,
+    "",
+    "Dettagli convocazione:",
+    `- Evento: ${input.eventTitle.trim()}`,
+    `- Categoria: ${input.categoryName.trim()}`,
+    `- Data e ora: ${formatEventDateTime(input.startAt)}`,
+    ...(location ? [`- Luogo: ${location}`] : []),
+    "",
+    "Accedi al gestionale per confermare presenza o assenza.",
   ].join("\n");
 }
 
@@ -516,6 +554,74 @@ export async function sendEventEmails(input: SendEventEmailsInput): Promise<Send
       sent: false,
       skipped: false,
       reason: "Invio email evento fallito per tutti i destinatari.",
+    };
+  }
+
+  return {
+    sent: true,
+    totalRecipients: recipients.length,
+    sentCount,
+    failedCount,
+  };
+}
+
+export async function sendConvocationEmails(
+  input: SendConvocationEmailsInput,
+): Promise<SendConvocationEmailsResult> {
+  const recipients = input.recipients
+    .map((entry) => ({
+      email: entry.email.trim().toLowerCase(),
+      athleteFullName: entry.athleteFullName.trim(),
+    }))
+    .filter((entry) => entry.email.length > 0 && entry.athleteFullName.length > 0);
+
+  if (recipients.length === 0) {
+    return {
+      sent: true,
+      totalRecipients: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+
+  const config = getMailerConfig();
+  if (!config.enabled) {
+    return {
+      sent: false,
+      skipped: true,
+      reason: `Configurazione mail incompleta: ${config.missingVars.join(", ")}`,
+    };
+  }
+
+  const transporter = createMailerTransporter(config);
+
+  const results = await Promise.allSettled(
+    recipients.map((recipient) => {
+      const text = buildConvocationEmailText({
+        athleteFullName: recipient.athleteFullName,
+        eventTitle: input.eventTitle,
+        categoryName: input.categoryName,
+        startAt: input.startAt,
+        location: input.location,
+      });
+
+      return transporter.sendMail({
+        from: config.from,
+        to: recipient.email,
+        subject: "Nuova convocazione - Comun Nuovo Calcio",
+        text,
+      });
+    }),
+  );
+
+  const failedCount = results.filter((result) => result.status === "rejected").length;
+  const sentCount = recipients.length - failedCount;
+
+  if (failedCount === recipients.length) {
+    return {
+      sent: false,
+      skipped: false,
+      reason: "Invio email convocazione fallito per tutti i destinatari.",
     };
   }
 

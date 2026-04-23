@@ -104,6 +104,7 @@ export default async function CoachDashboardPage() {
   ]);
   const categoriesCount = categories.length;
   const nextEventId = teamEvents[0]?.id ?? null;
+  const nextConvocationEventId = teamEvents.find((event) => Boolean(event.category))?.id ?? null;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -138,6 +139,7 @@ export default async function CoachDashboardPage() {
           events={teamEvents}
           emptyMessage="Nessuna categoria assegnata o nessun evento disponibile."
           attendanceBasePath="/mister/eventi"
+          convocationBasePath="/mister/eventi"
         />
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -155,6 +157,25 @@ export default async function CoachDashboardPage() {
           ) : (
             <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
               Nessun evento disponibile per la gestione presenze.
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-semibold text-zinc-900">Accesso rapido convocazioni</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Apri l&apos;evento piu vicino e invia subito la convocazione alle famiglie.
+          </p>
+          {nextConvocationEventId ? (
+            <Link
+              href={`/mister/eventi/${nextConvocationEventId}/convocazioni`}
+              className="mt-3 inline-flex rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+            >
+              Gestisci convocazione
+            </Link>
+          ) : (
+            <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              Nessun evento disponibile per convocazioni.
             </p>
           )}
         </section>
