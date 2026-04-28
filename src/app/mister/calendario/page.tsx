@@ -64,10 +64,10 @@ export default async function CoachCalendarPage() {
       : prisma.convocation.findMany({
           where: {
             categoryId: { in: coachCategoryIds },
-            event: {
-              isNot: null,
-              startAt: { gte: now },
-            },
+            AND: [
+              { event: { isNot: null } },
+              { event: { is: { startAt: { gte: now } } } },
+            ],
           },
           orderBy: {
             event: {
