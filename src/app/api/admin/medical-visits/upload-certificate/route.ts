@@ -147,6 +147,7 @@ export async function POST(request: Request) {
             : "Errore durante il salvataggio del certificato su Supabase Storage.",
           errorCode: isMissingEnv ? "UPLOAD_STORAGE_ENV_MISSING" : "UPLOAD_STORAGE_WRITE_FAILED",
           details: {
+            errorMessage: error.message,
             stage: error.details.stage,
             code: error.details.code,
             missingEnv: error.details.missingEnv,

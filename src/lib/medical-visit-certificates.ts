@@ -152,29 +152,51 @@ export async function saveMedicalVisitCertificate(params: {
   const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${extension}`;
   const bucketPath = `medical-visits/${fileName}`;
   const { client, bucket } = getSupabaseStorageClient();
-  console.info("[medical-visits][upload-certificate] supabase upload start", {
+  const fileSize = params.fileBuffer.byteLength;
+  console.log("[medical-visits][upload-certificate] supabase upload start", {
     bucket,
-    bucketPath,
+    path: bucketPath,
+    fileName,
+    fileSize,
     mimeType,
-    fileSize: params.fileBuffer.byteLength,
+    hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
+    hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    bucketEnv: process.env.SUPABASE_MEDICAL_VISITS_BUCKET,
   });
 
   try {
-    const { error } = await client.storage.from(bucket).upload(bucketPath, params.fileBuffer, {
+    const { data, error } = await client.storage.from(bucket).upload(bucketPath, params.fileBuffer, {
       contentType: mimeType,
       upsert: false,
     });
     if (error) {
+      const uploadError = error as Error & { statusCode?: string | number };
+      console.error("[medical-visits][upload-certificate] supabase upload error", {
+        bucket,
+        path: bucketPath,
+        fileName,
+        fileSize,
+        mimeType,
+        errorMessage: uploadError.message,
+        errorName: uploadError.name,
+        errorStatusCode: uploadError.statusCode,
+        error: uploadError,
+      });
       throw error;
     }
+    console.log("[medical-visits][upload-certificate] supabase upload success", {
+      bucket,
+      path: bucketPath,
+      fileName,
+      fileSize,
+      mimeType,
+      hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
+      hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      bucketEnv: process.env.SUPABASE_MEDICAL_VISITS_BUCKET,
+      hasData: Boolean(data),
+    });
   } catch (error) {
     const storageError = error as Error & { code?: string };
-    console.error("[medical-visits][upload-certificate] supabase upload error", {
-      bucket,
-      bucketPath,
-      code: storageError.code,
-      message: storageError.message,
-    });
     throw new MedicalVisitCertificateStorageError("Impossibile salvare il certificato su Supabase Storage.", {
       stage: "upload",
       storageDir: STORAGE_DIR,
