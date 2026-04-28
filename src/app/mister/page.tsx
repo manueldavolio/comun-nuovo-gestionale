@@ -194,6 +194,12 @@ export default async function CoachDashboardPage() {
             >
               Apri media categoria
             </Link>
+            <Link
+              href="/mister/calendario"
+              className="inline-flex w-fit rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+            >
+              Apri calendario
+            </Link>
           </div>
 
           {relevantAnnouncements.length === 0 ? (

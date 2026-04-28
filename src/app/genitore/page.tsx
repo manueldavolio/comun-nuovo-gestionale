@@ -413,6 +413,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
+              href="/genitore/calendario"
+              className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+            >
+              Apri calendario
+            </Link>
+            <Link
               href="/genitore/media"
               className="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
             >
