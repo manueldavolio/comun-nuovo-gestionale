@@ -1,7 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, isToday, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { it } from "date-fns/locale";
 
 export type CalendarEvent = {
@@ -41,6 +53,23 @@ const EVENT_TYPE_BADGE_LABEL: Record<CalendarEvent["type"], string> = {
   RIUNIONE: "RIUN",
   CONVOCAZIONE: "CONV",
 };
+
+const EVENT_TYPE_LABEL: Record<CalendarEvent["type"], string> = {
+  ALLENAMENTO: "Allenamento",
+  PARTITA: "Partita",
+  AMICHEVOLE: "Amichevole",
+  RIUNIONE: "Riunione",
+  CONVOCAZIONE: "Convocazione",
+};
+
+const eventDateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function toDate(value: string) {
   return parseISO(value);
@@ -84,6 +113,11 @@ export function MonthCalendar({
 
     return map;
   }, [filteredEvents]);
+
+  const selectedDayEvents = useMemo(() => {
+    const key = format(selectedDay, "yyyy-MM-dd");
+    return eventsByDay.get(key) ?? [];
+  }, [eventsByDay, selectedDay]);
 
   const monthStart = startOfMonth(activeMonth);
   const monthEnd = endOfMonth(activeMonth);
@@ -183,7 +217,7 @@ export function MonthCalendar({
                       isCurrentMonth
                         ? "border-blue-100 bg-white hover:border-blue-300"
                         : "border-zinc-200 bg-zinc-50 text-zinc-400",
-                      isSelected ? "ring-2 ring-blue-300" : "",
+                      isSelected ? "border-blue-400 ring-2 ring-blue-300" : "",
                     ].join(" ")}
                   >
                     <div className="flex items-center justify-between">
@@ -219,6 +253,43 @@ export function MonthCalendar({
               })}
             </div>
           </div>
+
+          <section className="mt-4 rounded-xl border border-blue-100 bg-slate-50 p-3 sm:p-4">
+            <h3 className="text-sm font-semibold text-zinc-900 sm:text-base">
+              Impegni del giorno {format(selectedDay, "EEEE d MMMM yyyy", { locale: it })}
+            </h3>
+            {selectedDayEvents.length === 0 ? (
+              <p className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700">
+                Nessun impegno per questo giorno
+              </p>
+            ) : (
+              <div className="mt-3 grid gap-2 sm:gap-3">
+                {selectedDayEvents.map((event) => (
+                  <article
+                    key={event.id}
+                    className="rounded-xl border border-blue-100 bg-white p-3 text-sm text-zinc-700 sm:p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-zinc-900 sm:text-base">{event.title}</h4>
+                      <span
+                        className={[
+                          "inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                          EVENT_TYPE_STYLES[event.type],
+                        ].join(" ")}
+                      >
+                        {EVENT_TYPE_LABEL[event.type]}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm">
+                      Data e ora: {eventDateTimeFormatter.format(toDate(event.date))}
+                    </p>
+                    {event.location ? <p className="mt-1 text-sm">Luogo: {event.location}</p> : null}
+                    {event.categoryName ? <p className="mt-1 text-sm">Categoria: {event.categoryName}</p> : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
 
         </>
       )}
