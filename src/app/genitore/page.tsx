@@ -366,7 +366,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
         <AreaHeader
           title="Area Genitore"
           subtitle="Dashboard famiglia: iscrizioni, scadenze e comunicazioni"
@@ -561,7 +561,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                       </span>
                     </div>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="mt-4 grid gap-4 lg:grid-cols-3">
                       <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
                         <h4 className="text-sm font-semibold text-zinc-900">Sezione anagrafica</h4>
                         <dl className="mt-2 space-y-1 text-sm text-zinc-700">
@@ -664,9 +664,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                         )}
                       </section>
 
-                      <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
+                      <section className="rounded-lg border border-blue-100 bg-slate-50 p-3 lg:col-span-2">
                         <h4 className="text-sm font-semibold text-zinc-900">Sezione calendario</h4>
-                        <div className="mt-2">
+                        <div className="mt-3">
                           <MonthCalendar events={childCalendarEvents} />
                         </div>
                       </section>

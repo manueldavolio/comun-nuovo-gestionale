@@ -150,7 +150,7 @@ export function MonthCalendar({
   }
 
   return (
-    <section className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm sm:p-4">
+    <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5 lg:p-6">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold text-zinc-900 sm:text-lg">{title}</h2>
@@ -206,19 +206,20 @@ export function MonthCalendar({
         </p>
       ) : (
         <>
-          <div className="mt-4">
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+          <div className="mt-4 overflow-x-auto">
+            <div className="min-w-[700px] sm:min-w-0">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
               {DAY_LABELS.map((label) => (
                 <div
                   key={label}
-                  className="rounded-lg bg-blue-50 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-blue-700 sm:text-xs"
+                  className="rounded-lg bg-blue-50 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-blue-700 sm:py-2.5 sm:text-xs"
                 >
                   {label}
                 </div>
               ))}
             </div>
 
-            <div className="mt-1 grid grid-cols-7 gap-1 sm:mt-2 sm:gap-2">
+              <div className="mt-1.5 grid grid-cols-7 gap-1.5 sm:mt-2.5 sm:gap-2.5">
               {days.map((day) => {
                 const key = format(day, "yyyy-MM-dd");
                 const dayEvents = eventsByDay.get(key) ?? [];
@@ -231,7 +232,7 @@ export function MonthCalendar({
                     type="button"
                     onClick={() => setSelectedDay(day)}
                     className={[
-                      "min-h-24 rounded-xl border p-1.5 text-left transition sm:min-h-28 sm:p-2",
+                      "min-h-28 rounded-xl border p-2 text-left transition sm:min-h-32 sm:p-2.5 lg:min-h-36",
                       isCurrentMonth
                         ? "border-blue-100 bg-white hover:border-blue-300"
                         : "border-zinc-200 bg-zinc-50 text-zinc-400",
@@ -241,27 +242,28 @@ export function MonthCalendar({
                     <div className="flex items-center justify-between">
                       <span
                         className={[
-                          "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold sm:h-6 sm:w-6 sm:text-xs",
+                          "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-7 sm:w-7",
                           isToday(day) ? "bg-blue-700 text-white" : "text-zinc-800",
                         ].join(" ")}
                       >
                         {format(day, "d")}
                       </span>
                     </div>
-                    <div className="mt-1 space-y-1 sm:mt-2">
+                    <div className="mt-1.5 space-y-1.5 sm:mt-2">
                       {dayEvents.slice(0, 2).map((event) => (
                         <div
                           key={event.id}
                           className={[
-                            "rounded-full border px-1.5 py-0.5 text-center text-[10px] font-semibold sm:text-[11px]",
+                            "rounded-full border px-2 py-1 text-center text-[10px] font-semibold sm:text-xs",
                             EVENT_TYPE_STYLES[event.type],
                           ].join(" ")}
                         >
-                          {EVENT_TYPE_BADGE_LABEL[event.type]}
+                          <span className="sm:hidden">{EVENT_TYPE_BADGE_LABEL[event.type]}</span>
+                          <span className="hidden sm:inline">{EVENT_TYPE_LABEL[event.type]}</span>
                         </div>
                       ))}
                       {dayEvents.length > 2 ? (
-                        <div className="text-center text-[10px] font-semibold text-zinc-500 sm:text-[11px]">
+                        <div className="text-center text-[10px] font-semibold text-zinc-500 sm:text-xs">
                           +{dayEvents.length - 2}
                         </div>
                       ) : null}
@@ -269,6 +271,7 @@ export function MonthCalendar({
                   </button>
                 );
               })}
+            </div>
             </div>
           </div>
 
