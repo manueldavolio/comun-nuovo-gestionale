@@ -6,6 +6,32 @@ import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 
+type CalendarEventType = CalendarEvent["type"];
+
+function normalizeCalendarEventType(type: string | null | undefined): CalendarEventType {
+  const normalized = type?.trim().toUpperCase();
+
+  switch (normalized) {
+    case "ALLENAMENTO":
+    case "TRAINING":
+      return "ALLENAMENTO";
+    case "PARTITA":
+    case "MATCH":
+      return "PARTITA";
+    case "AMICHEVOLE":
+    case "FRIENDLY":
+      return "AMICHEVOLE";
+    case "RIUNIONE":
+    case "MEETING":
+      return "RIUNIONE";
+    case "CONVOCAZIONE":
+    case "CONVOCATION":
+      return "CONVOCAZIONE";
+    default:
+      return "ALLENAMENTO";
+  }
+}
+
 export default async function ParentCalendarPage() {
   const session = await getAuthSession();
 
@@ -163,12 +189,7 @@ export default async function ParentCalendarPage() {
       id: `event-${event.id}`,
       title: event.title,
       date: event.startAt.toISOString(),
-      type:
-        event.type === "TRAINING"
-          ? "ALLENAMENTO"
-          : event.type === "FRIENDLY"
-            ? "AMICHEVOLE"
-            : "PARTITA",
+      type: normalizeCalendarEventType(event.type),
       location: event.location,
       details: event.description,
       categoryId: event.categoryId,
