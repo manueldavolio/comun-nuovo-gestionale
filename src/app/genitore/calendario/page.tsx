@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
-import { MonthlyCalendar, type CalendarEventItem } from "@/components/calendar/monthly-calendar";
+import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
+import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 
 export default async function ParentCalendarPage() {
   const session = await getAuthSession();
@@ -158,20 +158,17 @@ export default async function ParentCalendarPage() {
     }),
   ]);
 
-  const calendarEvents: CalendarEventItem[] = [
+  const calendarEvents: CalendarEvent[] = [
     ...events.map((event) => ({
       id: `event-${event.id}`,
       title: event.title,
-      startsAtIso: event.startAt.toISOString(),
-      kind:
+      date: event.startAt.toISOString(),
+      type:
         event.type === "TRAINING"
-          ? "TRAINING"
-          : event.type === "LEAGUE_MATCH"
-            ? "LEAGUE_MATCH"
-            : event.type === "FRIENDLY"
-              ? "FRIENDLY"
-              : "OTHER",
-      typeLabel: formatEventType(event.type),
+          ? "ALLENAMENTO"
+          : event.type === "FRIENDLY"
+            ? "AMICHEVOLE"
+            : "PARTITA",
       location: event.location,
       details: event.description,
       categoryId: event.categoryId,
@@ -182,9 +179,8 @@ export default async function ParentCalendarPage() {
       .map((entry) => ({
         id: `convocation-${entry.id}`,
         title: `Convocazione - ${entry.convocation.event!.title}`,
-        startsAtIso: entry.convocation.event!.startAt.toISOString(),
-        kind: "CONVOCATION" as const,
-        typeLabel: "Convocazione",
+        date: entry.convocation.event!.startAt.toISOString(),
+        type: "CONVOCAZIONE" as const,
         location: entry.convocation.event!.location,
         details: entry.convocation.notes,
         categoryId: entry.convocation.categoryId,
@@ -196,9 +192,8 @@ export default async function ParentCalendarPage() {
       .map((announcement) => ({
         id: `announcement-${announcement.id}`,
         title: announcement.title,
-        startsAtIso: announcement.publishedAt!.toISOString(),
-        kind: "OTHER" as const,
-        typeLabel: "Comunicazione",
+        date: announcement.publishedAt!.toISOString(),
+        type: "RIUNIONE" as const,
         location: null,
         details: announcement.content,
         categoryId: announcement.categoryId,
@@ -229,7 +224,7 @@ export default async function ParentCalendarPage() {
           </Link>
         </div>
 
-        <MonthlyCalendar
+        <MonthCalendar
           title="Calendario mensile"
           subtitle="Tap sul giorno per vedere gli impegni, tap sull'evento per i dettagli."
           events={calendarEvents}

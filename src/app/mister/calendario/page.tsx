@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
-import { MonthlyCalendar, type CalendarEventItem } from "@/components/calendar/monthly-calendar";
+import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
-import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
+import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
 export default async function CoachCalendarPage() {
@@ -128,20 +128,17 @@ export default async function CoachCalendarPage() {
     }),
   ]);
 
-  const calendarEvents: CalendarEventItem[] = [
+  const calendarEvents: CalendarEvent[] = [
     ...events.map((event) => ({
       id: `event-${event.id}`,
       title: event.title,
-      startsAtIso: event.startAt.toISOString(),
-      kind:
+      date: event.startAt.toISOString(),
+      type:
         event.type === "TRAINING"
-          ? "TRAINING"
-          : event.type === "LEAGUE_MATCH"
-            ? "LEAGUE_MATCH"
-            : event.type === "FRIENDLY"
-              ? "FRIENDLY"
-              : "OTHER",
-      typeLabel: formatEventType(event.type),
+          ? "ALLENAMENTO"
+          : event.type === "FRIENDLY"
+            ? "AMICHEVOLE"
+            : "PARTITA",
       location: event.location,
       details: event.description,
       categoryId: event.categoryId,
@@ -152,9 +149,8 @@ export default async function CoachCalendarPage() {
       .map((convocation) => ({
         id: `convocation-${convocation.id}`,
         title: `Convocazione - ${convocation.event!.title}`,
-        startsAtIso: convocation.event!.startAt.toISOString(),
-        kind: "CONVOCATION" as const,
-        typeLabel: "Convocazione",
+        date: convocation.event!.startAt.toISOString(),
+        type: "CONVOCAZIONE" as const,
         location: convocation.event!.location,
         details: convocation.notes,
         categoryId: convocation.categoryId,
@@ -165,9 +161,8 @@ export default async function CoachCalendarPage() {
       .map((announcement) => ({
         id: `announcement-${announcement.id}`,
         title: announcement.title,
-        startsAtIso: announcement.publishedAt!.toISOString(),
-        kind: "OTHER" as const,
-        typeLabel: "Comunicazione",
+        date: announcement.publishedAt!.toISOString(),
+        type: "RIUNIONE" as const,
         location: null,
         details: announcement.content,
         categoryId: announcement.categoryId,
@@ -193,7 +188,7 @@ export default async function CoachCalendarPage() {
           </Link>
         </div>
 
-        <MonthlyCalendar
+        <MonthCalendar
           title="Calendario mensile"
           subtitle="Visualizzi solo eventi, convocazioni e comunicazioni pertinenti alle tue categorie."
           events={calendarEvents}
