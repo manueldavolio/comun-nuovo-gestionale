@@ -17,10 +17,10 @@ export type CalendarEvent = {
 };
 
 type MonthCalendarProps = {
-  title: string;
-  subtitle: string;
+  title?: string;
+  subtitle?: string;
   events: CalendarEvent[];
-  emptyMessage: string;
+  emptyMessage?: string;
   categoryOptions?: Array<{ id: string; name: string }>;
 };
 
@@ -34,37 +34,15 @@ const EVENT_TYPE_STYLES: Record<CalendarEvent["type"], string> = {
   CONVOCAZIONE: "border-orange-200 bg-orange-50 text-orange-800",
 };
 
-const EVENT_TYPE_LABEL: Record<CalendarEvent["type"], string> = {
-  ALLENAMENTO: "Allenamento",
-  PARTITA: "Partita",
-  AMICHEVOLE: "Amichevole",
-  RIUNIONE: "Riunione",
-  CONVOCAZIONE: "Convocazione",
-};
-
-const timeFormatter = new Intl.DateTimeFormat("it-IT", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 function toDate(value: string) {
   return parseISO(value);
 }
 
 export function MonthCalendar({
-  title,
-  subtitle,
+  title = "Calendario",
+  subtitle = "Vista mensile degli eventi.",
   events,
-  emptyMessage,
+  emptyMessage = "Nessun evento imminente.",
   categoryOptions = [],
 }: MonthCalendarProps) {
   const now = new Date();
@@ -110,11 +88,6 @@ export function MonthCalendar({
     days.push(pointer);
     pointer = addDays(pointer, 1);
   }
-
-  const selectedDayEvents = useMemo(() => {
-    const key = format(selectedDay, "yyyy-MM-dd");
-    return eventsByDay.get(key) ?? [];
-  }, [eventsByDay, selectedDay]);
 
   return (
     <section className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm sm:p-4">
@@ -239,45 +212,6 @@ export function MonthCalendar({
             </div>
           </div>
 
-          <section className="mt-4 rounded-xl border border-blue-100 bg-slate-50 p-3">
-            <h3 className="text-sm font-semibold text-zinc-900">
-              Eventi del giorno {format(selectedDay, "EEEE d MMMM", { locale: it })}
-            </h3>
-
-            {selectedDayEvents.length === 0 ? (
-              <p className="mt-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700">
-                Nessun evento nel giorno selezionato.
-              </p>
-            ) : (
-              <ul className="mt-2 space-y-2">
-                {selectedDayEvents.map((event) => (
-                  <li key={event.id} className="rounded-xl border border-blue-100 bg-white p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold text-zinc-900">{event.title}</p>
-                      <span
-                        className={[
-                          "inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold sm:text-xs",
-                          EVENT_TYPE_STYLES[event.type],
-                        ].join(" ")}
-                      >
-                        {EVENT_TYPE_LABEL[event.type]}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-600">
-                      {timeFormatter.format(toDate(event.date))}
-                      {event.categoryName ? ` - ${event.categoryName}` : ""}
-                      {event.athleteName ? ` - ${event.athleteName}` : ""}
-                    </p>
-                    {event.location ? <p className="mt-1 text-xs text-zinc-700">Luogo: {event.location}</p> : null}
-                    {event.details ? <p className="mt-1 text-xs text-zinc-700">Dettagli: {event.details}</p> : null}
-                    <p className="mt-1 text-[11px] text-zinc-500">
-                      {dateTimeFormatter.format(toDate(event.date))}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </>
       )}
     </section>

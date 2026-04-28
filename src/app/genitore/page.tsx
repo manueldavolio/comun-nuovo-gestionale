@@ -620,12 +620,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                       <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
                         <h4 className="text-sm font-semibold text-zinc-900">Sezione calendario</h4>
                         <div className="mt-2">
-                          <MonthCalendar
-                            title={`Calendario ${row.fullName}`}
-                            subtitle="Vista mensile con eventi della categoria."
-                            events={childCalendarEvents}
-                            emptyMessage="Nessun evento imminente."
-                          />
+                          <MonthCalendar events={childCalendarEvents} />
                         </div>
                       </section>
                     </div>
