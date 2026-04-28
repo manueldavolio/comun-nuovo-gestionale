@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { ANNOUNCEMENT_AUDIENCE_LABEL } from "@/lib/announcements";
+import { DeleteButton } from "@/components/common/delete-button";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -101,6 +102,13 @@ export default async function AdminCommunicationsPage() {
                     - da {announcement.createdBy.name}
                   </p>
                   <p className="mt-2 text-sm text-zinc-700 whitespace-pre-wrap">{announcement.content}</p>
+                  <div className="mt-3">
+                    <DeleteButton
+                      endpoint={`/api/announcements/${announcement.id}`}
+                      confirmMessage="Sei sicuro di voler eliminare?"
+                      successMessage="Comunicazione eliminata correttamente."
+                    />
+                  </div>
                 </article>
               ))}
             </div>

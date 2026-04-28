@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { EventType } from "@prisma/client";
 import { formatEventType } from "@/lib/events";
+import { DeleteButton } from "@/components/common/delete-button";
 
 type EventListItem = {
   id: string;
@@ -12,6 +13,7 @@ type EventListItem = {
   category: {
     name: string;
   } | null;
+  canDelete?: boolean;
 };
 
 type EventListProps = {
@@ -21,6 +23,7 @@ type EventListProps = {
   emptyMessage: string;
   attendanceBasePath?: string;
   convocationBasePath?: string;
+  eventDeleteEndpointBase?: string;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -39,6 +42,7 @@ export function EventList({
   emptyMessage,
   attendanceBasePath,
   convocationBasePath,
+  eventDeleteEndpointBase,
 }: EventListProps) {
   return (
     <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -71,31 +75,44 @@ export function EventList({
                 <p>Luogo: {event.location || "-"}</p>
                 {event.description ? <p>Note: {event.description}</p> : null}
               </div>
-              {attendanceBasePath || convocationBasePath ? (
-                event.category ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {attendanceBasePath ? (
-                      <Link
-                        href={`${attendanceBasePath}/${event.id}/presenze`}
-                        className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-                      >
-                        Gestisci presenze
-                      </Link>
-                    ) : null}
-                    {convocationBasePath ? (
-                      <Link
-                        href={`${convocationBasePath}/${event.id}/convocazioni`}
-                        className="inline-flex rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
-                      >
-                        Gestisci convocazione
-                      </Link>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-600">
-                    Presenze/convocazioni non disponibili: evento senza categoria.
-                  </p>
-                )
+              {attendanceBasePath || convocationBasePath || eventDeleteEndpointBase ? (
+                <>
+                  {attendanceBasePath || convocationBasePath ? (
+                    event.category ? (
+                      <div className="mt-3 flex flex-wrap items-start gap-2">
+                        {attendanceBasePath ? (
+                          <Link
+                            href={`${attendanceBasePath}/${event.id}/presenze`}
+                            className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            Gestisci presenze
+                          </Link>
+                        ) : null}
+                        {convocationBasePath ? (
+                          <Link
+                            href={`${convocationBasePath}/${event.id}/convocazioni`}
+                            className="inline-flex rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                          >
+                            Gestisci convocazione
+                          </Link>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-600">
+                        Presenze/convocazioni non disponibili: evento senza categoria.
+                      </p>
+                    )
+                  ) : null}
+                  {eventDeleteEndpointBase && event.canDelete ? (
+                    <div className="mt-3">
+                      <DeleteButton
+                        endpoint={`${eventDeleteEndpointBase}/${event.id}`}
+                        confirmMessage="Sei sicuro di voler eliminare?"
+                        successMessage="Evento eliminato correttamente."
+                      />
+                    </div>
+                  ) : null}
+                </>
               ) : null}
             </li>
           ))}

@@ -8,6 +8,7 @@ import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { ANNOUNCEMENT_AUDIENCE_LABEL } from "@/lib/announcements";
+import { DeleteButton } from "@/components/common/delete-button";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -62,6 +63,7 @@ export default async function CoachDashboardPage() {
             startAt: true,
             location: true,
             description: true,
+            categoryId: true,
             category: {
               select: {
                 name: true,
@@ -103,6 +105,10 @@ export default async function CoachDashboardPage() {
     }),
   ]);
   const categoriesCount = categories.length;
+  const teamEventsWithDelete = teamEvents.map((event) => ({
+    ...event,
+    canDelete: Boolean(event.categoryId && coachCategoryIds.includes(event.categoryId)),
+  }));
   const nextEventId = teamEvents[0]?.id ?? null;
   const nextConvocationEventId = teamEvents.find((event) => Boolean(event.category))?.id ?? null;
 
@@ -136,10 +142,11 @@ export default async function CoachDashboardPage() {
         <EventList
           title="Calendario squadra"
           subtitle="Visualizzi solo eventi collegati alle categorie assegnate."
-          events={teamEvents}
+          events={teamEventsWithDelete}
           emptyMessage="Nessuna categoria assegnata o nessun evento disponibile."
           attendanceBasePath="/mister/eventi"
           convocationBasePath="/mister/eventi"
+          eventDeleteEndpointBase="/api/events"
         />
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -227,6 +234,15 @@ export default async function CoachDashboardPage() {
                       ? `${announcement.content.slice(0, 180)}...`
                       : announcement.content}
                   </p>
+                  {announcement.categoryId && coachCategoryIds.includes(announcement.categoryId) ? (
+                    <div className="mt-3">
+                      <DeleteButton
+                        endpoint={`/api/announcements/${announcement.id}`}
+                        confirmMessage="Sei sicuro di voler eliminare?"
+                        successMessage="Comunicazione eliminata correttamente."
+                      />
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

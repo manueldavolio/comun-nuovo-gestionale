@@ -161,6 +161,10 @@ export default async function AdminDashboardPage() {
   const nextAttendanceEvent = upcomingEvents.find((event) => Boolean(event.category));
   const nextConvocationEvent = upcomingEvents.find((event) => Boolean(event.category));
   const upcomingPreviewEvents = upcomingEvents.slice(0, 5);
+  const upcomingEventsWithDelete = upcomingEvents.map((event) => ({
+    ...event,
+    canDelete: true,
+  }));
   const pendingPaymentsCount = canViewFinance ? pendingPaymentsAggregate._count.id : null;
   const pendingPaymentsAmount = canViewFinance
     ? toAmountNumber(pendingPaymentsAggregate._sum.amount)
@@ -457,10 +461,11 @@ export default async function AdminDashboardPage() {
         <EventList
           title="Eventi pianificati"
           subtitle="Allenamenti, partite e tornei ordinati per data."
-          events={upcomingEvents}
+          events={upcomingEventsWithDelete}
           emptyMessage="Nessun evento pianificato al momento."
           attendanceBasePath="/admin/eventi"
           convocationBasePath="/admin/eventi"
+          eventDeleteEndpointBase="/api/events"
         />
       </div>
     </main>
