@@ -102,7 +102,18 @@ function hasConfiguredSupabaseStorage() {
 }
 
 function getSupabaseStorageConfigOrThrow(): SupabaseStorageConfig {
-  return validateMedicalVisitCertificateStorageEnv();
+  const config = validateMedicalVisitCertificateStorageEnv();
+  const rawUrl = process.env.SUPABASE_URL;
+  const supabaseUrlOrigin = new URL(rawUrl ?? config.url).origin;
+
+  console.info("[medical-visits][supabase-storage-config] using supabase origin", {
+    supabaseUrlOrigin,
+  });
+
+  return {
+    ...config,
+    url: supabaseUrlOrigin,
+  };
 }
 
 function getSupabaseStorageClient(): { client: SupabaseClient; bucket: string } {

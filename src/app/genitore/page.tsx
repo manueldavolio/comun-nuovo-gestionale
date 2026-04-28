@@ -212,6 +212,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             title: true,
             type: true,
             startAt: true,
+            endAt: true,
             location: true,
             categoryId: true,
           },
@@ -518,6 +519,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                   id: `event-${event.id}`,
                   title: event.title,
                   date: new Date(event.startAt).toISOString(),
+                  endDate: event.endAt ? new Date(event.endAt).toISOString() : null,
                   type:
                     event.type === "TRAINING"
                       ? "ALLENAMENTO"

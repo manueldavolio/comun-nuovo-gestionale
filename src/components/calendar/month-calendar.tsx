@@ -20,6 +20,7 @@ export type CalendarEvent = {
   id: string;
   title: string;
   date: string;
+  endDate?: string | null;
   type: "ALLENAMENTO" | "PARTITA" | "AMICHEVOLE" | "RIUNIONE" | "CONVOCAZIONE";
   categoryId?: string | null;
   categoryName?: string | null;
@@ -67,12 +68,29 @@ const eventDateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
   month: "long",
   year: "numeric",
+});
+
+const eventTimeFormatter = new Intl.DateTimeFormat("it-IT", {
   hour: "2-digit",
   minute: "2-digit",
 });
 
 function toDate(value: string) {
   return parseISO(value);
+}
+
+function formatEventDateTime(event: CalendarEvent) {
+  const start = toDate(event.date);
+  const dateLabel = eventDateTimeFormatter.format(start);
+  const startTime = eventTimeFormatter.format(start);
+
+  if (!event.endDate) {
+    return `${dateLabel}, ${startTime}`;
+  }
+
+  const end = toDate(event.endDate);
+  const endTime = eventTimeFormatter.format(end);
+  return `${dateLabel}, ${startTime} - ${endTime}`;
 }
 
 export function MonthCalendar({
@@ -281,7 +299,7 @@ export function MonthCalendar({
                       </span>
                     </div>
                     <p className="mt-2 text-sm">
-                      Data e ora: {eventDateTimeFormatter.format(toDate(event.date))}
+                      Data e ora: {formatEventDateTime(event)}
                     </p>
                     {event.location ? <p className="mt-1 text-sm">Luogo: {event.location}</p> : null}
                     {event.categoryName ? <p className="mt-1 text-sm">Categoria: {event.categoryName}</p> : null}
