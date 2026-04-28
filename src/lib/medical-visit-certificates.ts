@@ -17,6 +17,11 @@ const MIME_EXTENSION: Record<string, string> = {
 };
 
 type NodeErrorWithCode = Error & { code?: string };
+type SupabaseStorageConfig = {
+  url: string;
+  serviceRoleKey: string;
+  bucket: string;
+};
 
 export class MedicalVisitCertificateStorageError extends Error {
   constructor(
@@ -49,7 +54,7 @@ function getStorageEnv() {
   };
 }
 
-export function validateMedicalVisitCertificateStorageEnv() {
+export function validateMedicalVisitCertificateStorageEnv(): SupabaseStorageConfig {
   const env = getStorageEnv();
   const missingEnv =
     !env.url
@@ -89,7 +94,7 @@ export function validateMedicalVisitCertificateStorageEnv() {
     url: env.url,
     serviceRoleKey: env.serviceRoleKey,
     bucket: env.bucket,
-  };
+  } as SupabaseStorageConfig;
 }
 
 function hasConfiguredSupabaseStorage() {
@@ -97,7 +102,7 @@ function hasConfiguredSupabaseStorage() {
   return Boolean(env.url && env.serviceRoleKey && env.bucket);
 }
 
-function getSupabaseStorageConfigOrThrow() {
+function getSupabaseStorageConfigOrThrow(): SupabaseStorageConfig {
   return validateMedicalVisitCertificateStorageEnv();
 }
 
