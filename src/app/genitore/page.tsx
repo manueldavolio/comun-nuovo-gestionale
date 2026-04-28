@@ -62,6 +62,16 @@ const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
   minute: "2-digit",
 });
 
+function toFloatingDateTime(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
 function statusClass(
   palette: Record<string, string>,
   status: string | null,
@@ -518,8 +528,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 const childCalendarEvents: CalendarEvent[] = childEvents.map((event) => ({
                   id: `event-${event.id}`,
                   title: event.title,
-                  date: new Date(event.startAt).toISOString(),
-                  endDate: event.endAt ? new Date(event.endAt).toISOString() : null,
+                  date: toFloatingDateTime(event.startAt),
+                  endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
                   type:
                     event.type === "TRAINING"
                       ? "ALLENAMENTO"

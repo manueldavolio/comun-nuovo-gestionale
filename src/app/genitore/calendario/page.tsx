@@ -8,6 +8,16 @@ import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 
 type CalendarEventType = CalendarEvent["type"];
 
+function toFloatingDateTime(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
 function normalizeCalendarEventType(type: string | null | undefined): CalendarEventType {
   const normalized = type?.trim().toUpperCase();
 
@@ -189,8 +199,8 @@ export default async function ParentCalendarPage() {
     ...events.map((event) => ({
       id: `event-${event.id}`,
       title: event.title,
-      date: event.startAt.toISOString(),
-      endDate: event.endAt ? event.endAt.toISOString() : null,
+      date: toFloatingDateTime(event.startAt),
+      endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
       type: normalizeCalendarEventType(event.type),
       location: event.location,
       details: event.description,
@@ -202,7 +212,7 @@ export default async function ParentCalendarPage() {
       .map((entry) => ({
         id: `convocation-${entry.id}`,
         title: `Convocazione - ${entry.convocation.event!.title}`,
-        date: entry.convocation.event!.startAt.toISOString(),
+        date: toFloatingDateTime(entry.convocation.event!.startAt),
         type: "CONVOCAZIONE" as const,
         location: entry.convocation.event!.location,
         details: entry.convocation.notes,
@@ -215,7 +225,7 @@ export default async function ParentCalendarPage() {
       .map((announcement) => ({
         id: `announcement-${announcement.id}`,
         title: announcement.title,
-        date: announcement.publishedAt!.toISOString(),
+        date: toFloatingDateTime(announcement.publishedAt!),
         type: "RIUNIONE" as const,
         location: null,
         details: announcement.content,
