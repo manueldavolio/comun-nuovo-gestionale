@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import {
   getMedicalVisitCertificateDownloadName,
+  MedicalVisitCertificateStorageError,
   readMedicalVisitCertificate,
 } from "@/lib/medical-visit-certificates";
 import { prisma } from "@/lib/prisma";
@@ -59,7 +60,34 @@ export async function GET(_request: Request, context: RouteContext) {
         "Content-Disposition": `attachment; filename="${fileName}"`,
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof MedicalVisitCertificateStorageError) {
+      console.error("[medical-visits][admin-download-certificate] Read failure", {
+        errorName: error.name,
+        errorMessage: error.message,
+        stage: error.details.stage,
+        code: error.details.code,
+        storageDir: error.details.storageDir,
+        bucket: error.details.bucket,
+        bucketPath: error.details.bucketPath,
+        absolutePath: error.details.absolutePath,
+        userId: session.user.id,
+        medicalVisitId,
+      });
+      if (error.details.code === "SUPABASE_STORAGE_ENV_MISSING") {
+        return NextResponse.json(
+          {
+            error:
+              "Configurazione Supabase Storage mancante. Impostare SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e SUPABASE_MEDICAL_VISITS_BUCKET.",
+          },
+          { status: 500 },
+        );
+      }
+      if (error.details.code === "CERTIFICATE_NOT_FOUND") {
+        return NextResponse.json({ error: "Certificato non disponibile." }, { status: 404 });
+      }
+    }
+
     return NextResponse.json({ error: "Impossibile leggere il certificato." }, { status: 500 });
   }
 }

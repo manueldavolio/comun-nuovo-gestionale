@@ -1,10 +1,12 @@
 import path from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const MEDICAL_VISIT_CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
 
 const STORAGE_DIR = path.join(process.cwd(), "storage", "medical-visits");
+const MEDICAL_VISITS_BUCKET_NAME = "medical-visit-certificates";
 
 const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
@@ -14,8 +16,111 @@ const MIME_EXTENSION: Record<string, string> = {
   "image/png": ".png",
 };
 
+type NodeErrorWithCode = Error & { code?: string };
+
+export class MedicalVisitCertificateStorageError extends Error {
+  constructor(
+    message: string,
+    public readonly details: {
+      stage: "env" | "upload" | "download" | "legacy-read";
+      storageDir: string;
+      bucket?: string;
+      bucketPath?: string;
+      absolutePath?: string;
+      code?: string;
+      originalMessage?: string;
+      missingEnv?: "SUPABASE_URL" | "SUPABASE_SERVICE_ROLE_KEY" | "SUPABASE_MEDICAL_VISITS_BUCKET";
+    },
+  ) {
+    super(message);
+    this.name = "MedicalVisitCertificateStorageError";
+  }
+}
+
 function getSafeBasename(filePath: string): string {
   return path.basename(filePath.replaceAll("\\", "/"));
+}
+
+function getStorageEnv() {
+  return {
+    url: process.env.SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    bucket: process.env.SUPABASE_MEDICAL_VISITS_BUCKET,
+  };
+}
+
+export function validateMedicalVisitCertificateStorageEnv() {
+  const env = getStorageEnv();
+  const missingEnv =
+    !env.url
+      ? "SUPABASE_URL"
+      : !env.serviceRoleKey
+        ? "SUPABASE_SERVICE_ROLE_KEY"
+        : !env.bucket
+          ? "SUPABASE_MEDICAL_VISITS_BUCKET"
+          : null;
+
+  if (missingEnv) {
+    throw new MedicalVisitCertificateStorageError(
+      `Configurazione Supabase Storage mancante: ${missingEnv}.`,
+      {
+        stage: "env",
+        storageDir: STORAGE_DIR,
+        bucket: env.bucket,
+        code: "SUPABASE_STORAGE_ENV_MISSING",
+        missingEnv,
+      },
+    );
+  }
+
+  if (env.bucket !== MEDICAL_VISITS_BUCKET_NAME) {
+    throw new MedicalVisitCertificateStorageError(
+      `Bucket Supabase non valido: usare ${MEDICAL_VISITS_BUCKET_NAME}.`,
+      {
+        stage: "env",
+        storageDir: STORAGE_DIR,
+        bucket: env.bucket,
+        code: "SUPABASE_STORAGE_BUCKET_INVALID",
+      },
+    );
+  }
+
+  return {
+    url: env.url,
+    serviceRoleKey: env.serviceRoleKey,
+    bucket: env.bucket,
+  };
+}
+
+function hasConfiguredSupabaseStorage() {
+  const env = getStorageEnv();
+  return Boolean(env.url && env.serviceRoleKey && env.bucket);
+}
+
+function getSupabaseStorageConfigOrThrow() {
+  return validateMedicalVisitCertificateStorageEnv();
+}
+
+function getSupabaseStorageClient(): { client: SupabaseClient; bucket: string } {
+  const config = getSupabaseStorageConfigOrThrow();
+  return {
+    client: createClient(config.url, config.serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    }),
+    bucket: config.bucket,
+  };
+}
+
+function normalizeBucketPath(filePath: string): string {
+  const normalized = filePath.trim().replaceAll("\\", "/").replace(/^\/+/, "");
+  if (normalized.startsWith("supabase://")) {
+    const withoutScheme = normalized.slice("supabase://".length);
+    const firstSlash = withoutScheme.indexOf("/");
+    if (firstSlash >= 0) {
+      return withoutScheme.slice(firstSlash + 1);
+    }
+  }
+  return normalized;
 }
 
 export function isAllowedMedicalVisitCertificateMime(mimeType: string): boolean {
@@ -23,7 +128,7 @@ export function isAllowedMedicalVisitCertificateMime(mimeType: string): boolean 
 }
 
 export function getMedicalVisitCertificateDownloadName(filePath: string): string {
-  return getSafeBasename(filePath);
+  return getSafeBasename(normalizeBucketPath(filePath));
 }
 
 export async function saveMedicalVisitCertificate(params: {
@@ -40,17 +145,112 @@ export async function saveMedicalVisitCertificate(params: {
   const originalExt = params.originalName ? path.extname(params.originalName).toLowerCase() : "";
   const extension = originalExt || extFromMime;
   const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${extension}`;
+  const bucketPath = `medical-visits/${fileName}`;
+  const { client, bucket } = getSupabaseStorageClient();
+  console.info("[medical-visits][upload-certificate] supabase upload start", {
+    bucket,
+    bucketPath,
+    mimeType,
+    fileSize: params.fileBuffer.byteLength,
+  });
 
-  await mkdir(STORAGE_DIR, { recursive: true });
+  try {
+    const { error } = await client.storage.from(bucket).upload(bucketPath, params.fileBuffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    const storageError = error as Error & { code?: string };
+    console.error("[medical-visits][upload-certificate] supabase upload error", {
+      bucket,
+      bucketPath,
+      code: storageError.code,
+      message: storageError.message,
+    });
+    throw new MedicalVisitCertificateStorageError("Impossibile salvare il certificato su Supabase Storage.", {
+      stage: "upload",
+      storageDir: STORAGE_DIR,
+      bucket,
+      bucketPath,
+      code: storageError.code,
+      originalMessage: storageError.message,
+    });
+  }
 
-  const absolutePath = path.join(STORAGE_DIR, fileName);
-  await writeFile(absolutePath, params.fileBuffer);
-
-  return `medical-visits/${fileName}`;
+  console.info("[medical-visits][upload-certificate] supabase upload success", {
+    bucket,
+    bucketPath,
+  });
+  return bucketPath;
 }
 
 export async function readMedicalVisitCertificate(filePath: string): Promise<Buffer> {
+  const bucketPath = normalizeBucketPath(filePath);
+  if (hasConfiguredSupabaseStorage()) {
+    const { client, bucket } = getSupabaseStorageClient();
+    const { data, error } = await client.storage.from(bucket).download(bucketPath);
+    if (!error && data) {
+      const arrayBuffer = await data.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+
+    if (error && error.message?.toLowerCase().includes("not found")) {
+      // legacy fallback for historical local paths
+      return readLegacyLocalMedicalVisitCertificate(filePath);
+    }
+
+    if (error) {
+      throw new MedicalVisitCertificateStorageError("Errore durante il download da Supabase Storage.", {
+        stage: "download",
+        storageDir: STORAGE_DIR,
+        bucket,
+        bucketPath,
+        code: (error as NodeErrorWithCode).code,
+        originalMessage: error.message,
+      });
+    }
+  }
+
+  return readLegacyLocalMedicalVisitCertificate(filePath);
+}
+
+async function readLegacyLocalMedicalVisitCertificate(filePath: string): Promise<Buffer> {
   const safeBasename = getSafeBasename(filePath);
   const absolutePath = path.join(STORAGE_DIR, safeBasename);
-  return readFile(absolutePath);
+  try {
+    return await readFile(absolutePath);
+  } catch (error) {
+    const nodeError = error as NodeErrorWithCode;
+    if (nodeError.code === "ENOENT" && !hasConfiguredSupabaseStorage()) {
+      throw new MedicalVisitCertificateStorageError(
+        "Certificato non disponibile: storage Supabase non configurato e file legacy locale assente.",
+        {
+          stage: "env",
+          storageDir: STORAGE_DIR,
+          absolutePath,
+          code: "SUPABASE_STORAGE_ENV_MISSING",
+          originalMessage: nodeError.message,
+        },
+      );
+    }
+    if (nodeError.code === "ENOENT") {
+      throw new MedicalVisitCertificateStorageError("Certificato non trovato su storage.", {
+        stage: "legacy-read",
+        storageDir: STORAGE_DIR,
+        absolutePath,
+        code: "CERTIFICATE_NOT_FOUND",
+        originalMessage: nodeError.message,
+      });
+    }
+    throw new MedicalVisitCertificateStorageError("Impossibile leggere il certificato locale legacy.", {
+      stage: "legacy-read",
+      storageDir: STORAGE_DIR,
+      absolutePath,
+      code: nodeError.code,
+      originalMessage: nodeError.message,
+    });
+  }
 }
