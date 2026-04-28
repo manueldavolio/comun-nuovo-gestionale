@@ -7,6 +7,23 @@ import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
+function normalizeCalendarEventType(type: string | null | undefined): CalendarEvent["type"] {
+  switch (type) {
+    case "ALLENAMENTO":
+    case "PARTITA":
+    case "AMICHEVOLE":
+    case "RIUNIONE":
+    case "CONVOCAZIONE":
+      return type;
+    case "TRAINING":
+      return "ALLENAMENTO";
+    case "FRIENDLY":
+      return "AMICHEVOLE";
+    default:
+      return "ALLENAMENTO";
+  }
+}
+
 export default async function CoachCalendarPage() {
   const session = await getAuthSession();
 
@@ -133,12 +150,7 @@ export default async function CoachCalendarPage() {
       id: `event-${event.id}`,
       title: event.title,
       date: event.startAt.toISOString(),
-      type:
-        event.type === "TRAINING"
-          ? "ALLENAMENTO"
-          : event.type === "FRIENDLY"
-            ? "AMICHEVOLE"
-            : "PARTITA",
+      type: normalizeCalendarEventType(event.type),
       location: event.location,
       details: event.description,
       categoryId: event.categoryId,
@@ -150,7 +162,7 @@ export default async function CoachCalendarPage() {
         id: `convocation-${convocation.id}`,
         title: `Convocazione - ${convocation.event!.title}`,
         date: convocation.event!.startAt.toISOString(),
-        type: "CONVOCAZIONE" as const,
+        type: normalizeCalendarEventType("CONVOCAZIONE"),
         location: convocation.event!.location,
         details: convocation.notes,
         categoryId: convocation.categoryId,
@@ -162,7 +174,7 @@ export default async function CoachCalendarPage() {
         id: `announcement-${announcement.id}`,
         title: announcement.title,
         date: announcement.publishedAt!.toISOString(),
-        type: "RIUNIONE" as const,
+        type: normalizeCalendarEventType("RIUNIONE"),
         location: null,
         details: announcement.content,
         categoryId: announcement.categoryId,
