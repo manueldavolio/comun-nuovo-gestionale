@@ -1,6 +1,5 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const MEDICAL_VISIT_CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
@@ -128,6 +127,26 @@ function normalizeBucketPath(filePath: string): string {
   return normalized;
 }
 
+function normalizeCertificateFileName(originalName: string | undefined, fallbackExtension: string): string {
+  const rawName = (originalName ?? "").trim().toLowerCase();
+  const extFromName = path.extname(rawName);
+  const baseName = extFromName ? rawName.slice(0, -extFromName.length) : rawName;
+  const normalizedBase = baseName
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9\-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-_.]+|[-_.]+$/g, "");
+  const extensionCandidate = extFromName || fallbackExtension;
+  const normalizedExtension = extensionCandidate
+    .toLowerCase()
+    .replace(/[^a-z0-9.]/g, "")
+    .replace(/^\.+/, ".");
+
+  const safeBase = normalizedBase || "certificate";
+  const safeExtension = normalizedExtension || fallbackExtension || ".bin";
+  return `${safeBase}${safeExtension}`;
+}
+
 export function isAllowedMedicalVisitCertificateMime(mimeType: string): boolean {
   return ALLOWED_MIME_TYPES.has(mimeType.toLowerCase());
 }
@@ -146,17 +165,19 @@ export async function saveMedicalVisitCertificate(params: {
     throw new Error("Formato file non supportato.");
   }
 
-  const extFromMime = MIME_EXTENSION[mimeType];
-  const originalExt = params.originalName ? path.extname(params.originalName).toLowerCase() : "";
-  const extension = originalExt || extFromMime;
-  const fileName = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${extension}`;
-  const bucketPath = `medical-visits/${fileName}`;
+  const extension = MIME_EXTENSION[mimeType] ?? ".bin";
+  const safeFileName = normalizeCertificateFileName(params.originalName, extension);
+  const finalPath = `medical-visits/${Date.now()}-${safeFileName}`;
   const { client, bucket } = getSupabaseStorageClient();
   const fileSize = params.fileBuffer.byteLength;
+  console.info("[medical-visits][upload-certificate] final path", {
+    bucket,
+    finalPath,
+  });
   console.log("[medical-visits][upload-certificate] supabase upload start", {
     bucket,
-    path: bucketPath,
-    fileName,
+    path: finalPath,
+    fileName: safeFileName,
     fileSize,
     mimeType,
     hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
@@ -165,7 +186,7 @@ export async function saveMedicalVisitCertificate(params: {
   });
 
   try {
-    const { data, error } = await client.storage.from(bucket).upload(bucketPath, params.fileBuffer, {
+    const { data, error } = await client.storage.from(bucket).upload(finalPath, params.fileBuffer, {
       contentType: mimeType,
       upsert: false,
     });
@@ -173,8 +194,8 @@ export async function saveMedicalVisitCertificate(params: {
       const uploadError = error as Error & { statusCode?: string | number };
       console.error("[medical-visits][upload-certificate] supabase upload error", {
         bucket,
-        path: bucketPath,
-        fileName,
+        path: finalPath,
+        fileName: safeFileName,
         fileSize,
         mimeType,
         errorMessage: uploadError.message,
@@ -186,8 +207,8 @@ export async function saveMedicalVisitCertificate(params: {
     }
     console.log("[medical-visits][upload-certificate] supabase upload success", {
       bucket,
-      path: bucketPath,
-      fileName,
+      path: finalPath,
+      fileName: safeFileName,
       fileSize,
       mimeType,
       hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
@@ -201,7 +222,7 @@ export async function saveMedicalVisitCertificate(params: {
       stage: "upload",
       storageDir: STORAGE_DIR,
       bucket,
-      bucketPath,
+      bucketPath: finalPath,
       code: storageError.code,
       originalMessage: storageError.message,
     });
@@ -209,9 +230,9 @@ export async function saveMedicalVisitCertificate(params: {
 
   console.info("[medical-visits][upload-certificate] supabase upload success", {
     bucket,
-    bucketPath,
+    bucketPath: finalPath,
   });
-  return bucketPath;
+  return finalPath;
 }
 
 export async function readMedicalVisitCertificate(filePath: string): Promise<Buffer> {
