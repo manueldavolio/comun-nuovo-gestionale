@@ -86,10 +86,10 @@ export default async function ParentCalendarPage() {
           where: {
             athleteId: { in: athleteIds },
             convocation: {
-              event: {
-                isNot: null,
-                startAt: { gte: now },
-              },
+              AND: [
+                { event: { isNot: null } },
+                { event: { is: { startAt: { gte: now } } } },
+              ],
             },
           },
           orderBy: {
