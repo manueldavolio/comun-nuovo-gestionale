@@ -4,13 +4,14 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { DashboardCard } from "@/components/layout/dashboard-card";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { ParentConvocations } from "@/components/convocations/parent-convocations";
+import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
-import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
+import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
 
@@ -488,6 +489,20 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
               {athleteRows.map((row) => {
                 const childEvents = calendarEventsByCategory.get(row.categoryId) ?? [];
                 const childCommunications = communicationsByCategory.get(row.categoryId) ?? [];
+                const childCalendarEvents: CalendarEvent[] = childEvents.map((event) => ({
+                  id: `event-${event.id}`,
+                  title: event.title,
+                  date: new Date(event.startAt).toISOString(),
+                  type:
+                    event.type === "TRAINING"
+                      ? "ALLENAMENTO"
+                      : event.type === "FRIENDLY"
+                        ? "AMICHEVOLE"
+                        : "PARTITA",
+                  categoryId: row.categoryId,
+                  categoryName: row.categoryName,
+                  location: event.location,
+                }));
 
                 return (
                   <article key={row.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -604,26 +619,14 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
                       <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
                         <h4 className="text-sm font-semibold text-zinc-900">Sezione calendario</h4>
-                        {childEvents.length === 0 ? (
-                          <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                            Nessun evento imminente.
-                          </p>
-                        ) : (
-                          <ul className="mt-2 space-y-2">
-                            {childEvents.map((event) => (
-                              <li key={event.id} className="rounded-lg border border-blue-100 bg-white p-3">
-                                <p className="text-sm font-semibold text-zinc-900">{event.title}</p>
-                                <p className="text-xs uppercase tracking-wide text-blue-700">
-                                  {formatEventType(event.type)}
-                                </p>
-                                <p className="mt-1 text-sm text-zinc-700">
-                                  {dateTimeFormatter.format(new Date(event.startAt))}
-                                </p>
-                                <p className="text-sm text-zinc-700">Luogo: {event.location || "-"}</p>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                        <div className="mt-2">
+                          <MonthCalendar
+                            title={`Calendario ${row.fullName}`}
+                            subtitle="Vista mensile con eventi della categoria."
+                            events={childCalendarEvents}
+                            emptyMessage="Nessun evento imminente."
+                          />
+                        </div>
                       </section>
                     </div>
 
