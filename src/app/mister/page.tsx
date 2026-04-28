@@ -96,6 +96,7 @@ export default async function CoachDashboardPage() {
         content: true,
         audience: true,
         publishedAt: true,
+        categoryId: true,
         category: {
           select: {
             name: true,
