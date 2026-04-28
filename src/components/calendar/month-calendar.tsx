@@ -34,6 +34,14 @@ const EVENT_TYPE_STYLES: Record<CalendarEvent["type"], string> = {
   CONVOCAZIONE: "border-orange-200 bg-orange-50 text-orange-800",
 };
 
+const EVENT_TYPE_BADGE_LABEL: Record<CalendarEvent["type"], string> = {
+  ALLENAMENTO: "ALLEN",
+  AMICHEVOLE: "AMIC",
+  PARTITA: "PART",
+  RIUNIONE: "RIUN",
+  CONVOCAZIONE: "CONV",
+};
+
 function toDate(value: string) {
   return parseISO(value);
 }
@@ -189,20 +197,20 @@ export function MonthCalendar({
                       </span>
                     </div>
                     <div className="mt-1 space-y-1 sm:mt-2">
-                      {dayEvents.slice(0, 3).map((event) => (
+                      {dayEvents.slice(0, 2).map((event) => (
                         <div
                           key={event.id}
                           className={[
-                            "truncate rounded-full border px-1.5 py-0.5 text-[10px] font-semibold sm:text-[11px]",
+                            "rounded-full border px-1.5 py-0.5 text-center text-[10px] font-semibold sm:text-[11px]",
                             EVENT_TYPE_STYLES[event.type],
                           ].join(" ")}
                         >
-                          {event.title}
+                          {EVENT_TYPE_BADGE_LABEL[event.type]}
                         </div>
                       ))}
-                      {dayEvents.length > 3 ? (
-                        <div className="text-[10px] font-semibold text-zinc-500 sm:text-[11px]">
-                          +{dayEvents.length - 3} altri
+                      {dayEvents.length > 2 ? (
+                        <div className="text-center text-[10px] font-semibold text-zinc-500 sm:text-[11px]">
+                          +{dayEvents.length - 2}
                         </div>
                       ) : null}
                     </div>

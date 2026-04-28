@@ -74,6 +74,15 @@ const EVENT_KIND_LABEL: Record<CalendarEventKind, string> = {
   OTHER: "Altro",
 };
 
+const EVENT_KIND_BADGE_LABEL: Record<CalendarEventKind, string> = {
+  TRAINING: "ALLEN",
+  FRIENDLY: "AMIC",
+  LEAGUE_MATCH: "PART",
+  MEETING: "RIUN",
+  CONVOCATION: "CONV",
+  OTHER: "ALTRO",
+};
+
 const eventTimeFormatter = new Intl.DateTimeFormat("it-IT", {
   hour: "2-digit",
   minute: "2-digit",
@@ -293,20 +302,20 @@ export function MonthlyCalendar({
                         ) : null}
                       </div>
                       <div className="mt-2 space-y-1">
-                        {dayEvents.slice(0, 3).map((event) => (
+                        {dayEvents.slice(0, 2).map((event) => (
                           <div
                             key={event.id}
                             className={[
-                              "truncate rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+                              "rounded-md border px-1.5 py-0.5 text-center text-[11px] font-medium",
                               EVENT_KIND_STYLES[event.kind],
                             ].join(" ")}
                           >
-                            {event.title}
+                            {EVENT_KIND_BADGE_LABEL[event.kind]}
                           </div>
                         ))}
-                        {dayEvents.length > 3 ? (
-                          <div className="text-[11px] font-medium text-zinc-500">
-                            +{dayEvents.length - 3} altri
+                        {dayEvents.length > 2 ? (
+                          <div className="text-center text-[11px] font-medium text-zinc-500">
+                            +{dayEvents.length - 2}
                           </div>
                         ) : null}
                       </div>
