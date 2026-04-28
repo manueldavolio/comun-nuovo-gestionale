@@ -51,7 +51,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const fileBuffer = await readMedicalVisitCertificate(medicalVisit.certificateFilePath);
-    return new NextResponse(fileBuffer, {
+    const body = new Uint8Array(fileBuffer);
+    return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": detectContentType(fileName),
