@@ -634,6 +634,16 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                                 {dateFormatter.format(new Date(row.medicalVisit.expiryDate))}
                               </span>
                             </p>
+                            {row.medicalVisit.certificateFilePath ? (
+                              <a
+                                href={`/api/genitore/medical-visits/${row.medicalVisit.id}/certificate/download`}
+                                className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                              >
+                                Scarica certificato
+                              </a>
+                            ) : (
+                              <p className="text-xs text-zinc-500">Certificato non disponibile.</p>
+                            )}
                           </div>
                         ) : (
                           <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
