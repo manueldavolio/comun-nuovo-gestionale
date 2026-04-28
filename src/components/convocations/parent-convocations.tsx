@@ -92,45 +92,60 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
   function renderItem(item: ParentConvocationItem, allowEditsHint: boolean) {
     const itemFeedback = feedback[item.convocationAthleteId] ?? {};
     const isPending = pendingId === item.convocationAthleteId;
+    const isUnanswered = item.responseStatus === "PENDING";
 
     return (
-      <article key={item.convocationAthleteId} className="rounded-lg border border-blue-100 bg-white p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-zinc-900">{item.athleteFullName}</p>
+      <article
+        key={item.convocationAthleteId}
+        className={[
+          "rounded-2xl border bg-white p-4 shadow-sm transition",
+          isUnanswered
+            ? "border-amber-300 bg-gradient-to-br from-amber-50 to-white shadow-amber-100"
+            : "border-blue-100",
+        ].join(" ")}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-zinc-900">{item.athleteFullName}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{item.categoryName}</p>
+          </div>
           <span
-            className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[item.responseStatus]}`}
+            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[item.responseStatus]}`}
           >
             {CONVOCATION_RESPONSE_LABEL[item.responseStatus]}
           </span>
         </div>
-        <p className="mt-1 text-sm text-zinc-700">{item.eventTitle}</p>
-        <p className="text-xs text-zinc-600">
-          {item.categoryName} - {item.eventStartAtLabel}
-        </p>
-        <p className="text-xs text-zinc-600">Luogo: {item.eventLocation || "-"}</p>
-        {item.notes ? <p className="mt-1 text-xs text-zinc-600">Note: {item.notes}</p> : null}
+        <p className="mt-2 text-base font-semibold text-zinc-900">{item.eventTitle}</p>
+        <p className="mt-1 text-sm text-zinc-600">{item.eventStartAtLabel}</p>
+        <p className="text-sm text-zinc-600">Luogo: {item.eventLocation || "-"}</p>
+        {item.notes ? <p className="mt-1 text-sm text-zinc-600">Note: {item.notes}</p> : null}
+        {isUnanswered ? (
+          <p className="mt-2 rounded-xl border border-amber-200 bg-amber-100/60 px-3 py-2 text-xs font-semibold text-amber-900">
+            In attesa di risposta: conferma ora per aiutare lo staff a organizzare l'evento.
+          </p>
+        ) : null}
         {allowEditsHint ? (
           <p className="mt-2 text-xs text-zinc-500">
             Se serve, puoi aggiornare la risposta con i pulsanti qui sotto.
           </p>
         ) : null}
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button
             type="button"
             onClick={() => saveResponse(item.convocationAthleteId, "PRESENT")}
             disabled={isPending}
-            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+            className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
           >
-            Conferma presenza
+            Presente
           </button>
           <button
             type="button"
             onClick={() => saveResponse(item.convocationAthleteId, "ABSENT")}
             disabled={isPending}
-            className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+            className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
           >
-            Segna assenza
+            Assente
           </button>
         </div>
 
@@ -150,11 +165,19 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
 
   return (
     <div className="mt-3 space-y-4">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-          Convocazioni aperte: {openItems.length}
+      {openItems.length > 0 ? (
+        <p className="rounded-2xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 shadow-sm">
+          Hai {openItems.length} convocazioni ancora da confermare.
         </p>
-        <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
+      ) : null}
+
+      <p className="text-sm text-zinc-700">Conferma se tuo figlio sara presente all'evento.</p>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+          Da confermare: {openItems.length}
+        </p>
+        <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
           Gia risposte: {answeredItems.length}
         </p>
       </div>

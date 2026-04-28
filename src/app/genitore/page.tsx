@@ -392,9 +392,29 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           <DashboardCard
             title="Convocazioni"
             value={pendingConvocations}
-            description="Risposte presenza/assenza in attesa"
+            description="Da confermare per i prossimi eventi"
           />
         </section>
+
+        {!convocationResult.isSchemaMissing && pendingConvocations > 0 ? (
+          <section className="rounded-xl border border-amber-300 bg-amber-100 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Convocazioni da confermare</p>
+                <p className="mt-1 text-base font-semibold text-amber-950">
+                  Hai {pendingConvocations}{" "}
+                  {pendingConvocations === 1 ? "convocazione da confermare" : "convocazioni da confermare"}
+                </p>
+              </div>
+              <Link
+                href="/genitore/convocazioni"
+                className="inline-flex items-center justify-center rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-50"
+              >
+                Vai alle convocazioni
+              </Link>
+            </div>
+          </section>
+        ) : null}
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -430,6 +450,11 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
               className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
             >
               Apri convocazioni
+              {pendingConvocations > 0 ? (
+                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full border border-amber-300 bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-900">
+                  {pendingConvocations}
+                </span>
+              ) : null}
             </Link>
           </div>
 

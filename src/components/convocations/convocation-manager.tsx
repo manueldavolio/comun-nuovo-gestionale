@@ -87,6 +87,14 @@ export function ConvocationManager({
       })),
     [responseByAthlete, selectedAthletes],
   );
+  const groupedAthletes = useMemo(
+    () => ({
+      pending: selectedAthletesWithStatus.filter((athlete) => athlete.status === "PENDING"),
+      present: selectedAthletesWithStatus.filter((athlete) => athlete.status === "PRESENT"),
+      absent: selectedAthletesWithStatus.filter((athlete) => athlete.status === "ABSENT"),
+    }),
+    [selectedAthletesWithStatus],
+  );
 
   async function saveConvocation() {
     setFeedback({});
@@ -154,26 +162,31 @@ export function ConvocationManager({
         <p className="text-sm text-zinc-600">{eventDateLabel}</p>
       </header>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-center font-semibold text-blue-800">
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+        <span className="rounded-xl border border-blue-200 bg-blue-50 px-2 py-2 text-center font-semibold text-blue-800">
           Convocati: {selectedAthletes.length}
         </span>
         <span
-          className={`rounded-full px-2 py-1 text-center font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PRESENT}`}
+          className={`rounded-xl px-2 py-2 text-center font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PRESENT}`}
         >
           Presenti: {summary.PRESENT}
         </span>
         <span
-          className={`rounded-full px-2 py-1 text-center font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.ABSENT}`}
+          className={`rounded-xl px-2 py-2 text-center font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.ABSENT}`}
         >
           Assenti: {summary.ABSENT}
         </span>
         <span
-          className={`rounded-full px-2 py-1 text-center font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PENDING}`}
+          className={`rounded-xl px-2 py-2 text-center font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PENDING}`}
         >
           Senza risposta: {summary.PENDING}
         </span>
       </div>
+      {summary.PENDING > 0 ? (
+        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900">
+          Attenzione: {summary.PENDING} atleti convocati non hanno ancora risposto.
+        </p>
+      ) : null}
 
       <label className="mt-4 block text-sm text-zinc-700">
         Note convocazione
@@ -218,29 +231,115 @@ export function ConvocationManager({
       </ul>
 
       <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
-        <h3 className="text-sm font-semibold text-zinc-900">Elenco convocati con stato risposta</h3>
+        <h3 className="text-sm font-semibold text-zinc-900">Riepilogo convocazione per stato risposta</h3>
         {selectedAthletesWithStatus.length === 0 ? (
           <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
             Nessun atleta selezionato nella convocazione.
           </p>
         ) : (
-          <ul className="mt-2 space-y-2">
-            {selectedAthletesWithStatus.map((athlete) => (
-              <li
-                key={`summary-${athlete.id}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-100 bg-white px-3 py-2"
-              >
-                <span className="text-sm font-medium text-zinc-900">
-                  {athlete.firstName} {athlete.lastName}
-                </span>
+          <div className="mt-2 space-y-3">
+            <section>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-800">Senza risposta</h4>
                 <span
-                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[athlete.status]}`}
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PENDING}`}
                 >
-                  {CONVOCATION_RESPONSE_LABEL[athlete.status]}
+                  {groupedAthletes.pending.length}
                 </span>
-              </li>
-            ))}
-          </ul>
+              </div>
+              {groupedAthletes.pending.length === 0 ? (
+                <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  Nessun atleta senza risposta.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {groupedAthletes.pending.map((athlete) => (
+                    <li
+                      key={`pending-${athlete.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-zinc-900">
+                        {athlete.firstName} {athlete.lastName}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PENDING}`}
+                      >
+                        {CONVOCATION_RESPONSE_LABEL.PENDING}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Presenti</h4>
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PRESENT}`}
+                >
+                  {groupedAthletes.present.length}
+                </span>
+              </div>
+              {groupedAthletes.present.length === 0 ? (
+                <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  Nessun atleta presente.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {groupedAthletes.present.map((athlete) => (
+                    <li
+                      key={`present-${athlete.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-zinc-900">
+                        {athlete.firstName} {athlete.lastName}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.PRESENT}`}
+                      >
+                        {CONVOCATION_RESPONSE_LABEL.PRESENT}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-red-700">Assenti</h4>
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.ABSENT}`}
+                >
+                  {groupedAthletes.absent.length}
+                </span>
+              </div>
+              {groupedAthletes.absent.length === 0 ? (
+                <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  Nessun atleta assente.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {groupedAthletes.absent.map((athlete) => (
+                    <li
+                      key={`absent-${athlete.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-zinc-900">
+                        {athlete.firstName} {athlete.lastName}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS.ABSENT}`}
+                      >
+                        {CONVOCATION_RESPONSE_LABEL.ABSENT}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
         )}
       </section>
 
