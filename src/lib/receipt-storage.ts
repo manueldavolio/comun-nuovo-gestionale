@@ -1,11 +1,6 @@
-import path from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 type NodeErrorWithCode = Error & { code?: string };
-
-const LEGACY_PUBLIC_DIR = path.join(process.cwd(), "public", "receipts");
-const LEGACY_STORAGE_DIR = path.join(process.cwd(), "storage", "receipts");
 
 type SupabaseStorageConfig = {
   url: string;
@@ -17,17 +12,15 @@ export class ReceiptStorageError extends Error {
   constructor(
     message: string,
     public readonly details: {
-      stage: "upload" | "download" | "legacy-read";
+      stage: "upload" | "download";
+      missingEnv?: "SUPABASE_URL" | "SUPABASE_SERVICE_ROLE_KEY";
       bucket?: string;
       bucketPath?: string;
-      absolutePath?: string;
       code?: string;
       originalMessage?: string;
       reason?:
         | "SUPABASE_DOWNLOAD_NOT_FOUND"
-        | "SUPABASE_DOWNLOAD_ERROR"
-        | "LEGACY_FILE_NOT_FOUND"
-        | "LEGACY_FILE_READ_ERROR";
+        | "SUPABASE_DOWNLOAD_ERROR";
     },
   ) {
     super(message);
@@ -35,29 +28,36 @@ export class ReceiptStorageError extends Error {
   }
 }
 
+const DEFAULT_RECEIPTS_BUCKET = "receipts";
+const DEFAULT_MEDICAL_VISITS_BUCKET = "medical-visit-certificates";
+
 function getStorageEnv() {
   return {
     url: process.env.SUPABASE_URL,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    bucket: process.env.SUPABASE_RECEIPTS_BUCKET,
+    bucket:
+      process.env.SUPABASE_RECEIPTS_BUCKET ??
+      process.env.SUPABASE_MEDICAL_VISITS_BUCKET ??
+      DEFAULT_MEDICAL_VISITS_BUCKET,
   };
 }
 
-function hasConfiguredSupabaseStorage() {
-  const env = getStorageEnv();
-  return Boolean(env.url && env.serviceRoleKey && env.bucket);
+function getSafeBasename(filePath: string): string {
+  const normalized = filePath.replaceAll("\\", "/");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.at(-1) ?? "receipt.pdf";
 }
 
 function getSupabaseStorageConfigOrNull(): SupabaseStorageConfig | null {
   const env = getStorageEnv();
-  if (!env.url || !env.serviceRoleKey || !env.bucket) {
+  if (!env.url || !env.serviceRoleKey) {
     return null;
   }
   const supabaseUrlOrigin = new URL(env.url).origin;
   return {
     url: supabaseUrlOrigin,
     serviceRoleKey: env.serviceRoleKey,
-    bucket: env.bucket,
+    bucket: env.bucket ?? DEFAULT_RECEIPTS_BUCKET,
   };
 }
 
@@ -86,104 +86,84 @@ function normalizeBucketPath(filePath: string): string {
   if (normalized.startsWith("receipts/")) {
     return normalized;
   }
-  return `receipts/${path.basename(normalized)}`;
-}
-
-function getLegacyCandidates(filePath: string): string[] {
-  const safeBasename = path.basename(filePath.replaceAll("\\", "/"));
-  return [path.join(LEGACY_PUBLIC_DIR, safeBasename), path.join(LEGACY_STORAGE_DIR, safeBasename)];
-}
-
-async function readLegacyReceipt(filePath: string): Promise<Buffer> {
-  const candidates = getLegacyCandidates(filePath);
-  let lastError: NodeErrorWithCode | null = null;
-
-  for (const absolutePath of candidates) {
-    try {
-      return await readFile(absolutePath);
-    } catch (error) {
-      lastError = error as NodeErrorWithCode;
-      if (lastError.code !== "ENOENT") {
-        throw new ReceiptStorageError("Impossibile leggere il file ricevuta locale.", {
-          stage: "legacy-read",
-          absolutePath,
-          code: lastError.code,
-          originalMessage: lastError.message,
-          reason: "LEGACY_FILE_READ_ERROR",
-        });
-      }
-    }
-  }
-
-  throw new ReceiptStorageError("File ricevuta non disponibile.", {
-    stage: "legacy-read",
-    absolutePath: candidates[0],
-    code: lastError?.code ?? "ENOENT",
-    originalMessage: lastError?.message,
-    reason: "LEGACY_FILE_NOT_FOUND",
-  });
+  return `receipts/${getSafeBasename(normalized)}`;
 }
 
 export async function saveReceiptPdf(fileName: string, pdfBuffer: Buffer): Promise<string> {
   const bucketPath = `receipts/${fileName}`;
   const supabase = getSupabaseStorageClientOrNull();
-  if (supabase) {
-    const { client, bucket } = supabase;
-    const { error } = await client.storage.from(bucket).upload(bucketPath, pdfBuffer, {
-      contentType: "application/pdf",
-      upsert: true,
+  if (!supabase) {
+    const missingEnv = !process.env.SUPABASE_URL ? "SUPABASE_URL" : "SUPABASE_SERVICE_ROLE_KEY";
+    throw new ReceiptStorageError(`Configurazione Supabase Storage mancante: ${missingEnv}.`, {
+      stage: "upload",
+      missingEnv,
+      code: "SUPABASE_STORAGE_ENV_MISSING",
     });
-    if (error) {
-      throw new ReceiptStorageError("Impossibile salvare la ricevuta su Supabase Storage.", {
-        stage: "upload",
-        bucket,
-        bucketPath,
-        code: (error as NodeErrorWithCode).code,
-        originalMessage: error.message,
-      });
-    }
-    return bucketPath;
   }
 
-  await mkdir(LEGACY_PUBLIC_DIR, { recursive: true });
-  const absolutePath = path.join(LEGACY_PUBLIC_DIR, fileName);
-  await writeFile(absolutePath, pdfBuffer);
-  return `receipts/${fileName}`;
+  const { client, bucket } = supabase;
+  const { error } = await client.storage.from(bucket).upload(bucketPath, pdfBuffer, {
+    contentType: "application/pdf",
+    upsert: true,
+  });
+  if (error) {
+    throw new ReceiptStorageError("Impossibile salvare la ricevuta su Supabase Storage.", {
+      stage: "upload",
+      bucket,
+      bucketPath,
+      code: (error as NodeErrorWithCode).code,
+      originalMessage: error.message,
+    });
+  }
+
+  return bucketPath;
 }
 
 export async function readReceiptPdf(filePath: string): Promise<Buffer> {
   const bucketPath = normalizeBucketPath(filePath);
   const supabase = getSupabaseStorageClientOrNull();
-  if (supabase) {
-    const { client, bucket } = supabase;
-    const { data, error } = await client.storage.from(bucket).download(bucketPath);
-    if (!error && data) {
-      const arrayBuffer = await data.arrayBuffer();
-      return Buffer.from(arrayBuffer);
-    }
-
-    if (error && error.message?.toLowerCase().includes("not found")) {
-      return readLegacyReceipt(filePath);
-    }
-
-    if (error) {
-      throw new ReceiptStorageError("Errore durante il download da Supabase Storage.", {
-        stage: "download",
-        bucket,
-        bucketPath,
-        code: (error as NodeErrorWithCode).code,
-        originalMessage: error.message,
-        reason: "SUPABASE_DOWNLOAD_ERROR",
-      });
-    }
+  if (!supabase) {
+    const missingEnv = !process.env.SUPABASE_URL ? "SUPABASE_URL" : "SUPABASE_SERVICE_ROLE_KEY";
+    throw new ReceiptStorageError(`Configurazione Supabase Storage mancante: ${missingEnv}.`, {
+      stage: "download",
+      missingEnv,
+      bucketPath,
+      code: "SUPABASE_STORAGE_ENV_MISSING",
+    });
   }
 
-  if (!hasConfiguredSupabaseStorage()) {
-    return readLegacyReceipt(filePath);
+  const { client, bucket } = supabase;
+  const { data, error } = await client.storage.from(bucket).download(bucketPath);
+  if (!error && data) {
+    const arrayBuffer = await data.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  if (error && error.message?.toLowerCase().includes("not found")) {
+    throw new ReceiptStorageError("File ricevuta non disponibile su storage.", {
+      stage: "download",
+      bucket,
+      bucketPath,
+      code: (error as NodeErrorWithCode).code,
+      originalMessage: error.message,
+      reason: "SUPABASE_DOWNLOAD_NOT_FOUND",
+    });
+  }
+
+  if (error) {
+    throw new ReceiptStorageError("Errore durante il download da Supabase Storage.", {
+      stage: "download",
+      bucket,
+      bucketPath,
+      code: (error as NodeErrorWithCode).code,
+      originalMessage: error.message,
+      reason: "SUPABASE_DOWNLOAD_ERROR",
+    });
   }
 
   throw new ReceiptStorageError("File ricevuta non disponibile su storage.", {
     stage: "download",
+    bucket,
     bucketPath,
     reason: "SUPABASE_DOWNLOAD_NOT_FOUND",
   });

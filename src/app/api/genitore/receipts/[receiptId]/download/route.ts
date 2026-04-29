@@ -84,9 +84,8 @@ export async function GET(_request: Request, context: RouteContext) {
         reason: error.details.reason ?? "RECEIPT_STORAGE_ERROR",
         stage: error.details.stage,
         bucketPath: error.details.bucketPath,
-        absolutePath: error.details.absolutePath,
       });
-      const status = error.details.reason === "LEGACY_FILE_NOT_FOUND" ? 404 : 500;
+      const status = error.details.reason === "SUPABASE_DOWNLOAD_NOT_FOUND" ? 404 : 500;
       return NextResponse.json({ error: "File ricevuta non disponibile." }, { status });
     }
     console.info("[receipts] download missing file reason", {
