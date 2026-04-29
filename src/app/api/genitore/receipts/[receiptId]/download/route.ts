@@ -69,7 +69,8 @@ export async function GET(_request: Request, context: RouteContext) {
   console.info("[receipts] download file path", { receiptId, filePath: receipt.filePath });
   try {
     const fileBuffer = await readReceiptPdf(receipt.filePath);
-    return new NextResponse(fileBuffer, {
+    const body = new Uint8Array(fileBuffer);
+    return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
