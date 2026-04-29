@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { FinanceEntryForm } from "@/components/finance/finance-entry-form";
+import { RegenerateReceiptButton } from "@/components/finance/regenerate-receipt-button";
 import { FINANCE_CATEGORY_LABEL, euroFormatter } from "@/lib/finance";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -68,6 +69,7 @@ export default async function AdminFinanzePage() {
           select: {
             id: true,
             receiptNumber: true,
+            filePath: true,
           },
         },
         enrollment: {
@@ -192,13 +194,15 @@ export default async function AdminFinanzePage() {
                       {euroFormatter.format(toAmountNumber(payment.amount))}
                     </td>
                     <td className="px-3 py-2">
-                      {payment.receipt ? (
+                      {payment.receipt?.filePath ? (
                         <a
                           href={`/api/genitore/receipts/${payment.receipt.id}/download`}
                           className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
                         >
                           {payment.receipt.receiptNumber}
                         </a>
+                      ) : payment.status === "PAID" ? (
+                        <RegenerateReceiptButton paymentId={payment.id} />
                       ) : (
                         <span className="text-xs text-zinc-500">Non disponibile</span>
                       )}

@@ -121,6 +121,134 @@ async function ensureReceiptFile(payment: PaymentWithRelations) {
   return savedPath;
 }
 
+export async function regenerateReceiptForPaidPayment(paymentId: string) {
+  const now = new Date();
+
+  const payment = await prisma.$transaction(async (tx) => {
+    const existing = await tx.payment.findUnique({
+      where: { id: paymentId },
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        status: true,
+        paidAt: true,
+        paymentMethod: true,
+        receipt: {
+          select: { id: true, receiptNumber: true, filePath: true },
+        },
+        enrollment: {
+          select: {
+            seasonLabel: true,
+            receiptFirstName: true,
+            receiptLastName: true,
+            receiptTaxCode: true,
+            receiptAddress: true,
+            receiptEmail: true,
+            category: { select: { name: true } },
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+                taxCode: true,
+                birthDate: true,
+                parent: {
+                  select: {
+                    id: true,
+                    user: {
+                      select: {
+                        id: true,
+                        email: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.status !== "PAID") {
+      return { error: "PAYMENT_NOT_PAID" as const };
+    }
+
+    if (existing.type !== "DEPOSIT" && existing.type !== "BALANCE") {
+      return { error: "PAYMENT_TYPE_NOT_SUPPORTED" as const };
+    }
+
+    if (!existing.receipt) {
+      const receiptNumber = await getNextReceiptNumber(tx);
+      await tx.receipt.create({
+        data: {
+          paymentId: existing.id,
+          receiptNumber,
+          issueDate: existing.paidAt ?? now,
+          amount: existing.amount,
+          causal: buildCausal(existing.type, existing.enrollment.seasonLabel),
+          paymentProvider: "Stripe",
+          headerName: `${existing.enrollment.receiptFirstName} ${existing.enrollment.receiptLastName}`.trim(),
+          headerTaxCode: existing.enrollment.receiptTaxCode,
+        },
+      });
+    }
+
+    return tx.payment.findUnique({
+      where: { id: existing.id },
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        status: true,
+        paidAt: true,
+        paymentMethod: true,
+        receipt: {
+          select: { id: true, receiptNumber: true, filePath: true },
+        },
+        enrollment: {
+          select: {
+            seasonLabel: true,
+            receiptFirstName: true,
+            receiptLastName: true,
+            receiptTaxCode: true,
+            receiptAddress: true,
+            receiptEmail: true,
+            category: { select: { name: true } },
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+                taxCode: true,
+                birthDate: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  if (!payment) {
+    return { error: "PAYMENT_NOT_FOUND" as const };
+  }
+
+  if ("error" in payment) {
+    return payment;
+  }
+
+  const filePath = await ensureReceiptFile(payment as PaymentWithRelations);
+  return {
+    ok: true as const,
+    receiptId: payment.receipt?.id ?? null,
+    filePath: filePath ?? payment.receipt?.filePath ?? null,
+  };
+}
+
 export async function markEnrollmentPaymentPaidFromStripe(input: {
   paymentId: string;
   stripeCheckoutSessionId: string;

@@ -1,0 +1,56 @@
+import { NextResponse } from "next/server";
+import { getAuthSession } from "@/lib/auth";
+import { regenerateReceiptForPaidPayment } from "@/lib/enrollment-payments";
+
+type RouteContext = {
+  params: Promise<{ paymentId: string }>;
+};
+
+export async function POST(_request: Request, context: RouteContext) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
+  }
+
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
+  }
+
+  const { paymentId } = await context.params;
+  if (!paymentId) {
+    return NextResponse.json({ error: "Payment non valido." }, { status: 400 });
+  }
+
+  console.info("[receipt regenerate] paymentId", { paymentId });
+
+  try {
+    const result = await regenerateReceiptForPaidPayment(paymentId);
+
+    if ("error" in result) {
+      if (result.error === "PAYMENT_NOT_FOUND") {
+        return NextResponse.json({ error: "Payment non trovato." }, { status: 404 });
+      }
+      if (result.error === "PAYMENT_NOT_PAID") {
+        return NextResponse.json({ error: "Il payment non e pagato (status != PAID)." }, { status: 400 });
+      }
+      if (result.error === "PAYMENT_TYPE_NOT_SUPPORTED") {
+        return NextResponse.json({ error: "Tipo payment non supportato per ricevuta." }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Impossibile rigenerare la ricevuta." }, { status: 500 });
+    }
+
+    console.info("[receipt regenerate] receiptId", { receiptId: result.receiptId });
+    console.info("[receipt regenerate] filePath saved", { filePath: result.filePath });
+    return NextResponse.json(
+      {
+        ok: true,
+        receiptId: result.receiptId,
+        filePath: result.filePath,
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    console.error("[receipt regenerate] error", { paymentId, error });
+    return NextResponse.json({ error: "Errore durante la rigenerazione ricevuta." }, { status: 500 });
+  }
+}
