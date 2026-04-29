@@ -198,6 +198,13 @@ export async function regenerateReceiptForPaidPayment(paymentId: string) {
       });
     }
 
+    console.info("[receipt regenerate] existing receipt", {
+      paymentId: existing.id,
+      receiptId: existing.receipt?.id ?? null,
+      receiptNumber: existing.receipt?.receiptNumber ?? null,
+      filePath: existing.receipt?.filePath ?? null,
+    });
+
     return tx.payment.findUnique({
       where: { id: existing.id },
       select: {
@@ -242,6 +249,14 @@ export async function regenerateReceiptForPaidPayment(paymentId: string) {
   }
 
   const filePath = await ensureReceiptFile(payment as PaymentWithRelations);
+  console.info("[receipt regenerate] pdf generated", {
+    paymentId,
+    receiptId: payment.receipt?.id ?? null,
+  });
+  console.info("[receipt regenerate] filePath saved", {
+    paymentId,
+    filePath: filePath ?? payment.receipt?.filePath ?? null,
+  });
   return {
     ok: true as const,
     receiptId: payment.receipt?.id ?? null,

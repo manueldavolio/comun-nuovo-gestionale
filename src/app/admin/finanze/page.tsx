@@ -194,15 +194,18 @@ export default async function AdminFinanzePage() {
                       {euroFormatter.format(toAmountNumber(payment.amount))}
                     </td>
                     <td className="px-3 py-2">
-                      {payment.receipt?.filePath ? (
-                        <a
-                          href={`/api/genitore/receipts/${payment.receipt.id}/download`}
-                          className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
-                        >
-                          {payment.receipt.receiptNumber}
-                        </a>
-                      ) : payment.status === "PAID" ? (
-                        <RegenerateReceiptButton paymentId={payment.id} />
+                      {payment.status === "PAID" ? (
+                        <div className="flex flex-col gap-1">
+                          {payment.receipt?.filePath ? (
+                            <a
+                              href={`/api/genitore/receipts/${payment.receipt.id}/download`}
+                              className="inline-flex w-fit rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                            >
+                              {payment.receipt.receiptNumber}
+                            </a>
+                          ) : null}
+                          <RegenerateReceiptButton paymentId={payment.id} />
+                        </div>
                       ) : (
                         <span className="text-xs text-zinc-500">Non disponibile</span>
                       )}
