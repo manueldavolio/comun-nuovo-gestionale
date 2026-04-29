@@ -4,9 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
 
 const CHECKOUT_AMOUNT_BY_TYPE = {
-  // TEST TEMPORANEO STRIPE - ricordarsi di ripristinare 5000 e 20000
-  DEPOSIT: 50,
-  BALANCE: 50,
+  DEPOSIT: 5000,
+  BALANCE: 20000,
 } as const;
 
 type RouteContext = {
