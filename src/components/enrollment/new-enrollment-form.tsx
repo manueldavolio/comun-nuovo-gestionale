@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { enrollmentSchema, type EnrollmentInput } from "@/lib/validation/enrollment";
 
 type CategoryOption = {
@@ -522,7 +523,14 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
               className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
             />
             <span>
-              Confermo di aver letto e accettato l&apos;informativa privacy. (obbligatorio)
+              Confermo di aver letto e accettato l&apos;
+              <Link
+                href="/privacy"
+                className="underline underline-offset-2 hover:text-blue-900"
+              >
+                informativa privacy
+              </Link>
+              . (obbligatorio)
               <FieldError message={fieldErrors.privacyConsent} />
             </span>
           </label>
@@ -535,7 +543,14 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
               className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
             />
             <span>
-              Confermo di aver letto e accettato il regolamento societario. (obbligatorio)
+              Confermo di aver letto e accettato il{" "}
+              <Link
+                href="/regolamento"
+                className="underline underline-offset-2 hover:text-blue-900"
+              >
+                regolamento societario
+              </Link>
+              . (obbligatorio)
               <FieldError message={fieldErrors.regulationConsent} />
             </span>
           </label>
