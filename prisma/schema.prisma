@@ -273,6 +273,8 @@ model Payment {
   paidAt        DateTime?
   status        PaymentStatus @default(PENDING)
   paymentMethod String?
+  stripeCheckoutSessionId String? @unique
+  stripePaymentIntentId   String? @unique
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -291,6 +293,8 @@ model Receipt {
   receiptNumber String   @unique
   issueDate     DateTime
   amount        Decimal  @db.Decimal(10, 2)
+  causal        String?
+  paymentProvider String?
   headerName    String
   headerTaxCode String
   filePath      String?
@@ -298,6 +302,20 @@ model Receipt {
   updatedAt     DateTime @updatedAt
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model ReceiptCounter {
+  id        Int      @id
+  lastValue Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StripeWebhookEvent {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  eventType String
+  createdAt DateTime @default(now())
 }
 
 model Event {

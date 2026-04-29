@@ -8,7 +8,11 @@ export type ReceiptPdfData = {
   companyCityPostalCode: string;
   companyVatOrTaxCode: string;
   athleteFullName: string;
+  athleteTaxCode: string;
+  athleteBirthDate: Date;
   parentFullName: string;
+  parentTaxCode: string;
+  parentAddress?: string;
   categoryName: string;
   seasonLabel: string;
   paymentType: "DEPOSIT" | "BALANCE";
@@ -33,9 +37,9 @@ function formatEuro(amount: string): string {
 
 function getCausal(paymentType: "DEPOSIT" | "BALANCE"): string {
   if (paymentType === "DEPOSIT") {
-    return "acconto";
+    return "Acconto iscrizione";
   }
-  return "saldo";
+  return "Saldo iscrizione";
 }
 
 export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Array> {
@@ -107,8 +111,12 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
     ["CAP/Citta", data.companyCityPostalCode],
     ["P.I./C.F.", data.companyVatOrTaxCode],
     ["Atleta", data.athleteFullName],
+    ["Codice fiscale atleta", data.athleteTaxCode],
+    ["Data nascita atleta", formatDate(data.athleteBirthDate)],
     ["Intestatario/Genitore", data.parentFullName],
-    ["Causale", getCausal(data.paymentType)],
+    ["Codice fiscale genitore", data.parentTaxCode],
+    ["Indirizzo genitore", data.parentAddress?.trim() || "-"],
+    ["Causale", `${getCausal(data.paymentType)} stagione ${data.seasonLabel}`],
     ["Categoria", data.categoryName],
     ["Stagione sportiva", data.seasonLabel],
     ["Descrizione", description],

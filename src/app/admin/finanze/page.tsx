@@ -31,7 +31,7 @@ export default async function AdminFinanzePage() {
     redirect("/unauthorized");
   }
 
-  const [entries, enrollmentPayments] = await Promise.all([
+  const [entries, enrollmentPayments, enrollmentPaymentsDetail] = await Promise.all([
     prisma.accountingEntry.findMany({
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: 300,
@@ -51,6 +51,37 @@ export default async function AdminFinanzePage() {
         status: { not: "CANCELLED" },
       },
       select: { amount: true },
+    }),
+    prisma.payment.findMany({
+      where: {
+        type: { in: ["DEPOSIT", "BALANCE"] },
+      },
+      orderBy: [{ createdAt: "desc" }],
+      take: 300,
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        status: true,
+        paidAt: true,
+        receipt: {
+          select: {
+            id: true,
+            receiptNumber: true,
+          },
+        },
+        enrollment: {
+          select: {
+            seasonLabel: true,
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
     }),
   ]);
 
@@ -126,6 +157,58 @@ export default async function AdminFinanzePage() {
         </section>
 
         <FinanceEntryForm />
+
+        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-semibold text-zinc-900">Pagamenti iscrizioni</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Monitoraggio acconto/saldo e link diretti alle ricevute generate.
+          </p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-blue-100 text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
+                  <th className="px-3 py-2 font-semibold">Atleta</th>
+                  <th className="px-3 py-2 font-semibold">Stagione</th>
+                  <th className="px-3 py-2 font-semibold">Tipo</th>
+                  <th className="px-3 py-2 font-semibold">Stato</th>
+                  <th className="px-3 py-2 font-semibold">Importo</th>
+                  <th className="px-3 py-2 font-semibold">Ricevuta</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-blue-50 text-zinc-700">
+                {enrollmentPaymentsDetail.map((payment) => (
+                  <tr key={payment.id}>
+                    <td className="px-3 py-2 font-medium text-zinc-900">
+                      {`${payment.enrollment.athlete.firstName} ${payment.enrollment.athlete.lastName}`.trim()}
+                    </td>
+                    <td className="px-3 py-2">{payment.enrollment.seasonLabel}</td>
+                    <td className="px-3 py-2">{payment.type === "DEPOSIT" ? "Acconto" : "Saldo"}</td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-semibold text-zinc-900">
+                      {euroFormatter.format(toAmountNumber(payment.amount))}
+                    </td>
+                    <td className="px-3 py-2">
+                      {payment.receipt ? (
+                        <a
+                          href={`/api/genitore/receipts/${payment.receipt.id}/download`}
+                          className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                        >
+                          {payment.receipt.receiptNumber}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-zinc-500">Non disponibile</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">Lista movimenti</h2>

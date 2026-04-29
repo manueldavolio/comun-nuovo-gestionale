@@ -5,6 +5,7 @@ import { DashboardCard } from "@/components/layout/dashboard-card";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { ParentConvocations } from "@/components/convocations/parent-convocations";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
+import { PaymentActions } from "@/components/payments/payment-actions";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import {
@@ -601,18 +602,22 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                                     : "Non generato"}
                                 </span>
                               </div>
-                              <div className="mt-2">
-                                {payment?.receipt?.filePath ? (
-                                  <a
-                                    href={`/api/genitore/receipts/${payment.receipt.id}/download`}
-                                    className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
-                                  >
-                                    Scarica ricevuta
-                                  </a>
-                                ) : (
-                                  <p className="text-xs text-zinc-500">Ricevuta non disponibile</p>
-                                )}
-                              </div>
+                              {payment ? (
+                                <div className="mt-2">
+                                  {payment.type === "DEPOSIT" || payment.type === "BALANCE" ? (
+                                    <PaymentActions
+                                      paymentId={payment.id}
+                                      paymentType={payment.type}
+                                      status={payment.status}
+                                      receiptId={payment.receipt?.id ?? null}
+                                    />
+                                  ) : (
+                                    <p className="text-xs text-zinc-500">Tipo pagamento non disponibile</p>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-xs text-zinc-500">Pagamento non disponibile</p>
+                              )}
                             </div>
                           ))}
                         </div>

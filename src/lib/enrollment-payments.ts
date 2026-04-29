@@ -1,0 +1,312 @@
+import path from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { Prisma, type PaymentType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { generateReceiptPdf } from "@/lib/pdf";
+import { sendReceiptMail } from "@/lib/mail";
+
+const CLUB_DATA = {
+  name: "Associazione Sportiva Dilettantistica Comun Nuovo",
+  address: "Via Azzurri 2006 snc",
+  cityPostalCode: "24040 Comun Nuovo",
+  vatOrTaxCode: "04232930166",
+} as const;
+
+const RECEIPT_SEQUENCE_PAD = 6;
+const RECEIPT_COUNTER_ID = 1;
+
+type PaymentWithRelations = {
+  id: string;
+  amount: Prisma.Decimal;
+  type: PaymentType;
+  status: "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
+  paidAt: Date | null;
+  paymentMethod: string | null;
+  receipt: { id: string; receiptNumber: string; filePath: string | null } | null;
+  enrollment: {
+    seasonLabel: string;
+    receiptFirstName: string;
+    receiptLastName: string;
+    receiptTaxCode: string;
+    receiptAddress: string;
+    receiptEmail: string;
+    category: { name: string };
+    athlete: {
+      firstName: string;
+      lastName: string;
+      taxCode: string;
+      birthDate: Date;
+    };
+  };
+};
+
+function buildCausal(paymentType: PaymentType, seasonLabel: string) {
+  return paymentType === "DEPOSIT"
+    ? `Acconto iscrizione stagione ${seasonLabel}`
+    : `Saldo iscrizione stagione ${seasonLabel}`;
+}
+
+function getReceiptStoragePaths(fileName: string) {
+  const relativeDir = "receipts";
+  const absoluteDir = path.join(process.cwd(), "public", relativeDir);
+  return {
+    relativePath: `${relativeDir}/${fileName}`.replaceAll("\\", "/"),
+    absolutePath: path.join(absoluteDir, fileName),
+    absoluteDir,
+  };
+}
+
+async function getNextReceiptNumber(tx: Prisma.TransactionClient): Promise<string> {
+  await tx.receiptCounter.upsert({
+    where: { id: RECEIPT_COUNTER_ID },
+    create: { id: RECEIPT_COUNTER_ID, lastValue: 0 },
+    update: {},
+  });
+
+  const rows = await tx.$queryRaw<Array<{ lastValue: number }>>`
+    UPDATE "ReceiptCounter"
+    SET "lastValue" = "lastValue" + 1
+    WHERE "id" = ${RECEIPT_COUNTER_ID}
+    RETURNING "lastValue"
+  `;
+
+  const nextValue = rows[0]?.lastValue ?? 1;
+  return `CN-${String(nextValue).padStart(RECEIPT_SEQUENCE_PAD, "0")}`;
+}
+
+async function ensureReceiptFile(payment: PaymentWithRelations) {
+  if (!payment.receipt) {
+    return null;
+  }
+
+  const fileName = `${payment.receipt.receiptNumber}.pdf`;
+  const storage = getReceiptStoragePaths(fileName);
+  const athleteFullName = `${payment.enrollment.athlete.firstName} ${payment.enrollment.athlete.lastName}`.trim();
+  const parentFullName = `${payment.enrollment.receiptFirstName} ${payment.enrollment.receiptLastName}`.trim();
+
+  const pdfBytes = await generateReceiptPdf({
+    receiptNumber: payment.receipt.receiptNumber,
+    issueDate: payment.paidAt ?? new Date(),
+    companyName: CLUB_DATA.name,
+    companyAddress: CLUB_DATA.address,
+    companyCityPostalCode: CLUB_DATA.cityPostalCode,
+    companyVatOrTaxCode: CLUB_DATA.vatOrTaxCode,
+    athleteFullName,
+    athleteTaxCode: payment.enrollment.athlete.taxCode,
+    athleteBirthDate: payment.enrollment.athlete.birthDate,
+    parentFullName,
+    parentTaxCode: payment.enrollment.receiptTaxCode,
+    parentAddress: payment.enrollment.receiptAddress,
+    paymentType: payment.type === "DEPOSIT" ? "DEPOSIT" : "BALANCE",
+    categoryName: payment.enrollment.category.name,
+    seasonLabel: payment.enrollment.seasonLabel,
+    amount: payment.amount.toString(),
+    paymentMethod: payment.paymentMethod ?? "Stripe",
+  });
+
+  const pdfBuffer = Buffer.from(pdfBytes);
+  await mkdir(storage.absoluteDir, { recursive: true });
+  await writeFile(storage.absolutePath, pdfBuffer);
+
+  if (payment.receipt.filePath !== storage.relativePath) {
+    await prisma.receipt.update({
+      where: { id: payment.receipt.id },
+      data: { filePath: storage.relativePath },
+    });
+  }
+
+  const societyEmail = process.env.CLUB_RECEIPTS_EMAIL;
+  await sendReceiptMail({
+    to: payment.enrollment.receiptEmail,
+    cc: societyEmail,
+    receiptNumber: payment.receipt.receiptNumber,
+    athleteFullName,
+    amount: payment.amount.toString(),
+    attachmentFileName: fileName,
+    attachmentContent: pdfBuffer,
+  }).catch(() => undefined);
+
+  return storage.relativePath;
+}
+
+export async function markEnrollmentPaymentPaidFromStripe(input: {
+  paymentId: string;
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId: string | null;
+}) {
+  const now = new Date();
+
+  const payment = await prisma.$transaction(async (tx) => {
+    const existing = await tx.payment.findUnique({
+      where: { id: input.paymentId },
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        status: true,
+        paidAt: true,
+        paymentMethod: true,
+        receipt: {
+          select: { id: true, receiptNumber: true, filePath: true },
+        },
+        enrollment: {
+          select: {
+            seasonLabel: true,
+            receiptFirstName: true,
+            receiptLastName: true,
+            receiptTaxCode: true,
+            receiptAddress: true,
+            receiptEmail: true,
+            category: { select: { name: true } },
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+                taxCode: true,
+                birthDate: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.type !== "DEPOSIT" && existing.type !== "BALANCE") {
+      return null;
+    }
+
+    const paidAt = existing.paidAt ?? now;
+    const updatedPayment = await tx.payment.update({
+      where: { id: existing.id },
+      data: {
+        status: "PAID",
+        paidAt,
+        paymentMethod: "Online / Stripe",
+        stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+        stripePaymentIntentId: input.stripePaymentIntentId,
+      },
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        status: true,
+        paidAt: true,
+        paymentMethod: true,
+        receipt: {
+          select: { id: true, receiptNumber: true, filePath: true },
+        },
+        enrollment: {
+          select: {
+            seasonLabel: true,
+            receiptFirstName: true,
+            receiptLastName: true,
+            receiptTaxCode: true,
+            receiptAddress: true,
+            receiptEmail: true,
+            category: { select: { name: true } },
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+                taxCode: true,
+                birthDate: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const athleteFullName =
+      `${updatedPayment.enrollment.athlete.firstName} ${updatedPayment.enrollment.athlete.lastName}`.trim();
+
+    await tx.accountingEntry.upsert({
+      where: { paymentId: updatedPayment.id },
+      update: {
+        type: "INCOME",
+        category: "iscrizioni",
+        description: `Pagamento iscrizione ${athleteFullName}`,
+        amount: updatedPayment.amount,
+        date: paidAt,
+        paymentMethod: "Online / Stripe",
+        isForecast: false,
+      },
+      create: {
+        type: "INCOME",
+        category: "iscrizioni",
+        description: `Pagamento iscrizione ${athleteFullName}`,
+        amount: updatedPayment.amount,
+        date: paidAt,
+        paymentMethod: "Online / Stripe",
+        isForecast: false,
+        paymentId: updatedPayment.id,
+      },
+    });
+
+    if (!updatedPayment.receipt) {
+      const receiptNumber = await getNextReceiptNumber(tx);
+      await tx.receipt.create({
+        data: {
+          paymentId: updatedPayment.id,
+          receiptNumber,
+          issueDate: paidAt,
+          amount: updatedPayment.amount,
+          causal: buildCausal(updatedPayment.type, updatedPayment.enrollment.seasonLabel),
+          paymentProvider: "Stripe",
+          headerName: `${updatedPayment.enrollment.receiptFirstName} ${updatedPayment.enrollment.receiptLastName}`.trim(),
+          headerTaxCode: updatedPayment.enrollment.receiptTaxCode,
+        },
+      });
+    }
+
+    return tx.payment.findUnique({
+      where: { id: updatedPayment.id },
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        status: true,
+        paidAt: true,
+        paymentMethod: true,
+        receipt: {
+          select: { id: true, receiptNumber: true, filePath: true },
+        },
+        enrollment: {
+          select: {
+            seasonLabel: true,
+            receiptFirstName: true,
+            receiptLastName: true,
+            receiptTaxCode: true,
+            receiptAddress: true,
+            receiptEmail: true,
+            category: { select: { name: true } },
+            athlete: {
+              select: {
+                firstName: true,
+                lastName: true,
+                taxCode: true,
+                birthDate: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  if (!payment) {
+    return null;
+  }
+
+  const filePath = await ensureReceiptFile(payment as PaymentWithRelations);
+  return {
+    paymentId: payment.id,
+    receiptId: payment.receipt?.id ?? null,
+    receiptNumber: payment.receipt?.receiptNumber ?? null,
+    receiptFilePath: filePath ?? payment.receipt?.filePath ?? null,
+  };
+}

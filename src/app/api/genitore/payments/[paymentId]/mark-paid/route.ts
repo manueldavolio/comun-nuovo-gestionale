@@ -14,7 +14,6 @@ const CLUB_DATA = {
   vatOrTaxCode: "04232930166",
 } as const;
 
-const SPORT_SEASON = "2026/2027";
 const DEFAULT_PAYMENT_METHOD = "Manuale dashboard (test)";
 const RECEIPT_SEQUENCE_PAD = 6;
 
@@ -109,11 +108,14 @@ export async function POST(request: Request, context: RouteContext) {
           receiptFirstName: true,
           receiptLastName: true,
           receiptTaxCode: true,
+          receiptAddress: true,
           receiptEmail: true,
           athlete: {
             select: {
               firstName: true,
               lastName: true,
+              taxCode: true,
+              birthDate: true,
               parent: {
                 select: {
                   userId: true,
@@ -244,7 +246,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const issueDate = existing.receipt?.issueDate ?? (updatedPayment.paidAt ?? now);
-  const seasonLabel = SPORT_SEASON;
+  const seasonLabel = existing.enrollment.seasonLabel;
   let receiptNumber = existing.receipt?.receiptNumber ?? "";
   if (!receiptNumber) {
     try {
@@ -279,10 +281,14 @@ export async function POST(request: Request, context: RouteContext) {
       companyCityPostalCode: CLUB_DATA.cityPostalCode,
       companyVatOrTaxCode: CLUB_DATA.vatOrTaxCode,
       athleteFullName,
+      athleteTaxCode: existing.enrollment.athlete.taxCode,
+      athleteBirthDate: existing.enrollment.athlete.birthDate,
       parentFullName: headerFullName,
+      parentTaxCode: existing.enrollment.receiptTaxCode,
+      parentAddress: existing.enrollment.receiptAddress,
       paymentType: paymentTypeForReceipt,
       categoryName: existing.enrollment.category.name,
-      seasonLabel,
+      seasonLabel: existing.enrollment.seasonLabel || seasonLabel,
       amount: amountAsString,
       paymentMethod: paymentMethodToPrint,
     });

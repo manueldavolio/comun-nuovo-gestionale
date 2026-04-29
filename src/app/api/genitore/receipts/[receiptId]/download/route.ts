@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
   }
 
-  if (session.user.role !== "PARENT") {
+  if (session.user.role !== "PARENT" && session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 
@@ -63,7 +63,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Ricevuta non trovata." }, { status: 404 });
   }
 
-  if (receipt.payment.enrollment.athlete.parent.userId !== session.user.id) {
+  if (session.user.role === "PARENT" && receipt.payment.enrollment.athlete.parent.userId !== session.user.id) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 
