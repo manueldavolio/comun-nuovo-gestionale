@@ -4,20 +4,42 @@ import { prisma } from "@/lib/prisma";
 import { markEnrollmentPaymentPaidFromStripe } from "@/lib/enrollment-payments";
 import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe";
 
-async function isCheckoutSessionCompletedAndReceiptReady(paymentId: string) {
+async function findPaymentForCheckoutSession(stripeCheckoutSessionId: string, fallbackPaymentId?: string) {
   const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
+    where: { stripeCheckoutSessionId },
     select: {
+      id: true,
       status: true,
       receipt: {
         select: {
+          id: true,
           filePath: true,
         },
       },
     },
   });
 
-  return Boolean(payment?.status === "PAID" && payment.receipt?.filePath);
+  if (payment) {
+    return payment;
+  }
+
+  if (!fallbackPaymentId) {
+    return null;
+  }
+
+  return prisma.payment.findUnique({
+    where: { id: fallbackPaymentId },
+    select: {
+      id: true,
+      status: true,
+      receipt: {
+        select: {
+          id: true,
+          filePath: true,
+        },
+      },
+    },
+  });
 }
 
 export async function POST(request: Request) {
@@ -44,25 +66,54 @@ export async function POST(request: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const paymentId = session.metadata?.paymentId;
+    const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
 
-    if (existing && paymentId) {
-      const alreadyCompleted = await isCheckoutSessionCompletedAndReceiptReady(paymentId);
-      if (alreadyCompleted) {
-        console.log("[stripe webhook] duplicate event already processed:", event.id);
-        return new NextResponse(null, { status: 200 });
+    if (existing) {
+      console.log("[stripe webhook] duplicate event received", { eventId: event.id, sessionId: session.id });
+      const payment = await findPaymentForCheckoutSession(session.id, paymentId);
+
+      if (payment) {
+        console.log("[stripe webhook] payment found", {
+          paymentId: payment.id,
+          status: payment.status,
+          hasReceipt: Boolean(payment.receipt),
+          hasReceiptFilePath: Boolean(payment.receipt?.filePath?.trim()),
+        });
       }
-      console.log("[stripe webhook] duplicate but receipt missing, retry processing");
-    }
 
-    if (existing && !paymentId) {
-      console.log("[stripe webhook] duplicate event already processed:", event.id);
-      return new NextResponse(null, { status: 200 });
+      const hasValidReceiptPath = Boolean(payment?.receipt?.filePath?.trim());
+      if (payment?.status === "PAID" && hasValidReceiptPath) {
+        console.log("[stripe webhook] duplicate fully processed, skipping", {
+          eventId: event.id,
+          paymentId: payment.id,
+        });
+        return NextResponse.json({ received: true, duplicated: true }, { status: 200 });
+      }
+
+      if (payment?.status === "PAID" && !hasValidReceiptPath) {
+        console.log("[stripe webhook] receipt missing, recovering", {
+          eventId: event.id,
+          paymentId: payment.id,
+        });
+        const receiptResult = await markEnrollmentPaymentPaidFromStripe({
+          paymentId: payment.id,
+          stripeCheckoutSessionId: session.id,
+          stripePaymentIntentId: paymentIntentId,
+        });
+        if (receiptResult?.receiptFilePath) {
+          console.log("[stripe webhook] receipt recovered", {
+            eventId: event.id,
+            paymentId: payment.id,
+            receiptId: receiptResult.receiptId,
+            receiptFilePath: receiptResult.receiptFilePath,
+          });
+          return NextResponse.json({ received: true, recovered: true }, { status: 200 });
+        }
+      }
     }
 
     if (paymentId) {
       console.info("[receipts] payment id", { paymentId, source: "stripe.checkout.session.completed" });
-      const paymentIntentId =
-        typeof session.payment_intent === "string" ? session.payment_intent : null;
       const receiptResult = await markEnrollmentPaymentPaidFromStripe({
         paymentId,
         stripeCheckoutSessionId: session.id,
