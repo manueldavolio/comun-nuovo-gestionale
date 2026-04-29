@@ -1,9 +1,8 @@
-import path from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
 import { Prisma, type PaymentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateReceiptPdf } from "@/lib/pdf";
 import { sendReceiptMail } from "@/lib/mail";
+import { saveReceiptPdf } from "@/lib/receipt-storage";
 
 const CLUB_DATA = {
   name: "Associazione Sportiva Dilettantistica Comun Nuovo",
@@ -46,16 +45,6 @@ function buildCausal(paymentType: PaymentType, seasonLabel: string) {
     : `Saldo iscrizione stagione ${seasonLabel}`;
 }
 
-function getReceiptStoragePaths(fileName: string) {
-  const relativeDir = "receipts";
-  const absoluteDir = path.join(process.cwd(), "public", relativeDir);
-  return {
-    relativePath: `${relativeDir}/${fileName}`.replaceAll("\\", "/"),
-    absolutePath: path.join(absoluteDir, fileName),
-    absoluteDir,
-  };
-}
-
 async function getNextReceiptNumber(tx: Prisma.TransactionClient): Promise<string> {
   await tx.receiptCounter.upsert({
     where: { id: RECEIPT_COUNTER_ID },
@@ -80,9 +69,11 @@ async function ensureReceiptFile(payment: PaymentWithRelations) {
   }
 
   const fileName = `${payment.receipt.receiptNumber}.pdf`;
-  const storage = getReceiptStoragePaths(fileName);
   const athleteFullName = `${payment.enrollment.athlete.firstName} ${payment.enrollment.athlete.lastName}`.trim();
   const parentFullName = `${payment.enrollment.receiptFirstName} ${payment.enrollment.receiptLastName}`.trim();
+
+  console.info("[receipts] payment id", { paymentId: payment.id });
+  console.info("[receipts] receipt id", { receiptId: payment.receipt.id });
 
   const pdfBytes = await generateReceiptPdf({
     receiptNumber: payment.receipt.receiptNumber,
@@ -105,15 +96,16 @@ async function ensureReceiptFile(payment: PaymentWithRelations) {
   });
 
   const pdfBuffer = Buffer.from(pdfBytes);
-  await mkdir(storage.absoluteDir, { recursive: true });
-  await writeFile(storage.absolutePath, pdfBuffer);
+  const savedPath = await saveReceiptPdf(fileName, pdfBuffer);
+  console.info("[receipts] generated pdf path", { generatedPdfPath: savedPath });
 
-  if (payment.receipt.filePath !== storage.relativePath) {
+  if (payment.receipt.filePath !== savedPath) {
     await prisma.receipt.update({
       where: { id: payment.receipt.id },
-      data: { filePath: storage.relativePath },
+      data: { filePath: savedPath },
     });
   }
+  console.info("[receipts] saved file path in DB", { filePath: savedPath });
 
   const societyEmail = process.env.CLUB_RECEIPTS_EMAIL;
   await sendReceiptMail({
@@ -126,7 +118,7 @@ async function ensureReceiptFile(payment: PaymentWithRelations) {
     attachmentContent: pdfBuffer,
   }).catch(() => undefined);
 
-  return storage.relativePath;
+  return savedPath;
 }
 
 export async function markEnrollmentPaymentPaidFromStripe(input: {

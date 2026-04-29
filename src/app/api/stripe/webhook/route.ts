@@ -21,6 +21,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Firma webhook non valida." }, { status: 400 });
   }
 
+  const existing = await prisma.stripeWebhookEvent.findUnique({
+    where: { eventId: event.id },
+  });
+
+  if (existing) {
+    console.log("[stripe webhook] duplicate event, skipping:", event.id);
+    return new NextResponse(null, { status: 200 });
+  }
+
   try {
     await prisma.stripeWebhookEvent.create({
       data: {
@@ -30,7 +39,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ received: true, duplicated: true }, { status: 200 });
+      console.log("[stripe webhook] duplicate event, skipping:", event.id);
+      return new NextResponse(null, { status: 200 });
     }
     throw error;
   }
@@ -39,13 +49,17 @@ export async function POST(request: Request) {
     const session = event.data.object;
     const paymentId = session.metadata?.paymentId;
     if (paymentId) {
+      console.info("[receipts] payment id", { paymentId, source: "stripe.checkout.session.completed" });
       const paymentIntentId =
         typeof session.payment_intent === "string" ? session.payment_intent : null;
-      await markEnrollmentPaymentPaidFromStripe({
+      const receiptResult = await markEnrollmentPaymentPaidFromStripe({
         paymentId,
         stripeCheckoutSessionId: session.id,
         stripePaymentIntentId: paymentIntentId,
       });
+      if (receiptResult?.receiptId) {
+        console.info("[receipts] receipt id", { receiptId: receiptResult.receiptId });
+      }
     }
   }
 

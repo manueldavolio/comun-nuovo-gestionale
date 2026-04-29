@@ -1,21 +1,11 @@
-import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { readReceiptPdf, ReceiptStorageError } from "@/lib/receipt-storage";
 
 type RouteContext = {
   params: Promise<{ receiptId: string }>;
 };
-
-function getReceiptCandidates(filePath: string): string[] {
-  const normalized = filePath.replaceAll("\\", "/");
-  const basename = path.basename(normalized);
-  const fromPublicRelative = path.join("public", "receipts", basename);
-  const fromLegacyStorage = path.join("storage", "receipts", basename);
-
-  return [fromPublicRelative, fromLegacyStorage];
-}
 
 export async function GET(_request: Request, context: RouteContext) {
   const session = await getAuthSession();
@@ -29,6 +19,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const { receiptId } = await context.params;
+  console.info("[receipts] download requested receipt id", { receiptId });
   if (!receiptId) {
     return NextResponse.json({ error: "Ricevuta non valida." }, { status: 400 });
   }
@@ -68,24 +59,39 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (!receipt.filePath) {
+    console.info("[receipts] download missing file reason", {
+      receiptId,
+      reason: "DB_FILE_PATH_EMPTY",
+    });
     return NextResponse.json({ error: "File ricevuta non disponibile." }, { status: 404 });
   }
 
-  const candidates = getReceiptCandidates(receipt.filePath);
-  for (const absoluteFilePath of candidates) {
-    try {
-      const fileBuffer = await readFile(absoluteFilePath);
-      return new NextResponse(fileBuffer, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${receipt.receiptNumber}.pdf"`,
-        },
+  console.info("[receipts] download file path", { receiptId, filePath: receipt.filePath });
+  try {
+    const fileBuffer = await readReceiptPdf(receipt.filePath);
+    return new NextResponse(fileBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${receipt.receiptNumber}.pdf"`,
+      },
+    });
+  } catch (error) {
+    if (error instanceof ReceiptStorageError) {
+      console.info("[receipts] download missing file reason", {
+        receiptId,
+        reason: error.details.reason ?? "RECEIPT_STORAGE_ERROR",
+        stage: error.details.stage,
+        bucketPath: error.details.bucketPath,
+        absolutePath: error.details.absolutePath,
       });
-    } catch {
-      continue;
+      const status = error.details.reason === "LEGACY_FILE_NOT_FOUND" ? 404 : 500;
+      return NextResponse.json({ error: "File ricevuta non disponibile." }, { status });
     }
+    console.info("[receipts] download missing file reason", {
+      receiptId,
+      reason: "UNEXPECTED_ERROR",
+    });
+    return NextResponse.json({ error: "File ricevuta non disponibile." }, { status: 500 });
   }
-
-  return NextResponse.json({ error: "Impossibile leggere il file ricevuta." }, { status: 500 });
 }
