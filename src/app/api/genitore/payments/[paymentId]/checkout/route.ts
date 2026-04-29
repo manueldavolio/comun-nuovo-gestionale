@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
 
 const CHECKOUT_AMOUNT_BY_TYPE = {
-  DEPOSIT: 5000,
+  DEPOSIT: 10, // TEST MODE
   BALANCE: 20000,
 } as const;
 
