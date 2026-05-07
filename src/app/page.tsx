@@ -21,7 +21,7 @@ export default function Home() {
               <div className="mx-auto w-full max-w-sm">
                 <div className="relative h-36 w-full sm:h-40 md:h-44">
                   <Image
-                    src="/logo.png"
+                    src="/logo-comun-nuovo.JPG"
                     alt="Logo Comun Nuovo Calcio"
                     fill
                     sizes="(max-width: 640px) 70vw, (max-width: 768px) 50vw, 22rem"
