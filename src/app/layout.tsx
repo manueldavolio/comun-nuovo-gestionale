@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Comun Nuovo Calcio | Gestionale",
   description: "Gestionale web per Comun Nuovo Calcio",
+  icons: {
+    icon: "/favicon.JPG",
+    shortcut: "/favicon.JPG",
+    apple: "/favicon.JPG",
+  },
 };
 
 export default function RootLayout({
