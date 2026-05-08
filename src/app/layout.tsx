@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Comun Nuovo Calcio",
   title: "Comun Nuovo Calcio | Gestionale",
   description: "Gestionale web per Comun Nuovo Calcio",
   manifest: "/manifest.webmanifest",
@@ -20,6 +21,11 @@ export const metadata: Metadata = {
     icon: "/favicon.png",
     shortcut: "/favicon.png",
     apple: "/apple-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Comun Nuovo Calcio",
+    statusBarStyle: "default",
   },
 };
 

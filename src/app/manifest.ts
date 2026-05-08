@@ -6,8 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Comun Nuovo",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f2f6f",
-    theme_color: "#0f2f6f",
+    background_color: "#0b1f63",
+    theme_color: "#0b1f63",
     icons: [
       {
         src: "/icon-192.png",
