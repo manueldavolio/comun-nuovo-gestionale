@@ -18,7 +18,11 @@ export const metadata: Metadata = {
   description: "Gestionale web per Comun Nuovo Calcio",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
     shortcut: "/favicon.png",
     apple: "/apple-icon.png",
   },
