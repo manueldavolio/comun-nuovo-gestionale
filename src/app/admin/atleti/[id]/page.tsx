@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/layout/status-badge";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
+import { AthleteEnrollmentDocuments } from "@/components/admin/athlete-enrollment-documents";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -71,6 +72,19 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
           expiryDate: true,
         },
       },
+      enrollments: {
+        orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          documents: {
+            select: {
+              id: true,
+              type: true,
+              fileName: true,
+            },
+          },
+        },
+      },
       medicalVisits: {
         orderBy: { visitDate: "desc" },
         select: {
@@ -89,6 +103,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
   }
 
   const now = new Date();
+  const latestEnrollmentDocuments = athlete.enrollments[0]?.documents ?? [];
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -177,37 +192,41 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <h2 className="text-lg font-semibold text-zinc-900">Documenti</h2>
+            <h2 className="text-lg font-semibold text-zinc-900">Documenti iscrizione</h2>
           </div>
+          <p className="mt-1 text-sm text-zinc-600">
+            Allegati caricati dal genitore durante l&apos;iscrizione.
+          </p>
 
-          {athlete.documents.length === 0 ? (
-            <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Nessun documento disponibile.
-            </p>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-blue-100 text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
-                    <th className="px-3 py-2 font-semibold">Tipo</th>
-                    <th className="px-3 py-2 font-semibold">Scadenza</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50 text-zinc-700">
-                  {athlete.documents.map((doc) => (
-                    <tr key={doc.id}>
-                      <td className="px-3 py-2">
-                        {DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {doc.expiryDate ? dateFormatter.format(new Date(doc.expiryDate)) : "-"}
-                      </td>
+          <AthleteEnrollmentDocuments documents={latestEnrollmentDocuments} />
+
+          {athlete.documents.length > 0 ? (
+            <div className="mt-6 border-t border-blue-100 pt-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Altri documenti in archivio</h3>
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full divide-y divide-blue-100 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
+                      <th className="px-3 py-2 font-semibold">Tipo</th>
+                      <th className="px-3 py-2 font-semibold">Scadenza</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-blue-50 text-zinc-700">
+                    {athlete.documents.map((doc) => (
+                      <tr key={doc.id}>
+                        <td className="px-3 py-2">
+                          {DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {doc.expiryDate ? dateFormatter.format(new Date(doc.expiryDate)) : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          )}
+          ) : null}
         </section>
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">

@@ -14,6 +14,96 @@ type AdminAthletesPageProps = {
   searchParams: Promise<{ q?: string }>;
 };
 
+type AthleteRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  birthDate: Date;
+  category: {
+    id: string;
+    name: string;
+    seasonLabel: string;
+    birthYearsLabel: string;
+  };
+};
+
+type CategoryGroup = {
+  category: AthleteRow["category"];
+  athletes: AthleteRow[];
+};
+
+function groupAthletesByCategory(athletes: AthleteRow[]): CategoryGroup[] {
+  const groups = new Map<string, CategoryGroup>();
+
+  for (const athlete of athletes) {
+    const existing = groups.get(athlete.category.id);
+    if (existing) {
+      existing.athletes.push(athlete);
+      continue;
+    }
+
+    groups.set(athlete.category.id, {
+      category: athlete.category,
+      athletes: [athlete],
+    });
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      athletes: [...group.athletes].sort((a, b) => {
+        const lastNameCompare = a.lastName.localeCompare(b.lastName, "it", { sensitivity: "base" });
+        if (lastNameCompare !== 0) {
+          return lastNameCompare;
+        }
+        return a.firstName.localeCompare(b.firstName, "it", { sensitivity: "base" });
+      }),
+    }))
+    .sort((a, b) => {
+      const nameCompare = a.category.name.localeCompare(b.category.name, "it", { sensitivity: "base" });
+      if (nameCompare !== 0) {
+        return nameCompare;
+      }
+      return a.category.seasonLabel.localeCompare(b.category.seasonLabel, "it", { sensitivity: "base" });
+    });
+}
+
+function AthletesTable({ athletes }: { athletes: AthleteRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-blue-100 text-sm">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
+            <th className="px-3 py-2 font-semibold">Nome</th>
+            <th className="px-3 py-2 font-semibold">Cognome</th>
+            <th className="px-3 py-2 font-semibold">Data di nascita</th>
+            <th className="px-3 py-2 font-semibold">Azioni</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-blue-50 text-zinc-700">
+          {athletes.map((athlete) => (
+            <tr key={athlete.id}>
+              <td className="px-3 py-2 font-medium text-zinc-900">{athlete.firstName}</td>
+              <td className="px-3 py-2 font-medium text-zinc-900">{athlete.lastName}</td>
+              <td className="px-3 py-2 whitespace-nowrap">
+                {dateFormatter.format(new Date(athlete.birthDate))}
+              </td>
+              <td className="px-3 py-2">
+                <Link
+                  href={`/admin/atleti/${athlete.id}`}
+                  className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                >
+                  Dettaglio
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default async function AdminAthletesPage({ searchParams }: AdminAthletesPageProps) {
   const session = await getAuthSession();
   if (!session?.user) {
@@ -44,12 +134,16 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
       birthDate: true,
       category: {
         select: {
+          id: true,
           name: true,
           seasonLabel: true,
+          birthYearsLabel: true,
         },
       },
     },
   });
+
+  const categoryGroups = groupAthletesByCategory(athletes);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -60,7 +154,7 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm text-zinc-600">
-                {athletes.length} atleta/i
+                {athletes.length} atleta/i in {categoryGroups.length} categorie
               </p>
               {q ? (
                 <p className="mt-1 text-xs text-zinc-500">Filtro attivo: {q}</p>
@@ -93,47 +187,35 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
             </form>
           </div>
 
-          {athletes.length === 0 ? (
+          {categoryGroups.length === 0 ? (
             <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
               Nessun atleta trovato.
             </p>
           ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-blue-100 text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
-                    <th className="px-3 py-2 font-semibold">Nome</th>
-                    <th className="px-3 py-2 font-semibold">Cognome</th>
-                    <th className="px-3 py-2 font-semibold">Categoria</th>
-                    <th className="px-3 py-2 font-semibold">Data di nascita</th>
-                    <th className="px-3 py-2 font-semibold">Azioni</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50 text-zinc-700">
-                  {athletes.map((athlete) => (
-                    <tr key={athlete.id}>
-                      <td className="px-3 py-2 font-medium text-zinc-900">{athlete.firstName}</td>
-                      <td className="px-3 py-2 font-medium text-zinc-900">{athlete.lastName}</td>
-                      <td className="px-3 py-2">
-                        <span className="whitespace-nowrap">
-                          {athlete.category.name} ({athlete.category.seasonLabel})
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {dateFormatter.format(new Date(athlete.birthDate))}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Link
-                          href={`/admin/atleti/${athlete.id}`}
-                          className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                        >
-                          Dettaglio
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-6 space-y-6">
+              {categoryGroups.map((group) => (
+                <section
+                  key={group.category.id}
+                  className="rounded-xl border border-blue-100 bg-sky-50/40 p-4"
+                >
+                  <div className="flex flex-col gap-1 border-b border-blue-100 pb-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold text-zinc-900">
+                        {group.category.name}{" "}
+                        <span className="font-normal text-zinc-600">({group.category.seasonLabel})</span>
+                      </h2>
+                      <p className="text-xs text-zinc-500">{group.category.birthYearsLabel}</p>
+                    </div>
+                    <p className="text-sm font-medium text-blue-800">
+                      {group.athletes.length} atleta/i iscritti
+                    </p>
+                  </div>
+
+                  <div className="mt-4">
+                    <AthletesTable athletes={group.athletes} />
+                  </div>
+                </section>
+              ))}
             </div>
           )}
         </section>
@@ -141,4 +223,3 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
     </main>
   );
 }
-

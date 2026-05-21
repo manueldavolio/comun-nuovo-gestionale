@@ -3,6 +3,17 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { enrollmentSchema } from "@/lib/validation/enrollment";
+import {
+  readEnrollmentFilesBuffers,
+  validateEnrollmentFilesFromFormData,
+} from "@/lib/validation/enrollment-files";
+import {
+  EnrollmentDocumentStorageError,
+  saveEnrollmentDocument,
+  validateEnrollmentDocumentStorageEnv,
+} from "@/lib/enrollment-documents";
+
+export const runtime = "nodejs";
 
 const DEPOSIT_DUE_DATE = new Date("2026-06-30T00:00:00.000Z");
 const BALANCE_DUE_DATE = new Date("2026-09-30T00:00:00.000Z");
@@ -14,6 +25,49 @@ function getDefaultSeasonLabel() {
   const now = new Date();
   const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
   return `${year}/${year + 1}`;
+}
+
+function getFormString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
+function getFormBoolean(formData: FormData, key: string): boolean {
+  const value = formData.get(key);
+  return value === "true" || value === "on" || value === "1";
+}
+
+function parseEnrollmentPayload(formData: FormData) {
+  return {
+    athleteFirstName: getFormString(formData, "athleteFirstName"),
+    athleteLastName: getFormString(formData, "athleteLastName"),
+    athleteGender: getFormString(formData, "athleteGender"),
+    athleteBirthDate: getFormString(formData, "athleteBirthDate"),
+    athleteBirthPlace: getFormString(formData, "athleteBirthPlace"),
+    athleteTaxCode: getFormString(formData, "athleteTaxCode"),
+    athleteNationality: getFormString(formData, "athleteNationality"),
+    athleteAddress: getFormString(formData, "athleteAddress"),
+    athleteCity: getFormString(formData, "athleteCity"),
+    athletePostalCode: getFormString(formData, "athletePostalCode"),
+    athleteProvince: getFormString(formData, "athleteProvince"),
+    athleteClothingSize: getFormString(formData, "athleteClothingSize") || undefined,
+    athleteMedicalNotes: getFormString(formData, "athleteMedicalNotes") || undefined,
+    receiptFirstName: getFormString(formData, "receiptFirstName"),
+    receiptLastName: getFormString(formData, "receiptLastName"),
+    receiptTaxCode: getFormString(formData, "receiptTaxCode"),
+    receiptPhone: getFormString(formData, "receiptPhone"),
+    receiptAddress: getFormString(formData, "receiptAddress"),
+    receiptCity: getFormString(formData, "receiptCity"),
+    receiptPostalCode: getFormString(formData, "receiptPostalCode"),
+    receiptProvince: getFormString(formData, "receiptProvince"),
+    receiptEmail: getFormString(formData, "receiptEmail"),
+    categoryId: getFormString(formData, "categoryId"),
+    seasonLabel: getFormString(formData, "seasonLabel"),
+    enrollmentNotes: getFormString(formData, "enrollmentNotes") || undefined,
+    privacyConsent: getFormBoolean(formData, "privacyConsent"),
+    regulationConsent: getFormBoolean(formData, "regulationConsent"),
+    imageConsent: getFormBoolean(formData, "imageConsent"),
+  };
 }
 
 async function getFallbackCategory(tx: Prisma.TransactionClient) {
@@ -60,20 +114,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 
-  let payload: unknown;
-
+  let formData: FormData;
   try {
-    payload = await request.json();
+    formData = await request.formData();
   } catch {
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
   }
 
-  const parsed = enrollmentSchema.safeParse(payload);
+  const parsed = enrollmentSchema.safeParse(parseEnrollmentPayload(formData));
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Dati non validi." },
       { status: 400 },
     );
+  }
+
+  const filesValidation = validateEnrollmentFilesFromFormData(formData);
+  if (!filesValidation.ok) {
+    return NextResponse.json({ error: filesValidation.error }, { status: 400 });
+  }
+
+  try {
+    validateEnrollmentDocumentStorageEnv();
+  } catch (error) {
+    if (error instanceof EnrollmentDocumentStorageError) {
+      return NextResponse.json(
+        {
+          error:
+            "Configurazione storage documenti non disponibile. Contatta la segreteria.",
+        },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ error: "Errore configurazione storage." }, { status: 500 });
   }
 
   const parentProfile = await prisma.parentProfile.findUnique({
@@ -88,6 +161,13 @@ export async function POST(request: Request) {
       { error: "Profilo genitore non trovato. Contatta la segreteria." },
       { status: 404 },
     );
+  }
+
+  let filesWithBuffers;
+  try {
+    filesWithBuffers = await readEnrollmentFilesBuffers(filesValidation.files);
+  } catch {
+    return NextResponse.json({ error: "Impossibile leggere i file caricati." }, { status: 400 });
   }
 
   try {
@@ -194,6 +274,41 @@ export async function POST(request: Request) {
         enrollmentId: enrollment.id,
       };
     });
+
+    try {
+      for (const file of filesWithBuffers) {
+        const filePath = await saveEnrollmentDocument({
+          enrollmentId: created.enrollmentId,
+          documentType: file.type,
+          fileBuffer: file.buffer,
+          mimeType: file.mimeType,
+          originalName: file.fileName,
+        });
+
+        await prisma.enrollmentDocument.create({
+          data: {
+            enrollmentId: created.enrollmentId,
+            type: file.type,
+            filePath,
+            fileName: file.fileName,
+            mimeType: file.mimeType,
+            size: file.size,
+          },
+        });
+      }
+    } catch (uploadError) {
+      await prisma.athlete.delete({ where: { id: created.athleteId } }).catch(() => undefined);
+      if (uploadError instanceof EnrollmentDocumentStorageError) {
+        return NextResponse.json(
+          { error: "Caricamento documenti non riuscito. Riprova." },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Errore durante il salvataggio dei documenti." },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({ success: true, data: created }, { status: 201 });
   } catch (error) {

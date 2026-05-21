@@ -69,6 +69,14 @@ enum DocumentType {
   OTHER
 }
 
+enum EnrollmentDocumentType {
+  PARENT_ID_FRONT
+  PARENT_ID_BACK
+  ATHLETE_ID_FRONT
+  ATHLETE_ID_BACK
+  ATHLETE_PORTRAIT
+}
+
 enum AnnouncementAudience {
   ALL
   PARENTS
@@ -255,9 +263,10 @@ model Enrollment {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  athlete  Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  category Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  payments Payment[]
+  athlete   Athlete              @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  category  Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  payments  Payment[]
+  documents EnrollmentDocument[]
 
   @@unique([athleteId, categoryId, seasonLabel])
   @@index([status])
@@ -420,6 +429,22 @@ model MedicalVisit {
 
   @@index([athleteId])
   @@index([expiryDate, status])
+}
+
+model EnrollmentDocument {
+  id           String                 @id @default(cuid())
+  enrollmentId String
+  type         EnrollmentDocumentType
+  filePath     String
+  fileName     String
+  mimeType     String
+  size         Int
+  createdAt    DateTime               @default(now())
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, type])
+  @@index([enrollmentId])
 }
 
 model Document {

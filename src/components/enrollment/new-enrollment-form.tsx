@@ -3,7 +3,9 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { EnrollmentFileField } from "@/components/enrollment/enrollment-file-field";
 import { enrollmentSchema, type EnrollmentInput } from "@/lib/validation/enrollment";
+import { ENROLLMENT_DOCUMENT_FORM_FIELD } from "@/lib/enrollment-document-types";
 
 type CategoryOption = {
   id: string;
@@ -28,6 +30,16 @@ type NewEnrollmentFormProps = {
 };
 
 type EnrollmentFieldErrors = Partial<Record<keyof EnrollmentInput, string>>;
+type EnrollmentFileFieldName = keyof typeof ENROLLMENT_DOCUMENT_FORM_FIELD;
+type EnrollmentFileErrors = Partial<Record<EnrollmentFileFieldName, string>>;
+
+const ENROLLMENT_FILE_FIELDS: Array<{ field: EnrollmentFileFieldName; label: string }> = [
+  { field: "PARENT_ID_FRONT", label: "Documento genitore fronte" },
+  { field: "PARENT_ID_BACK", label: "Documento genitore retro" },
+  { field: "ATHLETE_ID_FRONT", label: "Documento atleta fronte" },
+  { field: "ATHLETE_ID_BACK", label: "Documento atleta retro" },
+  { field: "ATHLETE_PORTRAIT", label: "Foto primo piano atleta" },
+];
 
 const ATHLETE_GENDER_OPTIONS = [
   { value: "MALE", label: "Maschio" },
@@ -77,8 +89,27 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
     imageConsent: false,
   });
   const [fieldErrors, setFieldErrors] = useState<EnrollmentFieldErrors>({});
+  const [enrollmentFiles, setEnrollmentFiles] = useState<
+    Record<EnrollmentFileFieldName, File | null>
+  >({
+    PARENT_ID_FRONT: null,
+    PARENT_ID_BACK: null,
+    ATHLETE_ID_FRONT: null,
+    ATHLETE_ID_BACK: null,
+    ATHLETE_PORTRAIT: null,
+  });
+  const [fileErrors, setFileErrors] = useState<EnrollmentFileErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function updateEnrollmentFile(
+    field: EnrollmentFileFieldName,
+    file: File | null,
+    message?: string,
+  ) {
+    setEnrollmentFiles((prev) => ({ ...prev, [field]: file }));
+    setFileErrors((prev) => ({ ...prev, [field]: message }));
+  }
 
   function updateField<Field extends keyof EnrollmentInput>(
     field: Field,
@@ -92,6 +123,19 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
     event.preventDefault();
     setError(null);
     setFieldErrors({});
+    setFileErrors({});
+
+    const nextFileErrors: EnrollmentFileErrors = {};
+    for (const { field } of ENROLLMENT_FILE_FIELDS) {
+      if (!enrollmentFiles[field]) {
+        nextFileErrors[field] = "Seleziona un file.";
+      }
+    }
+
+    if (Object.keys(nextFileErrors).length > 0) {
+      setFileErrors(nextFileErrors);
+      return;
+    }
 
     const parsed = enrollmentSchema.safeParse(formData);
     if (!parsed.success) {
@@ -111,12 +155,27 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
     setIsSubmitting(true);
 
     try {
+      const payload = new FormData();
+
+      for (const [key, value] of Object.entries(parsed.data)) {
+        if (typeof value === "boolean") {
+          payload.append(key, value ? "true" : "false");
+        } else if (value !== undefined && value !== null) {
+          payload.append(key, String(value));
+        }
+      }
+
+      for (const { field } of ENROLLMENT_FILE_FIELDS) {
+        const file = enrollmentFiles[field];
+        const formFieldName = ENROLLMENT_DOCUMENT_FORM_FIELD[field];
+        if (file) {
+          payload.append(formFieldName, file);
+        }
+      }
+
       const response = await fetch("/api/genitore/enrollments", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(parsed.data),
+        body: payload,
       });
 
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -513,7 +572,28 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
       </section>
 
       <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">Sezione D - Consensi</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">Sezione D - Documenti obbligatori</h2>
+        <p className="mt-1 text-sm text-zinc-600">
+          Carica tutti i documenti richiesti per completare l&apos;iscrizione.
+        </p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {ENROLLMENT_FILE_FIELDS.map(({ field, label }) => (
+            <EnrollmentFileField
+              key={field}
+              id={`file-${field}`}
+              name={ENROLLMENT_DOCUMENT_FORM_FIELD[field]}
+              label={label}
+              selectedFile={enrollmentFiles[field]}
+              error={fileErrors[field]}
+              onChange={(file, message) => updateEnrollmentFile(field, file, message)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+        <h2 className="text-lg font-semibold text-zinc-900">Sezione E - Consensi</h2>
         <div className="mt-3 space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700">
             <input
