@@ -10,7 +10,6 @@ import {
 type EnrollmentFileFieldProps = {
   id: string;
   label: string;
-  name: string;
   selectedFile: File | null;
   error?: string;
   onChange: (file: File | null, error?: string) => void;
@@ -21,7 +20,6 @@ const ACCEPT = ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
 export function EnrollmentFileField({
   id,
   label,
-  name,
   selectedFile,
   error,
   onChange,
@@ -56,7 +54,6 @@ export function EnrollmentFileField({
       </label>
       <input
         id={id}
-        name={name}
         type="file"
         accept={ACCEPT}
         aria-describedby={hintId}

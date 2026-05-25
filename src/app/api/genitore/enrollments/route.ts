@@ -71,12 +71,57 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 
+  const contentType = request.headers.get("content-type") ?? "";
+  const contentLengthHeader = request.headers.get("content-length");
+  const contentLength = contentLengthHeader ? Number(contentLengthHeader) : null;
+
+  if (!contentType.toLowerCase().includes("application/json")) {
+    console.error("[enrollments] richiesta rifiutata: Content-Type non JSON", {
+      contentType,
+      contentLength,
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Formato richiesta non valido. Invia solo JSON con i riferimenti ai documenti già caricati.",
+      },
+      { status: 415 },
+    );
+  }
+
+  if (contentLength !== null && Number.isFinite(contentLength) && contentLength > 512_000) {
+    console.error("[enrollments] payload troppo grande per iscrizione JSON", {
+      contentLength,
+      contentType,
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Payload iscrizione troppo grande. Carica i documenti su /api/genitore/enrollment-documents/upload e invia solo i percorsi.",
+      },
+      { status: 413 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
   } catch {
+    console.error("[enrollments] parsing JSON fallito", { contentType, contentLength });
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
   }
+
+  console.info("[enrollments] payload JSON ricevuto (senza file)", {
+    contentType,
+    contentLength,
+    hasDocuments: Boolean(body && typeof body === "object" && "documents" in body),
+    uploadedDocumentsCount:
+      body &&
+      typeof body === "object" &&
+      Array.isArray((body as Record<string, unknown>).uploadedDocuments)
+        ? (body as Record<string, unknown>).uploadedDocuments?.length
+        : 0,
+  });
 
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });

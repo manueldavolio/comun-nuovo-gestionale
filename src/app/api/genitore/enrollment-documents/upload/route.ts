@@ -109,6 +109,14 @@ export async function POST(request: Request) {
     );
   }
 
+  console.info("[enrollment-documents][upload] start", {
+    userId: session.user.id,
+    documentType,
+    fileName: file.name,
+    size: file.size,
+    mimeType: file.type || "unknown",
+  });
+
   try {
     const arrayBuffer = await file.arrayBuffer();
     const storedPath = await savePendingEnrollmentDocument({
@@ -117,6 +125,14 @@ export async function POST(request: Request) {
       fileBuffer: Buffer.from(arrayBuffer),
       mimeType,
       originalName: file.name,
+    });
+
+    console.info("[enrollment-documents][upload] success", {
+      userId: session.user.id,
+      documentType,
+      storedPath,
+      fileName: file.name,
+      size: file.size,
     });
 
     return NextResponse.json(
