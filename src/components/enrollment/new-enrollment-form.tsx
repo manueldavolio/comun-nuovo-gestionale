@@ -33,6 +33,14 @@ type EnrollmentFieldErrors = Partial<Record<keyof EnrollmentInput, string>>;
 type EnrollmentFileFieldName = keyof typeof ENROLLMENT_DOCUMENT_FORM_FIELD;
 type EnrollmentFileErrors = Partial<Record<EnrollmentFileFieldName, string>>;
 
+type UploadedEnrollmentDocument = {
+  documentType: EnrollmentFileFieldName;
+  storedPath: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+};
+
 const ENROLLMENT_FILE_FIELDS: Array<{ field: EnrollmentFileFieldName; label: string }> = [
   { field: "PARENT_ID_FRONT", label: "Documento genitore fronte" },
   { field: "PARENT_ID_BACK", label: "Documento genitore retro" },
@@ -101,6 +109,7 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
   const [fileErrors, setFileErrors] = useState<EnrollmentFileErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadingField, setUploadingField] = useState<EnrollmentFileFieldName | null>(null);
 
   function updateEnrollmentFile(
     field: EnrollmentFileFieldName,
@@ -155,27 +164,74 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
     setIsSubmitting(true);
 
     try {
-      const payload = new FormData();
+      const uploadedDocuments: UploadedEnrollmentDocument[] = [];
+      const documentPaths: Partial<Record<(typeof ENROLLMENT_DOCUMENT_FORM_FIELD)[EnrollmentFileFieldName], string>> =
+        {};
 
-      for (const [key, value] of Object.entries(parsed.data)) {
-        if (typeof value === "boolean") {
-          payload.append(key, value ? "true" : "false");
-        } else if (value !== undefined && value !== null) {
-          payload.append(key, String(value));
-        }
-      }
-
-      for (const { field } of ENROLLMENT_FILE_FIELDS) {
+      for (const { field, label } of ENROLLMENT_FILE_FIELDS) {
         const file = enrollmentFiles[field];
-        const formFieldName = ENROLLMENT_DOCUMENT_FORM_FIELD[field];
-        if (file) {
-          payload.append(formFieldName, file);
+        if (!file) {
+          continue;
         }
+
+        setUploadingField(field);
+        const uploadForm = new FormData();
+        uploadForm.append("documentType", ENROLLMENT_DOCUMENT_FORM_FIELD[field]);
+        uploadForm.append("file", file);
+
+        const uploadResponse = await fetch("/api/genitore/enrollment-documents/upload", {
+          method: "POST",
+          body: uploadForm,
+        });
+
+        const uploadData = (await uploadResponse.json().catch(() => null)) as
+          | {
+              error?: string;
+              data?: {
+                storedPath?: string;
+                documentType?: EnrollmentFileFieldName;
+                fileName?: string;
+                mimeType?: string;
+                size?: number;
+              };
+            }
+          | null;
+
+        if (!uploadResponse.ok || !uploadData?.data?.storedPath) {
+          setFileErrors((prev) => ({
+            ...prev,
+            [field]: uploadData?.error ?? `${label}: caricamento non riuscito.`,
+          }));
+          setError(
+            uploadData?.error ??
+              `${label}: caricamento documento non riuscito. Verifica formato e dimensione (max 10 MB).`,
+          );
+          setUploadingField(null);
+          setIsSubmitting(false);
+          return;
+        }
+
+        const formFieldName = ENROLLMENT_DOCUMENT_FORM_FIELD[field];
+        documentPaths[formFieldName] = uploadData.data.storedPath;
+        uploadedDocuments.push({
+          documentType: field,
+          storedPath: uploadData.data.storedPath,
+          fileName: uploadData.data.fileName ?? file.name,
+          mimeType: uploadData.data.mimeType ?? file.type,
+          size: uploadData.data.size ?? file.size,
+        });
       }
+
+      setUploadingField(null);
 
       const response = await fetch("/api/genitore/enrollments", {
         method: "POST",
-        body: payload,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...parsed.data,
+          documents: documentPaths,
+          uploadedDocuments,
+        }),
       });
 
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -190,6 +246,7 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
       router.refresh();
     } catch {
       setError("Errore imprevisto. Riprova.");
+      setUploadingField(null);
       setIsSubmitting(false);
     }
   }
@@ -658,7 +715,11 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
         disabled={isSubmitting}
         className="w-full rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Invio iscrizione..." : "Conferma iscrizione"}
+        {isSubmitting
+          ? uploadingField
+            ? `Caricamento ${ENROLLMENT_FILE_FIELDS.find((item) => item.field === uploadingField)?.label ?? "documento"}...`
+            : "Invio iscrizione..."
+          : "Conferma iscrizione"}
       </button>
     </form>
   );

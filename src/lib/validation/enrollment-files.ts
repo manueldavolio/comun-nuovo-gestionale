@@ -1,78 +1,120 @@
 import type { EnrollmentDocumentType } from "@prisma/client";
 import {
-  ENROLLMENT_DOCUMENT_MAX_BYTES,
+  assertOwnedPendingEnrollmentDocumentPath,
+  EnrollmentDocumentStorageError,
   inferEnrollmentDocumentMime,
   isAllowedEnrollmentDocumentMime,
 } from "@/lib/enrollment-documents";
 import {
-  ENROLLMENT_DOCUMENT_FIELD_TYPE,
+  ENROLLMENT_DOCUMENT_FORM_FIELD,
   ENROLLMENT_DOCUMENT_TYPE_LABEL,
   ENROLLMENT_DOCUMENT_TYPES_ORDER,
 } from "@/lib/enrollment-document-types";
 
-export type ParsedEnrollmentFile = {
+export type EnrollmentDocumentReference = {
   type: EnrollmentDocumentType;
-  file: File;
-  buffer: Buffer;
-  mimeType: string;
+  filePath: string;
   fileName: string;
+  mimeType: string;
   size: number;
 };
 
-export function validateEnrollmentFilesFromFormData(
-  formData: FormData,
-): { ok: true; files: ParsedEnrollmentFile[] } | { ok: false; error: string } {
-  const parsedFiles: ParsedEnrollmentFile[] = [];
+export type EnrollmentDocumentReferencesPayload = Partial<
+  Record<(typeof ENROLLMENT_DOCUMENT_FORM_FIELD)[EnrollmentDocumentType], string>
+>;
 
-  for (const type of ENROLLMENT_DOCUMENT_TYPES_ORDER) {
-    const fieldName = Object.entries(ENROLLMENT_DOCUMENT_FIELD_TYPE).find(([, value]) => value === type)?.[0];
-    if (!fieldName) {
-      continue;
-    }
-
-    const entry = formData.get(fieldName);
-    if (!(entry instanceof File) || entry.size === 0) {
-      return {
-        ok: false,
-        error: `${ENROLLMENT_DOCUMENT_TYPE_LABEL[type]}: seleziona un file.`,
-      };
-    }
-
-    const mimeType = inferEnrollmentDocumentMime(entry.name, entry.type || "");
-    if (!isAllowedEnrollmentDocumentMime(mimeType)) {
-      return {
-        ok: false,
-        error: `${ENROLLMENT_DOCUMENT_TYPE_LABEL[type]}: formato non valido. Usa PDF, JPG, JPEG o PNG.`,
-      };
-    }
-
-    if (entry.size > ENROLLMENT_DOCUMENT_MAX_BYTES) {
-      return {
-        ok: false,
-        error: `${ENROLLMENT_DOCUMENT_TYPE_LABEL[type]}: il file supera i 10 MB.`,
-      };
-    }
-
-    parsedFiles.push({
-      type,
-      file: entry,
-      buffer: Buffer.from([]),
-      mimeType,
-      fileName: entry.name,
-      size: entry.size,
-    });
+export function parseEnrollmentDocumentReferences(
+  payload: unknown,
+): EnrollmentDocumentReferencesPayload | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
   }
 
-  return { ok: true, files: parsedFiles };
+  const source = payload as Record<string, unknown>;
+  const result: EnrollmentDocumentReferencesPayload = {};
+
+  for (const type of ENROLLMENT_DOCUMENT_TYPES_ORDER) {
+    const fieldName = ENROLLMENT_DOCUMENT_FORM_FIELD[type];
+    const value = source[fieldName];
+    if (typeof value === "string" && value.trim()) {
+      result[fieldName] = value.trim();
+    }
+  }
+
+  return result;
 }
 
-export async function readEnrollmentFilesBuffers(
-  files: ParsedEnrollmentFile[],
-): Promise<ParsedEnrollmentFile[]> {
-  return Promise.all(
-    files.map(async (item) => ({
-      ...item,
-      buffer: Buffer.from(await item.file.arrayBuffer()),
-    })),
-  );
+export function validateEnrollmentDocumentReferences(
+  payload: EnrollmentDocumentReferencesPayload | null,
+  userId: string,
+): { ok: true; documents: EnrollmentDocumentReference[] } | { ok: false; error: string } {
+  if (!payload) {
+    return { ok: false, error: "Documenti iscrizione mancanti." };
+  }
+
+  const documents: EnrollmentDocumentReference[] = [];
+
+  for (const type of ENROLLMENT_DOCUMENT_TYPES_ORDER) {
+    const fieldName = ENROLLMENT_DOCUMENT_FORM_FIELD[type];
+    const storedPath = payload[fieldName];
+    const label = ENROLLMENT_DOCUMENT_TYPE_LABEL[type];
+
+    if (!storedPath) {
+      return { ok: false, error: `${label}: documento mancante.` };
+    }
+
+    try {
+      const filePath = assertOwnedPendingEnrollmentDocumentPath(storedPath, userId);
+      const fileName = filePath.split("/").pop() ?? "document";
+      const mimeType = inferEnrollmentDocumentMime(fileName, "");
+      if (!isAllowedEnrollmentDocumentMime(mimeType)) {
+        return {
+          ok: false,
+          error: `${label}: formato non valido. Usa PDF, JPG, JPEG o PNG.`,
+        };
+      }
+
+      documents.push({
+        type,
+        filePath,
+        fileName,
+        mimeType,
+        size: 0,
+      });
+    } catch (error) {
+      if (error instanceof EnrollmentDocumentStorageError) {
+        return { ok: false, error: `${label}: percorso documento non valido.` };
+      }
+      return { ok: false, error: `${label}: documento non valido.` };
+    }
+  }
+
+  return { ok: true, documents };
+}
+
+export function applyUploadedEnrollmentDocumentMetadata(
+  documents: EnrollmentDocumentReference[],
+  uploads: Array<{
+    documentType: EnrollmentDocumentType;
+    storedPath: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }>,
+): EnrollmentDocumentReference[] {
+  const byType = new Map(uploads.map((item) => [item.documentType, item]));
+
+  return documents.map((document) => {
+    const upload = byType.get(document.type);
+    if (!upload || upload.storedPath !== document.filePath) {
+      return document;
+    }
+
+    return {
+      ...document,
+      fileName: upload.fileName,
+      mimeType: upload.mimeType,
+      size: upload.size,
+    };
+  });
 }

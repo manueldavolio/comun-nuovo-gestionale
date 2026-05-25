@@ -171,6 +171,68 @@ export function getEnrollmentDocumentDownloadName(filePath: string, fileName?: s
   return fileName?.trim() || getSafeBasename(normalizeBucketPath(filePath));
 }
 
+export function getPendingEnrollmentDocumentPrefix(userId: string): string {
+  return `pending/${userId}/`;
+}
+
+export function assertOwnedPendingEnrollmentDocumentPath(filePath: string, userId: string): string {
+  const normalized = normalizeBucketPath(filePath);
+  const prefix = getPendingEnrollmentDocumentPrefix(userId);
+
+  if (normalized.includes("..") || !normalized.startsWith(prefix) || normalized.length <= prefix.length) {
+    throw new EnrollmentDocumentStorageError("Percorso documento non valido.", {
+      stage: "download",
+      bucketPath: normalized,
+      code: "INVALID_PENDING_DOCUMENT_PATH",
+    });
+  }
+
+  return normalized;
+}
+
+export async function savePendingEnrollmentDocument(params: {
+  userId: string;
+  documentType: EnrollmentDocumentType;
+  fileBuffer: Buffer;
+  mimeType: string;
+  originalName?: string;
+}): Promise<string> {
+  const mimeType = inferEnrollmentDocumentMime(params.originalName ?? "", params.mimeType);
+  if (!isAllowedEnrollmentDocumentMime(mimeType)) {
+    throw new Error("Formato file non supportato.");
+  }
+
+  if (params.fileBuffer.length > ENROLLMENT_DOCUMENT_MAX_BYTES) {
+    throw new Error("Il file supera i 10 MB.");
+  }
+
+  const extension = MIME_EXTENSION[mimeType] ?? ".bin";
+  const safeFileName = normalizeDocumentFileName(params.originalName, extension);
+  const finalPath = `${getPendingEnrollmentDocumentPrefix(params.userId)}${params.documentType.toLowerCase()}-${Date.now()}-${safeFileName}`;
+  const { client, bucket } = getSupabaseStorageClient();
+
+  const { error } = await client.storage.from(bucket).upload(finalPath, params.fileBuffer, {
+    contentType: mimeType,
+    upsert: false,
+  });
+
+  if (error) {
+    const storageError = error as Error & { code?: string };
+    throw new EnrollmentDocumentStorageError(
+      "Impossibile salvare il documento su Supabase Storage.",
+      {
+        stage: "upload",
+        bucket,
+        bucketPath: finalPath,
+        code: storageError.code,
+        originalMessage: storageError.message,
+      },
+    );
+  }
+
+  return finalPath;
+}
+
 export async function saveEnrollmentDocument(params: {
   enrollmentId: string;
   documentType: EnrollmentDocumentType;
