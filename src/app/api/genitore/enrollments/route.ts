@@ -113,17 +113,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
   }
 
-  console.info("[enrollments] payload JSON ricevuto (senza file)", {
-    contentType,
-    contentLength,
-    hasDocuments: Boolean(body && typeof body === "object" && "documents" in body),
-    uploadedDocumentsCount:
-      body &&
-      typeof body === "object" &&
-      Array.isArray((body as Record<string, unknown>).uploadedDocuments)
-        ? (body as Record<string, unknown>).uploadedDocuments?.length
-        : 0,
-  });
+  {
+    const uploadedDocuments = Array.isArray(
+      (body as Record<string, unknown>).uploadedDocuments
+    )
+      ? ((body as Record<string, unknown>).uploadedDocuments as unknown[])
+      : [];
+
+    console.info("[enrollments] payload JSON ricevuto (senza file)", {
+      contentType,
+      contentLength,
+      hasDocuments: Boolean(body && typeof body === "object" && "documents" in body),
+      uploadedDocumentsCount: uploadedDocuments.length,
+    });
+  }
 
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
