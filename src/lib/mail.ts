@@ -35,6 +35,22 @@ type AdminNewUserNotificationInput = {
   registeredAt?: Date;
 };
 
+const DEFAULT_ADMIN_NOTIFICATION_EMAIL = "info@asdcomunnuovo.it";
+
+export type AdminEnrollmentNotificationInput = {
+  athleteFirstName: string;
+  athleteLastName: string;
+  categoryName: string;
+  seasonLabel: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  parentPhone?: string;
+  depositPaymentStatus?: string;
+  balancePaymentStatus?: string;
+  enrolledAt: Date;
+};
+
 function getMailerConfig(): MailerConfig {
   const host = process.env.MAIL_HOST ?? process.env.SMTP_HOST;
   const user = process.env.MAIL_USER ?? process.env.SMTP_USER;
@@ -212,6 +228,57 @@ function buildRegistrationConfirmationText(name?: string): string {
   ].join("\n");
 }
 
+function getAdminNotificationEmail(): string {
+  const configured = (process.env.ADMIN_NOTIFICATION_EMAIL ?? "").trim();
+  return configured.length > 0 ? configured : DEFAULT_ADMIN_NOTIFICATION_EMAIL;
+}
+
+function formatPaymentStatusLabel(status?: string): string {
+  switch ((status ?? "").toUpperCase()) {
+    case "PAID":
+      return "Pagato";
+    case "OVERDUE":
+      return "Scaduto";
+    case "CANCELLED":
+      return "Annullato";
+    case "PENDING":
+      return "In attesa";
+    default:
+      return status?.trim() ? status.trim() : "Non disponibile";
+  }
+}
+
+function buildAdminEnrollmentNotificationText(input: AdminEnrollmentNotificationInput): string {
+  const athleteFullName =
+    `${input.athleteFirstName.trim()} ${input.athleteLastName.trim()}`.trim();
+  const parentFullName =
+    `${input.parentFirstName.trim()} ${input.parentLastName.trim()}`.trim();
+  const parentPhone = (input.parentPhone ?? "").trim();
+  const lines = [
+    "E stata inviata una nuova iscrizione atleta da un genitore.",
+    "",
+    `Atleta: ${athleteFullName}`,
+    `Categoria: ${input.categoryName.trim()}`,
+    `Stagione sportiva: ${input.seasonLabel.trim()}`,
+    `Genitore: ${parentFullName}`,
+    `Email genitore: ${input.parentEmail.trim()}`,
+  ];
+
+  if (parentPhone) {
+    lines.push(`Telefono genitore: ${parentPhone}`);
+  }
+
+  lines.push(
+    `Stato acconto: ${formatPaymentStatusLabel(input.depositPaymentStatus)}`,
+    `Stato saldo: ${formatPaymentStatusLabel(input.balancePaymentStatus)}`,
+    `Data iscrizione: ${formatAdminRegistrationDate(input.enrolledAt)}`,
+    "",
+    "Accedi al gestionale per consultare documenti e dettagli completi.",
+  );
+
+  return lines.join("\n");
+}
+
 function buildAdminNewUserNotificationText(input: {
   name?: string;
   email: string;
@@ -363,6 +430,44 @@ export async function sendRegistrationConfirmationEmail(
       to: input.to,
       reason,
     });
+    return {
+      sent: false,
+      skipped: false,
+      reason,
+    };
+  }
+}
+
+export async function sendAdminEnrollmentNotification(
+  input: AdminEnrollmentNotificationInput,
+): Promise<SendRegistrationMailResult> {
+  const adminEmail = getAdminNotificationEmail();
+  const config = getMailerConfig();
+
+  if (!config.enabled) {
+    const reason = `Configurazione mail incompleta: ${config.missingVars.join(", ")}`;
+    return {
+      sent: false,
+      skipped: true,
+      reason,
+    };
+  }
+
+  const transporter = createMailerTransporter(config);
+  const text = buildAdminEnrollmentNotificationText(input);
+
+  try {
+    await transporter.sendMail({
+      from: config.from,
+      to: adminEmail,
+      subject: "Nuova iscrizione atleta - ASD Comun Nuovo Calcio",
+      text,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Errore imprevisto durante l'invio mail";
     return {
       sent: false,
       skipped: false,

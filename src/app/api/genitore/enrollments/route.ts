@@ -12,6 +12,7 @@ import {
   EnrollmentDocumentStorageError,
   validateEnrollmentDocumentStorageEnv,
 } from "@/lib/enrollment-documents";
+import { sendAdminEnrollmentNotification } from "@/lib/mail";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,7 @@ async function getFallbackCategory(tx: Prisma.TransactionClient) {
     },
     select: {
       id: true,
+      name: true,
       seasonLabel: true,
     },
   });
@@ -215,6 +217,7 @@ export async function POST(request: Request) {
               },
               select: {
                 id: true,
+                name: true,
                 seasonLabel: true,
               },
             });
@@ -245,6 +248,8 @@ export async function POST(request: Request) {
         },
       });
 
+      const submittedAt = new Date();
+
       const enrollment = await tx.enrollment.create({
         data: {
           athleteId: athlete.id,
@@ -263,7 +268,7 @@ export async function POST(request: Request) {
           regulationConsent: parsed.data.regulationConsent,
           imageConsent: parsed.data.imageConsent,
           status: "SUBMITTED",
-          submittedAt: new Date(),
+          submittedAt,
           notes: parsed.data.enrollmentNotes || null,
         },
       });
@@ -317,10 +322,45 @@ export async function POST(request: Request) {
       return {
         athleteId: athlete.id,
         enrollmentId: enrollment.id,
+        categoryName: category.name,
+        seasonLabel,
+        submittedAt,
       };
     });
 
-    return NextResponse.json({ success: true, data: created }, { status: 201 });
+    const notificationResult = await sendAdminEnrollmentNotification({
+      athleteFirstName: parsed.data.athleteFirstName,
+      athleteLastName: parsed.data.athleteLastName,
+      categoryName: created.categoryName,
+      seasonLabel: created.seasonLabel,
+      parentFirstName: parsed.data.receiptFirstName,
+      parentLastName: parsed.data.receiptLastName,
+      parentEmail: parsed.data.receiptEmail,
+      parentPhone: parsed.data.receiptPhone,
+      depositPaymentStatus: "PENDING",
+      balancePaymentStatus: "PENDING",
+      enrolledAt: created.submittedAt,
+    });
+
+    if (notificationResult.sent) {
+      console.info("[enrollment notification] email sent");
+    } else {
+      console.error("[enrollment notification] email failed", {
+        reason: notificationResult.reason,
+        skipped: notificationResult.skipped,
+      });
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          athleteId: created.athleteId,
+          enrollmentId: created.enrollmentId,
+        },
+      },
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json(
