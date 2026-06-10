@@ -26,7 +26,9 @@ export default async function NewParentEnrollmentPage() {
 
   const [categories, parentProfile] = await Promise.all([
     prisma.category.findMany({
-      // Temporary bypass: allow enrollments even if categories were marked inactive.
+      // Solo categorie attive: le categorie disattivate (es. Under 15)
+      // non sono selezionabili nelle nuove iscrizioni.
+      where: { isActive: true },
       orderBy: [{ seasonLabel: "desc" }, { name: "asc" }],
       select: {
         id: true,
