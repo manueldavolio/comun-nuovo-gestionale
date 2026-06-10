@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { CategoryForm } from "@/components/categories/category-form";
+import { CategoryDeleteButton } from "@/components/categories/category-delete-button";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -62,6 +63,10 @@ export default async function AdminCategoryEditPage({ params }: AdminCategoryEdi
             isActive: category.isActive,
           }}
         />
+
+        <div className="rounded-xl border border-red-200 bg-white p-4">
+          <CategoryDeleteButton categoryId={category.id} />
+        </div>
       </div>
     </main>
   );
