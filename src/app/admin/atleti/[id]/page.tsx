@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { AthleteEnrollmentDocuments } from "@/components/admin/athlete-enrollment-documents";
+import { ChangeAthleteCategoryInline } from "@/components/admin/change-athlete-category-inline";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -30,7 +31,8 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
     redirect("/unauthorized");
   }
 
-  const athlete = await prisma.athlete.findUnique({
+  const [athlete, activeCategories] = await Promise.all([
+    prisma.athlete.findUnique({
     where: { id },
     select: {
       id: true,
@@ -59,6 +61,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
       },
       category: {
         select: {
+          id: true,
           name: true,
           birthYearsLabel: true,
           seasonLabel: true,
@@ -96,7 +99,18 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
         },
       },
     },
-  });
+  }),
+    prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: [{ seasonLabel: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        seasonLabel: true,
+        birthYearsLabel: true,
+      },
+    }),
+  ]);
 
   if (!athlete) {
     redirect("/admin/atleti");
@@ -135,6 +149,12 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
               <p className="text-xs text-zinc-500">
                 {athlete.category.birthYearsLabel}
               </p>
+
+              <ChangeAthleteCategoryInline
+                athleteId={athlete.id}
+                currentCategoryId={athlete.category.id}
+                categories={activeCategories}
+              />
 
               <div className="mt-4 border-t border-blue-100 pt-4">
                 <p className="text-sm font-medium text-zinc-900">Nascita</p>
