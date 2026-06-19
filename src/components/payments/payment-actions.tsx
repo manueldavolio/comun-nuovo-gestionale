@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 type PaymentActionsProps = {
   paymentId: string;
   paymentType: "DEPOSIT" | "BALANCE";
-  status: "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
+  status: "PENDING" | "PAID" | "OVERDUE" | "CANCELLED" | "FAILED" | "EXPIRED";
   receiptId: string | null;
 };
 
@@ -14,7 +14,9 @@ export function PaymentActions({ paymentId, paymentType, status, receiptId }: Pa
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canPay = status !== "PAID" && status !== "CANCELLED";
+  const canPay = status !== "PAID";
+  const isRetryPayment =
+    status === "CANCELLED" || status === "OVERDUE" || status === "FAILED" || status === "EXPIRED";
 
   async function handleCheckout() {
     setError(null);
@@ -58,9 +60,11 @@ export function PaymentActions({ paymentId, paymentType, status, receiptId }: Pa
         >
           {isSubmitting
             ? "Apertura checkout..."
-            : paymentType === "DEPOSIT"
-              ? "Paga acconto"
-              : "Paga saldo"}
+            : isRetryPayment
+              ? "Riprova pagamento"
+              : paymentType === "DEPOSIT"
+                ? "Paga acconto"
+                : "Paga saldo"}
         </button>
       ) : (
         <span className="text-xs text-zinc-500">Pagamento chiuso</span>

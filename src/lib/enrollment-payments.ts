@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { generateReceiptPdf } from "@/lib/pdf";
 import { sendReceiptMail } from "@/lib/mail";
 import { saveReceiptPdf } from "@/lib/receipt-storage";
+import { getStripeClient } from "@/lib/stripe";
 
 const CLUB_DATA = {
   name: "Associazione Sportiva Dilettantistica Comun Nuovo",
@@ -13,6 +14,7 @@ const CLUB_DATA = {
 
 const RECEIPT_SEQUENCE_PAD = 6;
 const RECEIPT_COUNTER_ID = 1;
+const RETRYABLE_PAYMENT_STATUSES = ["PENDING", "OVERDUE", "CANCELLED"] as const;
 
 type PaymentWithRelations = {
   id: string;
@@ -43,6 +45,11 @@ function buildCausal(paymentType: PaymentType, seasonLabel: string) {
   return paymentType === "DEPOSIT"
     ? `Acconto iscrizione stagione ${seasonLabel}`
     : `Saldo iscrizione stagione ${seasonLabel}`;
+}
+
+function amountToCents(amount: Prisma.Decimal): number {
+  const normalized = amount.toFixed(2);
+  return Math.round(Number(normalized) * 100);
 }
 
 async function getNextReceiptNumber(tx: Prisma.TransactionClient): Promise<string> {
@@ -444,4 +451,98 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
     receiptNumber: payment.receipt?.receiptNumber ?? null,
     receiptFilePath: filePath ?? payment.receipt?.filePath ?? null,
   };
+}
+
+type RegenerateCheckoutParams = {
+  paymentId: string;
+  origin: string;
+  successPath: string;
+  cancelPath: string;
+};
+
+export async function regenerateEnrollmentPaymentCheckout(params: RegenerateCheckoutParams) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: params.paymentId },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      amount: true,
+      enrollment: {
+        select: {
+          seasonLabel: true,
+          athlete: {
+            select: {
+              firstName: true,
+              lastName: true,
+              parent: {
+                select: {
+                  userId: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    return { error: "PAYMENT_NOT_FOUND" as const };
+  }
+
+  if (payment.type !== "DEPOSIT" && payment.type !== "BALANCE") {
+    return { error: "PAYMENT_TYPE_NOT_SUPPORTED" as const };
+  }
+
+  if (payment.status === "PAID") {
+    return { error: "PAYMENT_ALREADY_PAID" as const };
+  }
+
+  if (!RETRYABLE_PAYMENT_STATUSES.includes(payment.status)) {
+    return { error: "PAYMENT_STATUS_NOT_RETRYABLE" as const };
+  }
+
+  const stripe = getStripeClient();
+  const athleteName =
+    `${payment.enrollment.athlete.firstName} ${payment.enrollment.athlete.lastName}`.trim();
+  const amountCents = amountToCents(payment.amount);
+  const description =
+    payment.type === "DEPOSIT"
+      ? `Acconto iscrizione ${athleteName} - stagione ${payment.enrollment.seasonLabel}`
+      : `Saldo iscrizione ${athleteName} - stagione ${payment.enrollment.seasonLabel}`;
+
+  const checkoutSession = await stripe.checkout.sessions.create({
+    mode: "payment",
+    success_url: `${params.origin}${params.successPath}`,
+    cancel_url: `${params.origin}${params.cancelPath}`,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "eur",
+          unit_amount: amountCents,
+          product_data: {
+            name: description,
+          },
+        },
+      },
+    ],
+    metadata: {
+      paymentId: payment.id,
+      parentUserId: payment.enrollment.athlete.parent.userId,
+      paymentType: payment.type,
+    },
+  });
+
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: {
+      status: "PENDING",
+      stripeCheckoutSessionId: checkoutSession.id,
+      stripePaymentIntentId: null,
+    },
+  });
+
+  return { ok: true as const, checkoutUrl: checkoutSession.url, checkoutSessionId: checkoutSession.id };
 }

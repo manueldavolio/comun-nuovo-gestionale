@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { FinanceEntryForm } from "@/components/finance/finance-entry-form";
+import { RegenerateCheckoutButton } from "@/components/finance/regenerate-checkout-button";
 import { RegenerateReceiptButton } from "@/components/finance/regenerate-receipt-button";
 import { FINANCE_CATEGORY_LABEL, euroFormatter } from "@/lib/finance";
 import { getAuthSession } from "@/lib/auth";
@@ -174,6 +175,7 @@ export default async function AdminFinanzePage() {
                   <th className="px-3 py-2 font-semibold">Tipo</th>
                   <th className="px-3 py-2 font-semibold">Stato</th>
                   <th className="px-3 py-2 font-semibold">Importo</th>
+                  <th className="px-3 py-2 font-semibold">Azioni</th>
                   <th className="px-3 py-2 font-semibold">Ricevuta</th>
                 </tr>
               </thead>
@@ -192,6 +194,13 @@ export default async function AdminFinanzePage() {
                     </td>
                     <td className="px-3 py-2 font-semibold text-zinc-900">
                       {euroFormatter.format(toAmountNumber(payment.amount))}
+                    </td>
+                    <td className="px-3 py-2">
+                      {["PENDING", "CANCELLED", "OVERDUE", "FAILED", "EXPIRED"].includes(payment.status) ? (
+                        <RegenerateCheckoutButton paymentId={payment.id} />
+                      ) : (
+                        <span className="text-xs text-zinc-500">Non disponibile</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {payment.status === "PAID" ? (

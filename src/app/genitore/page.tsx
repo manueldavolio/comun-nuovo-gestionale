@@ -32,6 +32,8 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
   PAID: "Pagato",
   OVERDUE: "Scaduto",
   CANCELLED: "Annullato",
+  FAILED: "Fallito",
+  EXPIRED: "Scaduto",
 };
 
 const ENROLLMENT_STATUS_COLORS: Record<string, string> = {
@@ -46,6 +48,8 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
   OVERDUE: "border-red-200 bg-red-50 text-red-700",
   PAID: "border-emerald-200 bg-emerald-50 text-emerald-800",
   CANCELLED: "border-zinc-200 bg-zinc-50 text-zinc-700",
+  FAILED: "border-red-200 bg-red-50 text-red-700",
+  EXPIRED: "border-zinc-200 bg-zinc-50 text-zinc-700",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -83,6 +87,10 @@ function statusClass(
   }
 
   return palette[status] ?? fallback;
+}
+
+function isOpenPaymentStatus(status: string | null | undefined) {
+  return ["PENDING", "OVERDUE", "CANCELLED", "FAILED", "EXPIRED"].includes(status ?? "");
 }
 
 export default async function ParentDashboardPage({ searchParams }: ParentDashboardPageProps) {
@@ -188,10 +196,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
   const submittedEnrollments = athleteRows.filter((row) => row.enrollmentStatus === "SUBMITTED").length;
   const pendingPayments = athleteRows.reduce((count, row) => {
-    const depositPending =
-      row.depositPayment?.status === "PENDING" || row.depositPayment?.status === "OVERDUE";
-    const balancePending =
-      row.balancePayment?.status === "PENDING" || row.balancePayment?.status === "OVERDUE";
+    const depositPending = isOpenPaymentStatus(row.depositPayment?.status ?? null);
+    const balancePending = isOpenPaymentStatus(row.balancePayment?.status ?? null);
     return count + (depositPending ? 1 : 0) + (balancePending ? 1 : 0);
   }, 0);
   const medicalAlerts = athleteRows.reduce((count, row) => {

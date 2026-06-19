@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 type AdminNavItem = {
   href: string;
   label: string;
+  /** Visibile solo al ruolo ADMIN (nascosto a YOUTH_DIRECTOR). */
+  adminOnly?: boolean;
 };
 
 const ADMIN_NAV_ITEMS: AdminNavItem[] = [
@@ -18,6 +20,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin/documenti", label: "Documenti" },
   { href: "/admin/media", label: "Media" },
   { href: "/admin/visite-mediche", label: "Visite mediche" },
+  { href: "/admin/sito-web", label: "Sito web", adminOnly: true },
 ];
 
 function isItemActive(pathname: string, href: string) {
@@ -28,14 +31,19 @@ function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminNav() {
+type AdminNavProps = {
+  role?: string;
+};
+
+export function AdminNav({ role }: AdminNavProps) {
   const pathname = usePathname();
+  const items = ADMIN_NAV_ITEMS.filter((item) => !item.adminOnly || role === "ADMIN");
 
   return (
     <nav className="sticky top-0 z-30 border-b border-blue-100 bg-sky-50/95 backdrop-blur">
       <div className="mx-auto w-full max-w-6xl px-4 py-3 md:px-8">
         <ul className="flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100/80 bg-white/80 p-2.5 shadow-sm shadow-blue-950/5">
-          {ADMIN_NAV_ITEMS.map((item) => {
+          {items.map((item) => {
             const active = isItemActive(pathname, item.href);
 
             return (

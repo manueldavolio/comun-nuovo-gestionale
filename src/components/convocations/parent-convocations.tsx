@@ -121,7 +121,7 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
         {item.notes ? <p className="mt-1 text-sm text-zinc-600">Note: {item.notes}</p> : null}
         {isUnanswered ? (
           <p className="mt-2 rounded-xl border border-amber-200 bg-amber-100/60 px-3 py-2 text-xs font-semibold text-amber-900">
-            In attesa di risposta: conferma ora per aiutare lo staff a organizzare l'evento.
+            In attesa di risposta: conferma ora per aiutare lo staff a organizzare l&apos;evento.
           </p>
         ) : null}
         {allowEditsHint ? (
@@ -171,7 +171,7 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
         </p>
       ) : null}
 
-      <p className="text-sm text-zinc-700">Conferma se tuo figlio sara presente all'evento.</p>
+      <p className="text-sm text-zinc-700">Conferma se tuo figlio sara presente all&apos;evento.</p>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">

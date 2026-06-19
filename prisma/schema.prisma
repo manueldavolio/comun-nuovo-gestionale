@@ -548,6 +548,140 @@ model Evaluation {
   @@index([evaluatorId])
 }
 
+// ---------------------------------------------------------------------------
+// CMS SITO WEB PUBBLICO (sezione admin "Sito web")
+// Tabelle lette dal sito pubblico (comun-nuovo-sito) tramite Supabase anon key.
+// ---------------------------------------------------------------------------
+
+enum SiteTeam {
+  PRIMA_SQUADRA
+  FEMMINILE
+  UNDER_19
+  UNDER_17
+  UNDER_15
+  CALCIO_A_5_C2
+}
+
+enum SitePlayerRole {
+  PORTIERE
+  DIFENSORE
+  CENTROCAMPISTA
+  ATTACCANTE
+}
+
+enum SiteSponsorCategory {
+  MAIN
+  GOLD
+  PARTNER
+  TECHNICAL
+}
+
+model SitePlayer {
+  id          String         @id @default(cuid())
+  name        String
+  role        SitePlayerRole
+  team        SiteTeam       @default(PRIMA_SQUADRA)
+  shirtNumber Int?
+  description String?
+  photoUrl    String?
+  sortOrder   Int            @default(0)
+  isVisible   Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([team, isVisible])
+}
+
+model SiteStaffMember {
+  id          String   @id @default(cuid())
+  name        String
+  role        String
+  category    String   @default("Dirigenza")
+  description String?
+  photoUrl    String?
+  sortOrder   Int      @default(0)
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, isVisible])
+}
+
+model SiteNews {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  title         String
+  subtitle      String?
+  content       String
+  coverImageUrl String?
+  category      String    @default("Società")
+  published     Boolean   @default(false)
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([published, publishedAt])
+}
+
+model SiteSponsor {
+  id         String              @id @default(cuid())
+  name       String
+  category   SiteSponsorCategory @default(PARTNER)
+  logoUrl    String?
+  websiteUrl String?
+  sortOrder  Int                 @default(0)
+  isVisible  Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([category, isVisible])
+}
+
+model SiteGalleryAlbum {
+  id        String    @id @default(cuid())
+  title     String
+  date      DateTime?
+  sortOrder Int       @default(0)
+  isVisible Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  images SiteGalleryImage[]
+}
+
+model SiteGalleryImage {
+  id        String   @id @default(cuid())
+  albumId   String
+  imageUrl  String
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  album SiteGalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@index([albumId])
+}
+
+model SiteVideo {
+  id          String   @id @default(cuid())
+  title       String
+  youtubeUrl  String
+  description String?
+  sortOrder   Int      @default(0)
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteSettings {
+  id             String   @id @default("main")
+  foundationYear Int      @default(1968)
+  teamsCount     String   @default("8")
+  membersCount   String   @default("200+")
+  fieldsCount    String   @default("4")
+  updatedAt      DateTime @updatedAt
+}
+
 model AccountingEntry {
   id            String              @id @default(cuid())
   type          AccountingEntryType
