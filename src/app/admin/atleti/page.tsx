@@ -110,7 +110,7 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
     redirect("/login?callbackUrl=/admin/atleti");
   }
 
-  if (session.user.role !== "ADMIN") {
+  if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
     redirect("/unauthorized");
   }
 

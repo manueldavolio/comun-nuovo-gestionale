@@ -30,7 +30,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
   }
 
-  if (session.user.role !== "ADMIN") {
+  if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 

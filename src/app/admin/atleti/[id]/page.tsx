@@ -27,7 +27,8 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
     redirect(`/login?callbackUrl=/admin/atleti/${id}`);
   }
 
-  if (session.user.role !== "ADMIN") {
+  const canManageAthleteCategory = session.user.role === "ADMIN";
+  if (!canManageAthleteCategory && session.user.role !== "YOUTH_DIRECTOR") {
     redirect("/unauthorized");
   }
 
@@ -150,11 +151,13 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
                 {athlete.category.birthYearsLabel}
               </p>
 
-              <ChangeAthleteCategoryInline
-                athleteId={athlete.id}
-                currentCategoryId={athlete.category.id}
-                categories={activeCategories}
-              />
+              {canManageAthleteCategory ? (
+                <ChangeAthleteCategoryInline
+                  athleteId={athlete.id}
+                  currentCategoryId={athlete.category.id}
+                  categories={activeCategories}
+                />
+              ) : null}
 
               <div className="mt-4 border-t border-blue-100 pt-4">
                 <p className="text-sm font-medium text-zinc-900">Nascita</p>

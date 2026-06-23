@@ -77,7 +77,8 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     redirect("/login?callbackUrl=/admin/utenti");
   }
 
-  if (session.user.role !== "ADMIN") {
+  const canManageRoles = session.user.role === "ADMIN";
+  if (!canManageRoles && session.user.role !== "YOUTH_DIRECTOR") {
     redirect("/unauthorized");
   }
 
@@ -167,10 +168,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                       <td className="px-3 py-2">{user.email || "-"}</td>
                       <td className="px-3 py-2">{formatRole(user.role)}</td>
                       <td className="px-3 py-2">
-                        {user.role ? (
+                        {user.role && canManageRoles ? (
                           <ChangeUserRoleInline userId={user.id} currentRole={user.role} />
                         ) : (
-                          <span className="text-xs text-zinc-500">Ruolo non disponibile</span>
+                          <span className="text-xs text-zinc-500">
+                            {user.role ? "Solo visualizzazione" : "Ruolo non disponibile"}
+                          </span>
                         )}
                       </td>
                     </tr>
