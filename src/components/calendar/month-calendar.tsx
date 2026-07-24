@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   addDays,
@@ -21,12 +22,15 @@ export type CalendarEvent = {
   title: string;
   date: string;
   endDate?: string | null;
-  type: "ALLENAMENTO" | "PARTITA" | "AMICHEVOLE" | "RIUNIONE" | "CONVOCAZIONE";
+  type: "ALLENAMENTO" | "PARTITA" | "AMICHEVOLE" | "RIUNIONE" | "CONVOCAZIONE" | "TORNEO";
   categoryId?: string | null;
   categoryName?: string | null;
   location?: string | null;
   details?: string | null;
   athleteName?: string | null;
+  /** Link rapido gestione evento (solo se il ruolo ha permesso). */
+  manageHref?: string | null;
+  manageLabel?: string | null;
 };
 
 type MonthCalendarProps = {
@@ -35,14 +39,26 @@ type MonthCalendarProps = {
   events: CalendarEvent[];
   emptyMessage?: string;
   categoryOptions?: Array<{ id: string; name: string }>;
+  /** Mostra il filtro tipo evento (default: false, comportamento genitore invariato). */
+  showTypeFilter?: boolean;
 };
 
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+const EVENT_TYPE_ORDER: CalendarEvent["type"][] = [
+  "ALLENAMENTO",
+  "PARTITA",
+  "AMICHEVOLE",
+  "TORNEO",
+  "RIUNIONE",
+  "CONVOCAZIONE",
+];
 
 const EVENT_TYPE_STYLES: Record<CalendarEvent["type"], string> = {
   ALLENAMENTO: "border-emerald-200 bg-emerald-50 text-emerald-800",
   PARTITA: "border-red-200 bg-red-50 text-red-800",
   AMICHEVOLE: "border-blue-200 bg-blue-50 text-blue-800",
+  TORNEO: "border-amber-200 bg-amber-50 text-amber-800",
   RIUNIONE: "border-violet-200 bg-violet-50 text-violet-800",
   CONVOCAZIONE: "border-orange-200 bg-orange-50 text-orange-800",
 };
@@ -51,6 +67,7 @@ const EVENT_TYPE_BADGE_LABEL: Record<CalendarEvent["type"], string> = {
   ALLENAMENTO: "ALLEN",
   AMICHEVOLE: "AMIC",
   PARTITA: "PART",
+  TORNEO: "TORN",
   RIUNIONE: "RIUN",
   CONVOCAZIONE: "CONV",
 };
@@ -59,6 +76,7 @@ const EVENT_TYPE_LABEL: Record<CalendarEvent["type"], string> = {
   ALLENAMENTO: "Allenamento",
   PARTITA: "Partita",
   AMICHEVOLE: "Amichevole",
+  TORNEO: "Torneo",
   RIUNIONE: "Riunione",
   CONVOCAZIONE: "Convocazione",
 };
@@ -99,18 +117,27 @@ export function MonthCalendar({
   events,
   emptyMessage = "Nessun evento imminente.",
   categoryOptions = [],
+  showTypeFilter = false,
 }: MonthCalendarProps) {
   const now = new Date();
   const [activeMonth, setActiveMonth] = useState(startOfMonth(now));
   const [selectedDay, setSelectedDay] = useState<Date>(now);
   const [selectedCategoryId, setSelectedCategoryId] = useState("ALL");
+  const [selectedType, setSelectedType] = useState<CalendarEvent["type"] | "ALL">("ALL");
+
+  const availableTypes = useMemo(() => {
+    const present = new Set(events.map((event) => event.type));
+    return EVENT_TYPE_ORDER.filter((type) => present.has(type));
+  }, [events]);
 
   const filteredEvents = useMemo(() => {
-    if (selectedCategoryId === "ALL") {
-      return events;
-    }
-    return events.filter((event) => event.categoryId === selectedCategoryId);
-  }, [events, selectedCategoryId]);
+    return events.filter((event) => {
+      const categoryMatch =
+        selectedCategoryId === "ALL" ? true : event.categoryId === selectedCategoryId;
+      const typeMatch = selectedType === "ALL" ? true : event.type === selectedType;
+      return categoryMatch && typeMatch;
+    });
+  }, [events, selectedCategoryId, selectedType]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -180,23 +207,44 @@ export function MonthCalendar({
         </button>
       </div>
 
-      {categoryOptions.length > 1 ? (
-        <div className="mt-3">
-          <label className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
-            Categoria
-            <select
-              className="mt-1 block w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
-              value={selectedCategoryId}
-              onChange={(event) => setSelectedCategoryId(event.target.value)}
-            >
-              <option value="ALL">Tutte le categorie</option>
-              {categoryOptions.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+      {categoryOptions.length > 1 || (showTypeFilter && availableTypes.length > 1) ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {categoryOptions.length > 1 ? (
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
+              Categoria
+              <select
+                className="mt-1 block w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
+                value={selectedCategoryId}
+                onChange={(event) => setSelectedCategoryId(event.target.value)}
+              >
+                <option value="ALL">Tutte le categorie</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {showTypeFilter && availableTypes.length > 1 ? (
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
+              Tipo evento
+              <select
+                className="mt-1 block w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
+                value={selectedType}
+                onChange={(event) =>
+                  setSelectedType(event.target.value as CalendarEvent["type"] | "ALL")
+                }
+              >
+                <option value="ALL">Tutti i tipi</option>
+                {availableTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {EVENT_TYPE_LABEL[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
       ) : null}
 
@@ -306,6 +354,14 @@ export function MonthCalendar({
                     </p>
                     {event.location ? <p className="mt-1 text-sm">Luogo: {event.location}</p> : null}
                     {event.categoryName ? <p className="mt-1 text-sm">Categoria: {event.categoryName}</p> : null}
+                    {event.manageHref ? (
+                      <Link
+                        href={event.manageHref}
+                        className="mt-3 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                      >
+                        {event.manageLabel ?? "Gestisci evento"}
+                      </Link>
+                    ) : null}
                   </article>
                 ))}
               </div>

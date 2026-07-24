@@ -411,7 +411,16 @@ export default async function AdminDashboardPage() {
           </article>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-3">
+        <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Link
+            href="/admin/calendario"
+            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+          >
+            <h2 className="text-base font-semibold text-zinc-900">Calendario eventi</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Vista mensile grafica con filtri per categoria e tipo evento.
+            </p>
+          </Link>
           <Link
             href="/admin/comunicazioni"
             className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"

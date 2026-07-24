@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { subMonths } from "date-fns";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
@@ -10,15 +11,24 @@ import { prisma } from "@/lib/prisma";
 function normalizeCalendarEventType(type: string | null | undefined): CalendarEvent["type"] {
   switch (type) {
     case "ALLENAMENTO":
-    case "PARTITA":
-    case "AMICHEVOLE":
-    case "RIUNIONE":
-    case "CONVOCAZIONE":
-      return type;
     case "TRAINING":
       return "ALLENAMENTO";
+    case "PARTITA":
+    case "LEAGUE_MATCH":
+    case "MATCH":
+      return "PARTITA";
+    case "AMICHEVOLE":
     case "FRIENDLY":
       return "AMICHEVOLE";
+    case "TORNEO":
+    case "TOURNAMENT":
+      return "TORNEO";
+    case "RIUNIONE":
+    case "MEETING":
+      return "RIUNIONE";
+    case "CONVOCAZIONE":
+    case "CONVOCATION":
+      return "CONVOCAZIONE";
     default:
       return "ALLENAMENTO";
   }
@@ -36,7 +46,7 @@ export default async function CoachCalendarPage() {
   }
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
-  const now = new Date();
+  const rangeStart = subMonths(new Date(), 6);
 
   const [categories, events, convocations, announcements] = await Promise.all([
     coachCategoryIds.length === 0
@@ -57,15 +67,16 @@ export default async function CoachCalendarPage() {
           where: {
             categoryId: { in: coachCategoryIds },
             type: { in: COACH_VISIBLE_EVENT_TYPES },
-            startAt: { gte: now },
+            startAt: { gte: rangeStart },
           },
           orderBy: [{ startAt: "asc" }],
-          take: 300,
+          take: 500,
           select: {
             id: true,
             title: true,
             type: true,
             startAt: true,
+            endAt: true,
             location: true,
             description: true,
             categoryId: true,
@@ -83,7 +94,7 @@ export default async function CoachCalendarPage() {
             categoryId: { in: coachCategoryIds },
             AND: [
               { event: { isNot: null } },
-              { event: { is: { startAt: { gte: now } } } },
+              { event: { is: { startAt: { gte: rangeStart } } } },
             ],
           },
           orderBy: {
@@ -115,7 +126,7 @@ export default async function CoachCalendarPage() {
       where: {
         publishedAt: {
           not: null,
-          lte: now,
+          lte: new Date(),
         },
         OR: [
           { audience: "ALL" },
@@ -150,11 +161,20 @@ export default async function CoachCalendarPage() {
       id: `event-${event.id}`,
       title: event.title,
       date: event.startAt.toISOString(),
+      endDate: event.endAt ? event.endAt.toISOString() : null,
       type: normalizeCalendarEventType(event.type),
       location: event.location,
       details: event.description,
       categoryId: event.categoryId,
       categoryName: event.category?.name ?? null,
+      manageHref:
+        event.categoryId && coachCategoryIds.includes(event.categoryId)
+          ? `/mister/eventi/${event.id}/presenze`
+          : null,
+      manageLabel:
+        event.categoryId && coachCategoryIds.includes(event.categoryId)
+          ? "Gestisci evento"
+          : null,
     })),
     ...convocations
       .filter((convocation) => Boolean(convocation.event))
@@ -167,6 +187,8 @@ export default async function CoachCalendarPage() {
         details: convocation.notes,
         categoryId: convocation.categoryId,
         categoryName: convocation.category.name,
+        manageHref: `/mister/eventi/${convocation.event!.id}/convocazioni`,
+        manageLabel: "Gestisci convocazione",
       })),
     ...announcements
       .filter((announcement) => Boolean(announcement.publishedAt))
@@ -205,6 +227,7 @@ export default async function CoachCalendarPage() {
           subtitle="Visualizzi solo eventi, convocazioni e comunicazioni pertinenti alle tue categorie."
           events={calendarEvents}
           categoryOptions={categories}
+          showTypeFilter
           emptyMessage="Nessun evento disponibile per le categorie assegnate."
         />
       </div>
