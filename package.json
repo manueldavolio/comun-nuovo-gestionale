@@ -11,7 +11,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "postinstall": "npx prisma generate",
-    "icons:generate": "node scripts/generate-pwa-icons.mjs"
+    "icons:generate": "node scripts/generate-pwa-icons.mjs",
+    "export:audit": "tsx scripts/export-v2/cli.ts",
+    "test:export-audit": "tsx --test scripts/export-v2/tests/audit-core.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

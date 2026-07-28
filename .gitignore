@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# migration audit exporter output (read-only reports)
+/audit-output/
+/audit-output-*/
+
