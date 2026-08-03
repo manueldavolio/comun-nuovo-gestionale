@@ -97,6 +97,22 @@ function toDate(value: string) {
   return parseISO(value);
 }
 
+/** Day key from floating datetime (`YYYY-MM-DDTHH:mm:ss`), ignoring local TZ shifts. */
+function toDayKey(value: string) {
+  return value.slice(0, 10);
+}
+
+function initialMonthFromEvents(events: CalendarEvent[], fallback: Date) {
+  if (events.length === 0) {
+    return startOfMonth(fallback);
+  }
+
+  const sorted = [...events].sort(
+    (a, b) => toDate(a.date).getTime() - toDate(b.date).getTime(),
+  );
+  return startOfMonth(toDate(sorted[0].date));
+}
+
 function formatEventDateTime(event: CalendarEvent) {
   const start = toDate(event.date);
   const dateLabel = eventDateTimeFormatter.format(start);
@@ -120,8 +136,14 @@ export function MonthCalendar({
   showTypeFilter = false,
 }: MonthCalendarProps) {
   const now = new Date();
-  const [activeMonth, setActiveMonth] = useState(startOfMonth(now));
-  const [selectedDay, setSelectedDay] = useState<Date>(now);
+  const [activeMonth, setActiveMonth] = useState(() => initialMonthFromEvents(events, now));
+  const [selectedDay, setSelectedDay] = useState(() => {
+    if (events.length === 0) return now;
+    const sorted = [...events].sort(
+      (a, b) => toDate(a.date).getTime() - toDate(b.date).getTime(),
+    );
+    return toDate(sorted[0].date);
+  });
   const [selectedCategoryId, setSelectedCategoryId] = useState("ALL");
   const [selectedType, setSelectedType] = useState<CalendarEvent["type"] | "ALL">("ALL");
 
@@ -143,7 +165,7 @@ export function MonthCalendar({
     const map = new Map<string, CalendarEvent[]>();
 
     for (const event of filteredEvents) {
-      const key = format(toDate(event.date), "yyyy-MM-dd");
+      const key = toDayKey(event.date);
       const current = map.get(key) ?? [];
       current.push(event);
       map.set(key, current);
@@ -182,6 +204,11 @@ export function MonthCalendar({
         <div>
           <h2 className="text-base font-semibold text-zinc-900 sm:text-lg">{title}</h2>
           <p className="mt-1 text-xs text-zinc-600 sm:text-sm">{subtitle}</p>
+          {events.length > 0 ? (
+            <p className="mt-1 text-xs font-medium text-zinc-500">
+              {events.length} impegni caricati
+            </p>
+          ) : null}
         </div>
       </div>
 

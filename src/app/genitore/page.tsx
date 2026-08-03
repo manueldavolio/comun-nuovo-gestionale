@@ -214,7 +214,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             },
           },
           orderBy: [{ startAt: "asc" }],
-          take: 120,
+          take: 300,
           select: {
             id: true,
             title: true,
@@ -326,7 +326,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const calendarEventsByCategory = new Map(
     categoryIds.map((categoryId) => [
       categoryId,
-      categoryCalendarEvents.filter((event) => event.categoryId === categoryId).slice(0, 3),
+      categoryCalendarEvents.filter((event) => event.categoryId === categoryId),
     ]),
   );
 

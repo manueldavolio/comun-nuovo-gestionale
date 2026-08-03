@@ -17,11 +17,15 @@ function normalizeCalendarEventType(type: string | null | undefined): CalendarEv
     case "TRAINING":
       return "ALLENAMENTO";
     case "PARTITA":
+    case "LEAGUE_MATCH":
     case "MATCH":
       return "PARTITA";
     case "AMICHEVOLE":
     case "FRIENDLY":
       return "AMICHEVOLE";
+    case "TORNEO":
+    case "TOURNAMENT":
+      return "TORNEO";
     case "RIUNIONE":
     case "MEETING":
       return "RIUNIONE";
