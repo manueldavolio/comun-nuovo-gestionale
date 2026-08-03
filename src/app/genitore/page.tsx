@@ -12,6 +12,7 @@ import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
+import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
@@ -66,16 +67,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
   hour: "2-digit",
   minute: "2-digit",
 });
-
-function toFloatingDateTime(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-}
 
 function statusClass(
   palette: Record<string, string>,

@@ -5,6 +5,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
@@ -160,8 +161,8 @@ export default async function CoachCalendarPage() {
     ...events.map((event) => ({
       id: `event-${event.id}`,
       title: event.title,
-      date: event.startAt.toISOString(),
-      endDate: event.endAt ? event.endAt.toISOString() : null,
+      date: toFloatingDateTime(event.startAt),
+      endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
       type: normalizeCalendarEventType(event.type),
       location: event.location,
       details: event.description,
@@ -181,7 +182,7 @@ export default async function CoachCalendarPage() {
       .map((convocation) => ({
         id: `convocation-${convocation.id}`,
         title: `Convocazione - ${convocation.event!.title}`,
-        date: convocation.event!.startAt.toISOString(),
+        date: toFloatingDateTime(convocation.event!.startAt),
         type: normalizeCalendarEventType("CONVOCAZIONE"),
         location: convocation.event!.location,
         details: convocation.notes,
@@ -195,7 +196,7 @@ export default async function CoachCalendarPage() {
       .map((announcement) => ({
         id: `announcement-${announcement.id}`,
         title: announcement.title,
-        date: announcement.publishedAt!.toISOString(),
+        date: toFloatingDateTime(announcement.publishedAt!),
         type: normalizeCalendarEventType("RIUNIONE"),
         location: null,
         details: announcement.content,

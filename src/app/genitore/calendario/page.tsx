@@ -3,20 +3,11 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
+import { toFloatingDateTime } from "@/lib/date-input";
 import { prisma } from "@/lib/prisma";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 
 type CalendarEventType = CalendarEvent["type"];
-
-function toFloatingDateTime(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-}
 
 function normalizeCalendarEventType(type: string | null | undefined): CalendarEventType {
   const normalized = type?.trim().toUpperCase();

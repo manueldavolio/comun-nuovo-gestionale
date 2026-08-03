@@ -5,6 +5,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -102,8 +103,8 @@ export default async function AdminCalendarPage() {
   const calendarEvents: CalendarEvent[] = events.map((event) => ({
     id: `event-${event.id}`,
     title: event.title,
-    date: event.startAt.toISOString(),
-    endDate: event.endAt ? event.endAt.toISOString() : null,
+    date: toFloatingDateTime(event.startAt),
+    endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
     type: normalizeCalendarEventType(event.type),
     location: event.location,
     details: event.description,

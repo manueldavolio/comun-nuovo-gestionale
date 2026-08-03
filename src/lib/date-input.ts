@@ -25,3 +25,18 @@ export function toDateInputValueUTC(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Serializes a DB datetime as a timezone-naive ISO string (no `Z`).
+ * Event times are stored as UTC wall-clock values; passing `.toISOString()`
+ * makes the client shift them by the local offset (e.g. 15:00 → 17:00 in CEST).
+ */
+export function toFloatingDateTime(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
