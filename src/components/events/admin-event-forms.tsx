@@ -3,8 +3,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { EventType } from "@prisma/client";
-import { EVENT_TYPE_CHOICES } from "@/lib/events";
-import { bulkTrainingSchema, createEventSchema } from "@/lib/validation/events";
+import { EventForm } from "@/components/events/event-form";
+import { bulkTrainingSchema } from "@/lib/validation/events";
 
 type CategoryOption = {
   id: string;
@@ -30,15 +30,6 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
   const router = useRouter();
   const defaultCategoryId = categories[0]?.id ?? "";
 
-  const [singleForm, setSingleForm] = useState({
-    title: "",
-    type: "TRAINING" as EventType,
-    startAt: "",
-    location: "",
-    categoryId: defaultCategoryId,
-    notes: "",
-    sendEmail: false,
-  });
   const [bulkForm, setBulkForm] = useState({
     categoryId: defaultCategoryId,
     weekdays: [1, 3] as number[],
@@ -48,9 +39,7 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
     location: "",
     notes: "",
   });
-  const [singleStatus, setSingleStatus] = useState<{ error?: string; ok?: string }>({});
   const [bulkStatus, setBulkStatus] = useState<{ error?: string; ok?: string }>({});
-  const [submittingSingle, setSubmittingSingle] = useState(false);
   const [submittingBulk, setSubmittingBulk] = useState(false);
 
   const hasCategories = useMemo(() => categories.length > 0, [categories.length]);
@@ -63,69 +52,6 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
         : [...prev.weekdays, weekday];
       return { ...prev, weekdays: weekdays.sort((a, b) => a - b) };
     });
-  }
-
-  async function submitSingleForm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSingleStatus({});
-
-    const parsed = createEventSchema.safeParse(singleForm);
-    if (!parsed.success) {
-      setSingleStatus({ error: parsed.error.issues[0]?.message ?? "Dati non validi." });
-      return;
-    }
-
-    setSubmittingSingle(true);
-
-    try {
-      const response = await fetch("/api/admin/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
-      });
-
-      const data = (await response.json().catch(() => null)) as
-        | {
-            error?: string;
-            emailSummary?: {
-              attempted: boolean;
-              totalRecipients: number;
-              sentCount: number;
-              failedCount: number;
-              skippedReason?: string;
-            };
-          }
-        | null;
-
-      if (!response.ok) {
-        setSingleStatus({ error: data && "error" in data ? data.error : "Creazione non riuscita." });
-        setSubmittingSingle(false);
-        return;
-      }
-
-      const summary = data?.emailSummary;
-      const successMessage =
-        summary?.attempted && summary.skippedReason
-          ? `Evento salvato. Email non inviate: ${summary.skippedReason}`
-          : summary?.attempted
-            ? `Evento salvato. Email inviate: ${summary.sentCount}, fallite: ${summary.failedCount}.`
-            : "Evento creato correttamente.";
-
-      setSingleStatus({ ok: successMessage });
-      setSingleForm((prev) => ({
-        ...prev,
-        title: "",
-        startAt: "",
-        location: "",
-        notes: "",
-        sendEmail: false,
-      }));
-      router.refresh();
-    } catch {
-      setSingleStatus({ error: "Errore imprevisto. Riprova." });
-    } finally {
-      setSubmittingSingle(false);
-    }
   }
 
   async function submitBulkForm(event: FormEvent<HTMLFormElement>) {
@@ -179,120 +105,58 @@ export function AdminEventForms({ categories }: AdminEventFormsProps) {
         </p>
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          <form onSubmit={submitSingleForm} className="rounded-lg border border-blue-100 p-3">
-            <h3 className="text-base font-semibold text-zinc-900">Nuovo evento</h3>
-            <div className="mt-3 grid gap-3">
-              <label className="text-sm text-zinc-700">
-                Titolo
-                <input
-                  value={singleForm.title}
-                  onChange={(event) => setSingleForm((prev) => ({ ...prev, title: event.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
+          <EventForm
+              mode="create"
+              title="Nuovo evento"
+              categories={categories}
+              initialValues={{
+                title: "",
+                type: "TRAINING" as EventType,
+                startAt: "",
+                location: "",
+                categoryId: defaultCategoryId,
+                notes: "",
+                sendEmail: false,
+              }}
+              submitLabel="Crea evento"
+              onSubmit={async (values) => {
+                const response = await fetch("/api/admin/events", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(values),
+                });
 
-              <label className="text-sm text-zinc-700">
-                Tipo
-                <select
-                  value={singleForm.type}
-                  onChange={(event) =>
-                    setSingleForm((prev) => ({ ...prev, type: event.target.value as EventType }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                >
-                  {EVENT_TYPE_CHOICES.map((choice) => (
-                    <option key={choice.value} value={choice.value}>
-                      {choice.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                const data = (await response.json().catch(() => null)) as
+                  | {
+                      error?: string;
+                      emailSummary?: {
+                        attempted: boolean;
+                        totalRecipients: number;
+                        sentCount: number;
+                        failedCount: number;
+                        skippedReason?: string;
+                      };
+                    }
+                  | null;
 
-              <label className="text-sm text-zinc-700">
-                Data e ora
-                <input
-                  type="datetime-local"
-                  value={singleForm.startAt}
-                  onChange={(event) =>
-                    setSingleForm((prev) => ({ ...prev, startAt: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
+                if (!response.ok) {
+                  return {
+                    error: data && "error" in data ? data.error : "Creazione non riuscita.",
+                  };
+                }
 
-              <label className="text-sm text-zinc-700">
-                Luogo
-                <input
-                  value={singleForm.location}
-                  onChange={(event) =>
-                    setSingleForm((prev) => ({ ...prev, location: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
+                const summary = data?.emailSummary;
+                const successMessage =
+                  summary?.attempted && summary.skippedReason
+                    ? `Evento salvato. Email non inviate: ${summary.skippedReason}`
+                    : summary?.attempted
+                      ? `Evento salvato. Email inviate: ${summary.sentCount}, fallite: ${summary.failedCount}.`
+                      : "Evento creato correttamente.";
 
-              <label className="text-sm text-zinc-700">
-                Categoria
-                <select
-                  value={singleForm.categoryId}
-                  onChange={(event) =>
-                    setSingleForm((prev) => ({ ...prev, categoryId: event.target.value }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                >
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name} ({category.birthYearsLabel})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm text-zinc-700">
-                Note
-                <textarea
-                  rows={3}
-                  value={singleForm.notes}
-                  onChange={(event) => setSingleForm((prev) => ({ ...prev, notes: event.target.value }))}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
-
-              <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
-                <input
-                  type="checkbox"
-                  checked={singleForm.sendEmail}
-                  onChange={(event) =>
-                    setSingleForm((prev) => ({
-                      ...prev,
-                      sendEmail: event.target.checked,
-                    }))
-                  }
-                  className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
-                />
-                Invia anche email
-              </label>
-            </div>
-
-            {singleStatus.error ? (
-              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {singleStatus.error}
-              </p>
-            ) : null}
-            {singleStatus.ok ? (
-              <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                {singleStatus.ok}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={submittingSingle}
-              className="mt-3 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
-            >
-              {submittingSingle ? "Salvataggio..." : "Crea evento"}
-            </button>
-          </form>
+                router.refresh();
+                return { ok: successMessage };
+              }}
+            />
 
           <form onSubmit={submitBulkForm} className="rounded-lg border border-blue-100 p-3">
             <h3 className="text-base font-semibold text-zinc-900">Inserimento massivo allenamenti</h3>

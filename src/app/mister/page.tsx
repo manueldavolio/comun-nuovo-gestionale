@@ -109,6 +109,7 @@ export default async function CoachDashboardPage() {
   const teamEventsWithDelete = teamEvents.map((event) => ({
     ...event,
     canDelete: Boolean(event.categoryId && coachCategoryIds.includes(event.categoryId)),
+    canEdit: Boolean(event.categoryId && coachCategoryIds.includes(event.categoryId)),
   }));
   const nextEventId = teamEvents[0]?.id ?? null;
   const nextConvocationEventId = teamEvents.find((event) => Boolean(event.category))?.id ?? null;
@@ -147,6 +148,7 @@ export default async function CoachDashboardPage() {
           emptyMessage="Nessuna categoria assegnata o nessun evento disponibile."
           attendanceBasePath="/mister/eventi"
           convocationBasePath="/mister/eventi"
+          editBasePath="/mister/eventi"
           eventDeleteEndpointBase="/api/events"
         />
 

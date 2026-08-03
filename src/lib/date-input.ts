@@ -40,3 +40,8 @@ export function toFloatingDateTime(date: Date): string {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
+/** Value for `<input type="datetime-local">` from a UTC wall-clock Date. */
+export function toDateTimeLocalValueUTC(date: Date): string {
+  return toFloatingDateTime(date).slice(0, 16);
+}
+

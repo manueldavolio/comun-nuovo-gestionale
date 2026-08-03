@@ -24,6 +24,15 @@ export const createEventSchema = z.object({
   sendEmail: z.boolean().optional().default(false),
 });
 
+export const updateEventSchema = z.object({
+  title: z.string().trim().min(3, "Titolo troppo corto").max(120, "Titolo troppo lungo"),
+  type: z.enum(["TRAINING", "LEAGUE_MATCH", "FRIENDLY", "TOURNAMENT", "OTHER"]),
+  startAt: dateTimeLocalSchema,
+  location: z.string().trim().max(120, "Luogo troppo lungo").optional().default(""),
+  categoryId: z.string().trim().min(1, "Categoria obbligatoria"),
+  notes: z.string().trim().max(1000, "Note troppo lunghe").optional().default(""),
+});
+
 export const bulkTrainingSchema = z
   .object({
     categoryId: z.string().trim().min(1, "Categoria obbligatoria"),
@@ -46,4 +55,5 @@ export const bulkTrainingSchema = z
   );
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type BulkTrainingInput = z.infer<typeof bulkTrainingSchema>;

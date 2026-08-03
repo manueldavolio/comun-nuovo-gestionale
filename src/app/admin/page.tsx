@@ -164,6 +164,7 @@ export default async function AdminDashboardPage() {
   const upcomingEventsWithDelete = upcomingEvents.map((event) => ({
     ...event,
     canDelete: true,
+    canEdit: true,
   }));
   const pendingPaymentsCount = canViewFinance ? pendingPaymentsAggregate._count.id : null;
   const pendingPaymentsAmount = canViewFinance
@@ -474,6 +475,7 @@ export default async function AdminDashboardPage() {
           emptyMessage="Nessun evento pianificato al momento."
           attendanceBasePath="/admin/eventi"
           convocationBasePath="/admin/eventi"
+          editBasePath="/admin/eventi"
           eventDeleteEndpointBase="/api/events"
         />
       </div>
