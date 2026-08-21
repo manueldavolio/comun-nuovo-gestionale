@@ -54,6 +54,24 @@ export const bulkTrainingSchema = z
     },
   );
 
+export const bulkDeleteEventsSchema = z
+  .object({
+    categoryId: z.string().trim().min(1, "Categoria obbligatoria"),
+    startDate: dateSchema,
+    endDate: dateSchema,
+    type: z.enum(["TRAINING", "LEAGUE_MATCH", "FRIENDLY", "TOURNAMENT", "ALL"]).default("TRAINING"),
+  })
+  .refine(
+    (value) =>
+      new Date(`${value.endDate}T00:00:00`).getTime() >=
+      new Date(`${value.startDate}T00:00:00`).getTime(),
+    {
+      path: ["endDate"],
+      message: "La data finale deve essere successiva o uguale alla data iniziale",
+    },
+  );
+
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type BulkTrainingInput = z.infer<typeof bulkTrainingSchema>;
+export type BulkDeleteEventsInput = z.infer<typeof bulkDeleteEventsSchema>;

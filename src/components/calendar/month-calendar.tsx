@@ -16,6 +16,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { it } from "date-fns/locale";
+import { DeleteButton } from "@/components/common/delete-button";
 
 export type CalendarEvent = {
   id: string;
@@ -31,6 +32,10 @@ export type CalendarEvent = {
   /** Link rapido gestione evento (solo se il ruolo ha permesso). */
   manageHref?: string | null;
   manageLabel?: string | null;
+  /** Link modifica evento (admin/mister). */
+  editHref?: string | null;
+  /** Endpoint DELETE completo, es. `/api/events/xyz`. */
+  deleteEndpoint?: string | null;
 };
 
 type MonthCalendarProps = {
@@ -381,13 +386,32 @@ export function MonthCalendar({
                     </p>
                     {event.location ? <p className="mt-1 text-sm">Luogo: {event.location}</p> : null}
                     {event.categoryName ? <p className="mt-1 text-sm">Categoria: {event.categoryName}</p> : null}
-                    {event.manageHref ? (
-                      <Link
-                        href={event.manageHref}
-                        className="mt-3 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-                      >
-                        {event.manageLabel ?? "Gestisci evento"}
-                      </Link>
+                    {event.manageHref || event.editHref || event.deleteEndpoint ? (
+                      <div className="mt-3 flex flex-wrap items-start gap-2">
+                        {event.manageHref ? (
+                          <Link
+                            href={event.manageHref}
+                            className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            {event.manageLabel ?? "Gestisci evento"}
+                          </Link>
+                        ) : null}
+                        {event.editHref ? (
+                          <Link
+                            href={event.editHref}
+                            className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                          >
+                            Modifica
+                          </Link>
+                        ) : null}
+                        {event.deleteEndpoint ? (
+                          <DeleteButton
+                            endpoint={event.deleteEndpoint}
+                            confirmMessage={`Eliminare "${event.title}"? L'operazione non si può annullare.`}
+                            successMessage="Evento eliminato."
+                          />
+                        ) : null}
+                      </div>
                     ) : null}
                   </article>
                 ))}

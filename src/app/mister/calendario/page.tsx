@@ -158,25 +158,27 @@ export default async function CoachCalendarPage() {
   ]);
 
   const calendarEvents: CalendarEvent[] = [
-    ...events.map((event) => ({
-      id: `event-${event.id}`,
-      title: event.title,
-      date: toFloatingDateTime(event.startAt),
-      endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
-      type: normalizeCalendarEventType(event.type),
-      location: event.location,
-      details: event.description,
-      categoryId: event.categoryId,
-      categoryName: event.category?.name ?? null,
-      manageHref:
-        event.categoryId && coachCategoryIds.includes(event.categoryId)
-          ? `/mister/eventi/${event.id}/presenze`
-          : null,
-      manageLabel:
-        event.categoryId && coachCategoryIds.includes(event.categoryId)
-          ? "Gestisci evento"
-          : null,
-    })),
+    ...events.map((event) => {
+      const canManage = Boolean(
+        event.categoryId && coachCategoryIds.includes(event.categoryId),
+      );
+
+      return {
+        id: `event-${event.id}`,
+        title: event.title,
+        date: toFloatingDateTime(event.startAt),
+        endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
+        type: normalizeCalendarEventType(event.type),
+        location: event.location,
+        details: event.description,
+        categoryId: event.categoryId,
+        categoryName: event.category?.name ?? null,
+        manageHref: canManage ? `/mister/eventi/${event.id}/presenze` : null,
+        manageLabel: canManage ? "Gestisci evento" : null,
+        editHref: canManage ? `/mister/eventi/${event.id}/modifica` : null,
+        deleteEndpoint: canManage ? `/api/events/${event.id}` : null,
+      };
+    }),
     ...convocations
       .filter((convocation) => Boolean(convocation.event))
       .map((convocation) => ({

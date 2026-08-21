@@ -115,6 +115,8 @@ export default async function AdminCalendarPage() {
         ? `/admin/eventi/${event.id}/presenze`
         : null,
     manageLabel: canManageEvents && event.categoryId ? "Gestisci evento" : null,
+    editHref: canManageEvents ? `/admin/eventi/${event.id}/modifica` : null,
+    deleteEndpoint: canManageEvents ? `/api/events/${event.id}` : null,
   }));
 
   const subtitle = restrictToAssigned
@@ -141,7 +143,7 @@ export default async function AdminCalendarPage() {
 
         <MonthCalendar
           title="Calendario mensile"
-          subtitle="Tap sul giorno per titolo, tipo, categoria, orario e luogo. Filtra per categoria o tipo."
+          subtitle="Tap sul giorno per titolo, tipo, categoria, orario e luogo. Filtra per categoria o tipo. Puoi anche modificare o eliminare l'evento."
           events={calendarEvents}
           categoryOptions={categories}
           showTypeFilter
