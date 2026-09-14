@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Prisma, UserRole } from "@prisma/client";
 import { AreaHeader } from "@/components/layout/area-header";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
+import { AdminResetPasswordButton } from "@/components/admin/admin-reset-password-button";
 import { ChangeUserRoleInline } from "./change-user-role-inline";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,7 @@ type AdminUserListItem = {
   name: string | null;
   email: string | null;
   role: UserRole | null;
+  isActive: boolean;
 };
 
 function isUserRole(value: string): value is UserRole {
@@ -66,6 +68,7 @@ async function getAdminUsers({
       name: true,
       email: true,
       role: true,
+      isActive: true,
     },
   });
 }
@@ -158,6 +161,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                     <th className="px-3 py-2 font-semibold">Nome</th>
                     <th className="px-3 py-2 font-semibold">Email</th>
                     <th className="px-3 py-2 font-semibold">Ruolo</th>
+                    <th className="px-3 py-2 font-semibold">Stato</th>
                     <th className="px-3 py-2 font-semibold">Azioni</th>
                   </tr>
                 </thead>
@@ -168,8 +172,18 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                       <td className="px-3 py-2">{user.email || "-"}</td>
                       <td className="px-3 py-2">{formatRole(user.role)}</td>
                       <td className="px-3 py-2">
+                        {user.isActive ? (
+                          <span className="text-xs font-semibold text-emerald-700">Attivo</span>
+                        ) : (
+                          <span className="text-xs font-semibold text-amber-800">Disattivato</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
                         {user.role && canManageRoles ? (
-                          <ChangeUserRoleInline userId={user.id} currentRole={user.role} />
+                          <div className="flex flex-col gap-2">
+                            <ChangeUserRoleInline userId={user.id} currentRole={user.role} />
+                            <AdminResetPasswordButton userId={user.id} isActive={user.isActive} />
+                          </div>
                         ) : (
                           <span className="text-xs text-zinc-500">
                             {user.role ? "Solo visualizzazione" : "Ruolo non disponibile"}
