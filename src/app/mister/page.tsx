@@ -123,6 +123,27 @@ export default async function CoachDashboardPage() {
           userName={session.user.name ?? "Mister"}
         />
 
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/mister/riepilogo"
+            className="inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+          >
+            Riepilogo presenze/convocazioni
+          </Link>
+          <Link
+            href="/mister/calendario"
+            className="inline-flex rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+          >
+            Apri calendario
+          </Link>
+          <Link
+            href="/mister/media"
+            className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+          >
+            Apri media categoria
+          </Link>
+        </div>
+
         <section className="grid gap-4 md:grid-cols-3">
           <DashboardCard
             title="Squadre assegnate"
@@ -130,9 +151,9 @@ export default async function CoachDashboardPage() {
             description="Gruppi attivi disponibili per lo staff"
           />
           <DashboardCard
-            title="Presenze da compilare"
+            title="Eventi futuri"
             value={teamEvents.length}
-            description="Eventi futuri con appello disponibile"
+            description="Eventi con appello e convocazioni disponibili"
           />
           <DashboardCard
             title="Calendario"
@@ -209,6 +230,12 @@ export default async function CoachDashboardPage() {
               className="inline-flex w-fit rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
             >
               Apri calendario
+            </Link>
+            <Link
+              href="/mister/riepilogo"
+              className="inline-flex w-fit rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Apri riepilogo
             </Link>
           </div>
 
