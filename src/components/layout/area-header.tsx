@@ -1,4 +1,5 @@
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import Link from "next/link";
 
 type AreaHeaderProps = {
   title: string;
@@ -18,7 +19,15 @@ export function AreaHeader({ title, subtitle, userName }: AreaHeaderProps) {
           {subtitle} - {userName}
         </p>
       </div>
-      <SignOutButton />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Link
+          href="/account/password"
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+        >
+          Cambia password
+        </Link>
+        <SignOutButton />
+      </div>
     </header>
   );
 }

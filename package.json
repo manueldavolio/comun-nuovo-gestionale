@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:admin-password-reset": "tsx --test src/lib/admin-password-reset.test.ts",
+    "test:change-password": "tsx --test src/lib/change-password.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
