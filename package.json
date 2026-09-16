@@ -11,6 +11,7 @@
     "test:admin-password-reset": "tsx --test src/lib/admin-password-reset.test.ts",
     "test:change-password": "tsx --test src/lib/change-password.test.ts",
     "test:mister-stats": "tsx --test src/lib/mister-stats.test.ts",
+    "test:convocation-email": "tsx --test src/lib/convocation-email.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",

@@ -57,7 +57,17 @@ export function ConvocationManager({
   const [notes, setNotes] = useState(initialNotes);
   const [sendEmail, setSendEmail] = useState(false);
   const [pending, setPending] = useState(false);
-  const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
+  const [feedback, setFeedback] = useState<{
+    error?: string;
+    ok?: string;
+    failures?: Array<{
+      athleteFullName: string;
+      parentFullName: string | null;
+      email: string;
+      errorCode: string;
+      errorMessage: string;
+    }>;
+  }>({});
 
   const selectedAthletes = useMemo(
     () => athletes.filter((athlete) => selectedByAthlete[athlete.id]),
@@ -127,6 +137,13 @@ export function ConvocationManager({
               sentCount: number;
               failedCount: number;
               skippedReason?: string;
+              failures?: Array<{
+                athleteFullName: string;
+                parentFullName: string | null;
+                email: string;
+                errorCode: string;
+                errorMessage: string;
+              }>;
             };
           }
         | null;
@@ -144,7 +161,13 @@ export function ConvocationManager({
           : emailSummary?.attempted
             ? `Convocazione salvata. Email inviate: ${emailSummary.sentCount}, fallite: ${emailSummary.failedCount}.`
             : "Convocazione salvata correttamente.";
-      setFeedback({ ok: okMessage });
+      setFeedback({
+        ok: okMessage,
+        failures:
+          emailSummary?.failedCount && emailSummary.failedCount > 0
+            ? emailSummary.failures ?? []
+            : [],
+      });
       setSendEmail(false);
       router.refresh();
     } catch {
@@ -359,9 +382,26 @@ export function ConvocationManager({
         </p>
       ) : null}
       {feedback.ok ? (
-        <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          {feedback.ok}
-        </p>
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p>{feedback.ok}</p>
+          {feedback.failures && feedback.failures.length > 0 ? (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+              <p className="font-semibold">Email non inviate:</p>
+              <ul className="mt-2 space-y-2">
+                {feedback.failures.map((failure) => (
+                  <li key={`${failure.email}-${failure.athleteFullName}-${failure.errorCode}`}>
+                    <p>
+                      {failure.athleteFullName}
+                      {failure.parentFullName ? ` (genitore: ${failure.parentFullName})` : ""} –{" "}
+                      {failure.email}
+                    </p>
+                    <p className="text-xs">Motivo: {failure.errorMessage}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       <button

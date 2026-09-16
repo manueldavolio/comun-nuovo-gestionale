@@ -15,6 +15,13 @@ type EmailSummary = {
   sentCount: number;
   failedCount: number;
   skippedReason?: string;
+  failures?: Array<{
+    athleteFullName: string;
+    parentFullName: string | null;
+    email: string;
+    errorCode: string;
+    errorMessage: string;
+  }>;
 };
 
 export async function POST(request: Request) {
@@ -174,6 +181,8 @@ export async function POST(request: Request) {
               lastName: true,
               parent: {
                 select: {
+                  firstName: true,
+                  lastName: true,
                   user: {
                     select: {
                       email: true,
@@ -189,6 +198,7 @@ export async function POST(request: Request) {
       const recipients = convocationAthletes.map((entry) => ({
         email: entry.athlete.parent.user.email,
         athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
+        parentFullName: `${entry.athlete.parent.firstName} ${entry.athlete.parent.lastName}`.trim(),
       }));
 
       const emailResult = await sendConvocationEmails({
@@ -205,14 +215,18 @@ export async function POST(request: Request) {
           totalRecipients: emailResult.totalRecipients,
           sentCount: emailResult.sentCount,
           failedCount: emailResult.failedCount,
+          failures: emailResult.failures,
         };
       } else {
         emailSummary = {
           attempted: true,
-          totalRecipients: recipients.length,
+          totalRecipients: emailResult.skipped
+            ? recipients.length
+            : emailResult.failures.length || recipients.length,
           sentCount: 0,
-          failedCount: emailResult.skipped ? 0 : recipients.length,
+          failedCount: emailResult.skipped ? 0 : emailResult.failures.length || recipients.length,
           skippedReason: emailResult.reason,
+          failures: emailResult.failures,
         };
       }
     } catch (error) {

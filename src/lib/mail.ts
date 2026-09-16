@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import type { EventType } from "@prisma/client";
 import { formatEventType } from "@/lib/events";
+import { dispatchConvocationEmails } from "@/lib/convocation-email";
 
 type SendReceiptMailInput = {
   to: string;
@@ -185,6 +186,7 @@ export type SendConvocationEmailsInput = {
   recipients: Array<{
     email: string;
     athleteFullName: string;
+    parentFullName?: string | null;
   }>;
   eventTitle: string;
   categoryName: string;
@@ -197,10 +199,34 @@ export type SendEventEmailsResult =
   | { sent: false; skipped: true; reason: string }
   | { sent: false; skipped: false; reason: string };
 
+export type ConvocationEmailFailureSummary = {
+  athleteFullName: string;
+  parentFullName: string | null;
+  email: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
 export type SendConvocationEmailsResult =
-  | { sent: true; totalRecipients: number; sentCount: number; failedCount: number }
-  | { sent: false; skipped: true; reason: string }
-  | { sent: false; skipped: false; reason: string };
+  | {
+      sent: true;
+      totalRecipients: number;
+      sentCount: number;
+      failedCount: number;
+      failures: ConvocationEmailFailureSummary[];
+    }
+  | {
+      sent: false;
+      skipped: true;
+      reason: string;
+      failures: ConvocationEmailFailureSummary[];
+    }
+  | {
+      sent: false;
+      skipped: false;
+      reason: string;
+      failures: ConvocationEmailFailureSummary[];
+    };
 
 function buildFriendlyName(name?: string): string | null {
   const trimmed = (name ?? "").trim();
@@ -669,35 +695,21 @@ export async function sendEventEmails(input: SendEventEmailsInput): Promise<Send
 export async function sendConvocationEmails(
   input: SendConvocationEmailsInput,
 ): Promise<SendConvocationEmailsResult> {
-  const recipients = input.recipients
-    .map((entry) => ({
-      email: entry.email.trim().toLowerCase(),
-      athleteFullName: entry.athleteFullName.trim(),
-    }))
-    .filter((entry) => entry.email.length > 0 && entry.athleteFullName.length > 0);
-
-  if (recipients.length === 0) {
-    return {
-      sent: true,
-      totalRecipients: 0,
-      sentCount: 0,
-      failedCount: 0,
-    };
-  }
-
   const config = getMailerConfig();
   if (!config.enabled) {
     return {
       sent: false,
       skipped: true,
       reason: `Configurazione mail incompleta: ${config.missingVars.join(", ")}`,
+      failures: [],
     };
   }
 
   const transporter = createMailerTransporter(config);
 
-  const results = await Promise.allSettled(
-    recipients.map((recipient) => {
+  const outcome = await dispatchConvocationEmails({
+    recipients: input.recipients,
+    sendOne: async (recipient) => {
       const text = buildConvocationEmailText({
         athleteFullName: recipient.athleteFullName,
         eventTitle: input.eventTitle,
@@ -712,24 +724,33 @@ export async function sendConvocationEmails(
         subject: "Nuova convocazione - Comun Nuovo Calcio",
         text,
       });
-    }),
-  );
+    },
+  });
 
-  const failedCount = results.filter((result) => result.status === "rejected").length;
-  const sentCount = recipients.length - failedCount;
+  if (outcome.totalRecipients === 0) {
+    return {
+      sent: true,
+      totalRecipients: 0,
+      sentCount: 0,
+      failedCount: 0,
+      failures: [],
+    };
+  }
 
-  if (failedCount === recipients.length) {
+  if (outcome.sentCount === 0 && outcome.failedCount > 0) {
     return {
       sent: false,
       skipped: false,
       reason: "Invio email convocazione fallito per tutti i destinatari.",
+      failures: outcome.failures,
     };
   }
 
   return {
     sent: true,
-    totalRecipients: recipients.length,
-    sentCount,
-    failedCount,
+    totalRecipients: outcome.totalRecipients,
+    sentCount: outcome.sentCount,
+    failedCount: outcome.failedCount,
+    failures: outcome.failures,
   };
 }
