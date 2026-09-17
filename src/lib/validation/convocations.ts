@@ -9,6 +9,7 @@ export const saveConvocationSchema = z
     athleteIds: z.array(cuidSchema).min(1, "Seleziona almeno un atleta convocato."),
     notes: z.string().trim().max(1000, "Note troppo lunghe").optional().default(""),
     sendEmail: z.boolean().optional().default(false),
+    sendWhatsApp: z.boolean().optional().default(false),
   })
   .superRefine((value, ctx) => {
     const seen = new Set<string>();

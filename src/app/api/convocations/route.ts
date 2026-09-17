@@ -8,6 +8,7 @@ import {
 import { saveConvocationSchema } from "@/lib/validation/convocations";
 import { canManageCategoryForConvocations } from "@/lib/convocations";
 import { sendConvocationEmails } from "@/lib/mail";
+import { sendConvocationWhatsAppMessages } from "@/lib/whatsapp";
 
 type EmailSummary = {
   attempted: boolean;
@@ -21,6 +22,19 @@ type EmailSummary = {
     email: string;
     errorCode: string;
     errorMessage: string;
+  }>;
+};
+
+type WhatsAppSummary = {
+  attempted: boolean;
+  sent: number;
+  failed: number;
+  skippedReason?: string;
+  failures: Array<{
+    athleteName: string;
+    parentName: string | null;
+    phone: string;
+    reason: string;
   }>;
 };
 
@@ -258,11 +272,73 @@ export async function POST(request: Request) {
     }
   }
 
+  let whatsAppSummary: WhatsAppSummary = {
+    attempted: false,
+    sent: 0,
+    failed: 0,
+    failures: [],
+  };
+
+  if (parsed.data.sendWhatsApp) {
+    try {
+      const convocationAthletes = await prisma.convocationAthlete.findMany({
+        where: { convocationId },
+        select: {
+          athlete: {
+            select: {
+              firstName: true,
+              lastName: true,
+              parent: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // One WhatsApp per convocated athlete (two siblings => two messages).
+      const recipients = convocationAthletes.map((entry) => ({
+        phone: entry.athlete.parent.phone,
+        athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
+        parentFullName: `${entry.athlete.parent.firstName} ${entry.athlete.parent.lastName}`.trim(),
+      }));
+
+      const whatsAppResult = await sendConvocationWhatsAppMessages({
+        recipients,
+        startAt: event.startAt,
+        location: event.location,
+      });
+
+      whatsAppSummary = {
+        attempted: whatsAppResult.attempted,
+        sent: whatsAppResult.sent,
+        failed: whatsAppResult.failed,
+        skippedReason: whatsAppResult.skippedReason,
+        failures: whatsAppResult.failures,
+      };
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "Errore imprevisto durante invio WhatsApp convocazioni.";
+      whatsAppSummary = {
+        attempted: true,
+        sent: 0,
+        failed: 0,
+        skippedReason: reason,
+        failures: [],
+      };
+    }
+  }
+
   return NextResponse.json(
     {
       success: true,
       data: { convocationId, eventId: event.id },
       emailSummary,
+      whatsAppSummary,
     },
     { status: 200 },
   );

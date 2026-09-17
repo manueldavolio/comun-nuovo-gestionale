@@ -56,16 +56,22 @@ export function ConvocationManager({
   );
   const [notes, setNotes] = useState(initialNotes);
   const [sendEmail, setSendEmail] = useState(false);
+  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{
     error?: string;
     ok?: string;
-    failures?: Array<{
+    emailFailures?: Array<{
       athleteFullName: string;
       parentFullName: string | null;
       email: string;
-      errorCode: string;
       errorMessage: string;
+    }>;
+    whatsAppFailures?: Array<{
+      athleteName: string;
+      parentName: string | null;
+      phone: string;
+      reason: string;
     }>;
   }>({});
 
@@ -125,6 +131,7 @@ export function ConvocationManager({
           athleteIds,
           notes,
           sendEmail,
+          sendWhatsApp,
         }),
       });
 
@@ -145,6 +152,18 @@ export function ConvocationManager({
                 errorMessage: string;
               }>;
             };
+            whatsAppSummary?: {
+              attempted: boolean;
+              sent: number;
+              failed: number;
+              skippedReason?: string;
+              failures?: Array<{
+                athleteName: string;
+                parentName: string | null;
+                phone: string;
+                reason: string;
+              }>;
+            };
           }
         | null;
 
@@ -155,20 +174,47 @@ export function ConvocationManager({
       }
 
       const emailSummary = data?.emailSummary;
-      const okMessage =
-        emailSummary?.attempted && emailSummary.skippedReason
-          ? `Convocazione salvata. Email non inviate: ${emailSummary.skippedReason}`
-          : emailSummary?.attempted
-            ? `Convocazione salvata. Email inviate: ${emailSummary.sentCount}, fallite: ${emailSummary.failedCount}.`
-            : "Convocazione salvata correttamente.";
+      const whatsAppSummary = data?.whatsAppSummary;
+      const parts = ["Convocazione salvata."];
+
+      if (emailSummary?.attempted) {
+        if (emailSummary.skippedReason) {
+          parts.push(`Email non inviate: ${emailSummary.skippedReason}`);
+        } else {
+          parts.push(
+            `Email inviate: ${emailSummary.sentCount}, fallite: ${emailSummary.failedCount}.`,
+          );
+        }
+      }
+
+      if (whatsAppSummary?.attempted || whatsAppSummary?.skippedReason) {
+        if (whatsAppSummary.skippedReason && !whatsAppSummary.attempted) {
+          parts.push(`WhatsApp non inviati: ${whatsAppSummary.skippedReason}`);
+        } else if (whatsAppSummary.attempted) {
+          parts.push(
+            `WhatsApp inviati: ${whatsAppSummary.sent}, falliti: ${whatsAppSummary.failed}.`,
+          );
+        }
+      }
+
       setFeedback({
-        ok: okMessage,
-        failures:
+        ok: parts.join(" "),
+        emailFailures:
           emailSummary?.failedCount && emailSummary.failedCount > 0
-            ? emailSummary.failures ?? []
+            ? (emailSummary.failures ?? []).map((failure) => ({
+                athleteFullName: failure.athleteFullName,
+                parentFullName: failure.parentFullName,
+                email: failure.email,
+                errorMessage: failure.errorMessage,
+              }))
+            : [],
+        whatsAppFailures:
+          whatsAppSummary?.failed && whatsAppSummary.failed > 0
+            ? whatsAppSummary.failures ?? []
             : [],
       });
       setSendEmail(false);
+      setSendWhatsApp(false);
       router.refresh();
     } catch {
       setFeedback({ error: "Errore imprevisto. Riprova." });
@@ -376,6 +422,16 @@ export function ConvocationManager({
         Invia email di notifica convocazione ai genitori
       </label>
 
+      <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+        <input
+          type="checkbox"
+          checked={sendWhatsApp}
+          onChange={(event) => setSendWhatsApp(event.target.checked)}
+          className="h-4 w-4 rounded border-zinc-300 text-emerald-700 focus:ring-emerald-500"
+        />
+        Invia WhatsApp di notifica convocazione ai genitori
+      </label>
+
       {feedback.error ? (
         <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {feedback.error}
@@ -384,18 +440,35 @@ export function ConvocationManager({
       {feedback.ok ? (
         <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           <p>{feedback.ok}</p>
-          {feedback.failures && feedback.failures.length > 0 ? (
+          {feedback.emailFailures && feedback.emailFailures.length > 0 ? (
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
               <p className="font-semibold">Email non inviate:</p>
               <ul className="mt-2 space-y-2">
-                {feedback.failures.map((failure) => (
-                  <li key={`${failure.email}-${failure.athleteFullName}-${failure.errorCode}`}>
+                {feedback.emailFailures.map((failure) => (
+                  <li key={`${failure.email}-${failure.athleteFullName}`}>
                     <p>
                       {failure.athleteFullName}
                       {failure.parentFullName ? ` (genitore: ${failure.parentFullName})` : ""} –{" "}
                       {failure.email}
                     </p>
                     <p className="text-xs">Motivo: {failure.errorMessage}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {feedback.whatsAppFailures && feedback.whatsAppFailures.length > 0 ? (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+              <p className="font-semibold">WhatsApp non inviati:</p>
+              <ul className="mt-2 space-y-2">
+                {feedback.whatsAppFailures.map((failure) => (
+                  <li key={`${failure.phone}-${failure.athleteName}-${failure.reason}`}>
+                    <p>
+                      {failure.athleteName}
+                      {failure.parentName ? ` (genitore: ${failure.parentName})` : ""} –{" "}
+                      {failure.phone}
+                    </p>
+                    <p className="text-xs">Motivo: {failure.reason}</p>
                   </li>
                 ))}
               </ul>
