@@ -1,4 +1,9 @@
 import { normalizeWhatsAppPhone, toWhatsAppApiPhone } from "@/lib/whatsapp-phone";
+import {
+  formatConvocationWallClockDate,
+  formatConvocationWallClockTime,
+  resolveMeetingAt,
+} from "@/lib/convocation-times";
 
 export type WhatsAppConvocationRecipient = {
   phone: string;
@@ -11,13 +16,6 @@ export type WhatsAppConvocationFailure = {
   parentName: string | null;
   phone: string;
   reason: string;
-};
-
-export type SendConvocationWhatsAppInput = {
-  recipients: WhatsAppConvocationRecipient[];
-  athleteFullName: string; // unused when per-recipient; kept for clarity in builders
-  startAt: Date;
-  location?: string | null;
 };
 
 export type SendConvocationWhatsAppResult = {
@@ -88,28 +86,27 @@ export function getWhatsAppConfig(
 
 /** Format Event.startAt using UTC wall-clock (same convention as calendar floating times). */
 export function formatWhatsAppConvocationDate(startAt: Date): string {
-  const day = String(startAt.getUTCDate()).padStart(2, "0");
-  const month = String(startAt.getUTCMonth() + 1).padStart(2, "0");
-  const year = startAt.getUTCFullYear();
-  return `${day}/${month}/${year}`;
+  return formatConvocationWallClockDate(startAt);
 }
 
 export function formatWhatsAppConvocationTime(startAt: Date): string {
-  const hours = String(startAt.getUTCHours()).padStart(2, "0");
-  const minutes = String(startAt.getUTCMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return formatConvocationWallClockTime(startAt);
 }
 
 export function buildWhatsAppTemplateParams(input: {
   athleteFullName: string;
+  /** Match / event date source (Event.startAt). */
   startAt: Date;
+  /** Call-up / ritrovo time. Falls back to startAt for legacy rows. */
+  meetingAt?: Date | null;
   location?: string | null;
 }): TemplateParams {
   const location = (input.location ?? "").trim();
+  const meetingAt = resolveMeetingAt(input.meetingAt, input.startAt);
   return {
     athleteName: input.athleteFullName.trim() || "Atleta",
-    dateLabel: formatWhatsAppConvocationDate(input.startAt),
-    meetTimeLabel: formatWhatsAppConvocationTime(input.startAt),
+    dateLabel: formatConvocationWallClockDate(input.startAt),
+    meetTimeLabel: formatConvocationWallClockTime(meetingAt),
     locationLabel: location || "Da definire",
   };
 }
@@ -225,6 +222,7 @@ async function defaultMetaSend(args: {
 export async function sendConvocationWhatsAppMessages(options: {
   recipients: WhatsAppConvocationRecipient[];
   startAt: Date;
+  meetingAt?: Date | null;
   location?: string | null;
   config?: WhatsAppConfig;
   sendOne?: MetaSendFn;
@@ -273,6 +271,7 @@ export async function sendConvocationWhatsAppMessages(options: {
     const params = buildWhatsAppTemplateParams({
       athleteFullName: athleteName,
       startAt: options.startAt,
+      meetingAt: options.meetingAt,
       location: options.location,
     });
 

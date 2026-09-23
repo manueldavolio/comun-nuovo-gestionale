@@ -107,6 +107,7 @@ export default async function CoachCalendarPage() {
           select: {
             id: true,
             notes: true,
+            meetingAt: true,
             categoryId: true,
             category: {
               select: {
@@ -184,7 +185,7 @@ export default async function CoachCalendarPage() {
       .map((convocation) => ({
         id: `convocation-${convocation.id}`,
         title: `Convocazione - ${convocation.event!.title}`,
-        date: toFloatingDateTime(convocation.event!.startAt),
+        date: toFloatingDateTime(convocation.meetingAt ?? convocation.event!.startAt),
         type: normalizeCalendarEventType("CONVOCAZIONE"),
         location: convocation.event!.location,
         details: convocation.notes,

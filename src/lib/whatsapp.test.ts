@@ -9,25 +9,37 @@ import {
 } from "./whatsapp";
 
 const START = new Date(Date.UTC(2026, 8, 20, 15, 30, 0)); // 20/09/2026 15:30 UTC wall-clock
+const MEETING = new Date(Date.UTC(2026, 8, 20, 14, 30, 0)); // 20/09/2026 14:30 UTC wall-clock
 
 describe("whatsapp convocation helpers", () => {
   it("builds template params in athlete → date → meet time → location order", () => {
     const params = buildWhatsAppTemplateParams({
       athleteFullName: "Mario Rossi",
       startAt: START,
+      meetingAt: MEETING,
       location: "Campo Comunale",
     });
 
     assert.deepEqual(
       [params.athleteName, params.dateLabel, params.meetTimeLabel, params.locationLabel],
-      ["Mario Rossi", "20/09/2026", "15:30", "Campo Comunale"],
+      ["Mario Rossi", "20/09/2026", "14:30", "Campo Comunale"],
     );
+  });
+
+  it("falls back meet time to startAt when meetingAt is missing", () => {
+    const params = buildWhatsAppTemplateParams({
+      athleteFullName: "Mario Rossi",
+      startAt: START,
+      location: "Campo Comunale",
+    });
+    assert.equal(params.meetTimeLabel, "15:30");
   });
 
   it("uses placeholder when location is missing", () => {
     const params = buildWhatsAppTemplateParams({
       athleteFullName: "Luca Bianchi",
       startAt: START,
+      meetingAt: MEETING,
       location: null,
     });
     assert.equal(params.locationLabel, "Da definire");
@@ -61,6 +73,7 @@ describe("whatsapp convocation helpers", () => {
         { phone: "+393331234568", athleteFullName: "A Due", parentFullName: "P Due" },
       ],
       startAt: START,
+      meetingAt: MEETING,
       location: "Campo",
       config: {
         enabled: true,
@@ -72,7 +85,7 @@ describe("whatsapp convocation helpers", () => {
       },
       sendOne: async (args) => {
         calls.push(args.apiPhone);
-        assert.deepEqual(args.bodyParams.slice(1), ["20/09/2026", "15:30", "Campo"]);
+        assert.deepEqual(args.bodyParams.slice(1), ["20/09/2026", "14:30", "Campo"]);
       },
     });
 

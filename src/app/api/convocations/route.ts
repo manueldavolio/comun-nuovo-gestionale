@@ -118,6 +118,7 @@ export async function POST(request: Request) {
   }
 
   let convocationId = "";
+  let savedMeetingAt: Date | null = null;
   try {
     const savedConvocation = await prisma.$transaction(async (tx) => {
       const existingConvocation = await tx.convocation.findUnique({
@@ -125,11 +126,14 @@ export async function POST(request: Request) {
         select: { id: true },
       });
 
+      const meetingAt = new Date(parsed.data.meetingAt);
+
       if (existingConvocation) {
         await tx.convocation.update({
           where: { id: existingConvocation.id },
           data: {
             notes: parsed.data.notes || null,
+            meetingAt,
           },
         });
 
@@ -150,7 +154,7 @@ export async function POST(request: Request) {
           skipDuplicates: true,
         });
 
-        return { id: existingConvocation.id };
+        return { id: existingConvocation.id, meetingAt };
       }
 
       return tx.convocation.create({
@@ -158,6 +162,7 @@ export async function POST(request: Request) {
           eventId: event.id,
           categoryId: eventCategoryId,
           notes: parsed.data.notes || null,
+          meetingAt,
           createdById: session.user.id,
           athletes: {
             createMany: {
@@ -165,11 +170,12 @@ export async function POST(request: Request) {
             },
           },
         },
-        select: { id: true },
+        select: { id: true, meetingAt: true },
       });
     });
 
     convocationId = savedConvocation.id;
+    savedMeetingAt = savedConvocation.meetingAt;
   } catch (error) {
     if (isMissingConvocationsSchemaError(error)) {
       return NextResponse.json({ error: CONVOCATIONS_SCHEMA_MISSING_MESSAGE }, { status: 503 });
@@ -220,6 +226,7 @@ export async function POST(request: Request) {
         eventTitle: event.title,
         categoryName: event.category.name,
         startAt: event.startAt,
+        meetingAt: savedMeetingAt,
         location: event.location,
       });
 
@@ -310,6 +317,7 @@ export async function POST(request: Request) {
       const whatsAppResult = await sendConvocationWhatsAppMessages({
         recipients,
         startAt: event.startAt,
+        meetingAt: savedMeetingAt,
         location: event.location,
       });
 

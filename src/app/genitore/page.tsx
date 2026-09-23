@@ -12,6 +12,10 @@ import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
+import {
+  formatConvocationWallClockDateTime,
+  resolveMeetingAt,
+} from "@/lib/convocation-times";
 import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
@@ -57,15 +61,6 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "short",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
 });
 
 function statusClass(
@@ -296,6 +291,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             convocation: {
               select: {
                 notes: true,
+                meetingAt: true,
                 category: {
                   select: {
                     name: true,
@@ -348,16 +344,21 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     .slice(0, 3);
   const parentConvocations = convocationResult.entries
     .filter((entry) => Boolean(entry.convocation.event))
-    .map((entry) => ({
-      convocationAthleteId: entry.id,
-      athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
-      categoryName: entry.convocation.category.name,
-      eventTitle: entry.convocation.event!.title,
-      eventStartAtLabel: dateTimeFormatter.format(new Date(entry.convocation.event!.startAt)),
-      eventLocation: entry.convocation.event!.location,
-      notes: entry.convocation.notes,
-      responseStatus: entry.responseStatus,
-    }));
+    .map((entry) => {
+      const matchStartAt = entry.convocation.event!.startAt;
+      const meetingAt = resolveMeetingAt(entry.convocation.meetingAt, matchStartAt);
+      return {
+        convocationAthleteId: entry.id,
+        athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
+        categoryName: entry.convocation.category.name,
+        eventTitle: entry.convocation.event!.title,
+        meetingAtLabel: formatConvocationWallClockDateTime(meetingAt),
+        matchStartAtLabel: formatConvocationWallClockDateTime(matchStartAt),
+        eventLocation: entry.convocation.event!.location,
+        notes: entry.convocation.notes,
+        responseStatus: entry.responseStatus,
+      };
+    });
   const pendingConvocations = parentConvocations.filter(
     (entry) => entry.responseStatus === "PENDING",
   ).length;

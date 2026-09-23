@@ -20,7 +20,10 @@ type ConvocationManagerProps = {
   eventId: string;
   eventTitle: string;
   eventCategoryName: string;
-  eventDateLabel: string;
+  /** Readonly match kickoff label (Event.startAt). */
+  matchStartAtLabel: string;
+  /** datetime-local value for meetingAt (UTC wall-clock). */
+  initialMeetingAt: string;
   initialNotes: string;
   athletes: AthleteRow[];
 };
@@ -43,7 +46,8 @@ export function ConvocationManager({
   eventId,
   eventTitle,
   eventCategoryName,
-  eventDateLabel,
+  matchStartAtLabel,
+  initialMeetingAt,
   initialNotes,
   athletes,
 }: ConvocationManagerProps) {
@@ -54,6 +58,7 @@ export function ConvocationManager({
   const [responseByAthlete] = useState<Record<string, ConvocationResponseStatus>>(
     buildStatusMap(athletes),
   );
+  const [meetingAt, setMeetingAt] = useState(initialMeetingAt);
   const [notes, setNotes] = useState(initialNotes);
   const [sendEmail, setSendEmail] = useState(false);
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
@@ -121,6 +126,11 @@ export function ConvocationManager({
       return;
     }
 
+    if (!meetingAt.trim()) {
+      setFeedback({ error: "Indica l'orario di convocazione (ritrovo)." });
+      return;
+    }
+
     setPending(true);
     try {
       const response = await fetch("/api/convocations", {
@@ -130,6 +140,7 @@ export function ConvocationManager({
           eventId,
           athleteIds,
           notes,
+          meetingAt,
           sendEmail,
           sendWhatsApp,
         }),
@@ -228,8 +239,31 @@ export function ConvocationManager({
       <header className="space-y-1">
         <h2 className="text-lg font-semibold text-zinc-900">{eventTitle}</h2>
         <p className="text-sm text-zinc-600">{eventCategoryName}</p>
-        <p className="text-sm text-zinc-600">{eventDateLabel}</p>
       </header>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm text-zinc-700">
+          Convocazione alle
+          <input
+            type="datetime-local"
+            value={meetingAt}
+            onChange={(event) => setMeetingAt(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+          />
+          <span className="mt-1 block text-xs text-zinc-500">
+            Ora in cui atleta/genitore deve presentarsi.
+          </span>
+        </label>
+        <div className="block text-sm text-zinc-700">
+          Partita alle
+          <p className="mt-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium text-zinc-900">
+            {matchStartAtLabel}
+          </p>
+          <span className="mt-1 block text-xs text-zinc-500">
+            Inizio gara dall&apos;evento (non modificabile qui).
+          </span>
+        </div>
+      </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
         <span className="rounded-xl border border-blue-200 bg-blue-50 px-2 py-2 text-center font-semibold text-blue-800">

@@ -1,5 +1,9 @@
 import nodemailer from "nodemailer";
 import type { EventType } from "@prisma/client";
+import {
+  formatConvocationWallClockDate,
+  formatConvocationWallClockTime,
+} from "@/lib/convocation-times";
 import { formatEventType } from "@/lib/events";
 import { dispatchConvocationEmails } from "@/lib/convocation-email";
 
@@ -190,7 +194,10 @@ export type SendConvocationEmailsInput = {
   }>;
   eventTitle: string;
   categoryName: string;
+  /** Inizio gara (Event.startAt). */
   startAt: Date;
+  /** Orario ritrovo/convocazione. Se assente, in testo si riesce a Event.startAt. */
+  meetingAt?: Date | null;
   location?: string | null;
 };
 
@@ -368,18 +375,23 @@ function buildEventEmailText(input: {
   ].join("\n");
 }
 
-function buildConvocationEmailText(input: {
+export function buildConvocationEmailText(input: {
   athleteFullName: string;
   eventTitle: string;
   categoryName: string;
   startAt: Date;
+  meetingAt?: Date | null;
   location?: string | null;
 }): string {
   const location = (input.location ?? "").trim();
+  const meetingAt = input.meetingAt ?? input.startAt;
 
   return [
     `E disponibile una nuova convocazione per ${input.athleteFullName.trim()}.`,
-    `Evento: ${input.eventTitle.trim()} (${input.categoryName.trim()}) - ${formatEventDateTime(input.startAt)}`,
+    `Evento: ${input.eventTitle.trim()} (${input.categoryName.trim()})`,
+    `Data: ${formatConvocationWallClockDate(input.startAt)}`,
+    `Convocazione: ore ${formatConvocationWallClockTime(meetingAt)}`,
+    `Partita: ore ${formatConvocationWallClockTime(input.startAt)}`,
     ...(location ? [`Luogo: ${location}`] : []),
     "Accedi al gestionale/app per confermare presenza o assenza.",
     "La conferma non avviene via email.",
@@ -715,6 +727,7 @@ export async function sendConvocationEmails(
         eventTitle: input.eventTitle,
         categoryName: input.categoryName,
         startAt: input.startAt,
+        meetingAt: input.meetingAt,
         location: input.location,
       });
 

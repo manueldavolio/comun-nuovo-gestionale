@@ -7,16 +7,11 @@ import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
+import {
+  formatConvocationWallClockDateTime,
+  resolveMeetingAt,
+} from "@/lib/convocation-times";
 import { prisma } from "@/lib/prisma";
-
-const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "short",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export default async function ParentConvocationsPage() {
   const session = await getAuthSession();
@@ -35,6 +30,7 @@ export default async function ParentConvocationsPage() {
     athlete: { firstName: string; lastName: string };
     convocation: {
       notes: string | null;
+      meetingAt: Date | null;
       category: { name: string };
       event: { title: string; startAt: Date; location: string | null } | null;
     };
@@ -75,6 +71,7 @@ export default async function ParentConvocationsPage() {
         convocation: {
           select: {
             notes: true,
+            meetingAt: true,
             category: {
               select: {
                 name: true,
@@ -101,16 +98,21 @@ export default async function ParentConvocationsPage() {
 
   const parentConvocations = convocationEntries
     .filter((entry) => Boolean(entry.convocation.event))
-    .map((entry) => ({
-      convocationAthleteId: entry.id,
-      athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
-      categoryName: entry.convocation.category.name,
-      eventTitle: entry.convocation.event!.title,
-      eventStartAtLabel: dateTimeFormatter.format(new Date(entry.convocation.event!.startAt)),
-      eventLocation: entry.convocation.event!.location,
-      notes: entry.convocation.notes,
-      responseStatus: entry.responseStatus,
-    }));
+    .map((entry) => {
+      const matchStartAt = entry.convocation.event!.startAt;
+      const meetingAt = resolveMeetingAt(entry.convocation.meetingAt, matchStartAt);
+      return {
+        convocationAthleteId: entry.id,
+        athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
+        categoryName: entry.convocation.category.name,
+        eventTitle: entry.convocation.event!.title,
+        meetingAtLabel: formatConvocationWallClockDateTime(meetingAt),
+        matchStartAtLabel: formatConvocationWallClockDateTime(matchStartAt),
+        eventLocation: entry.convocation.event!.location,
+        notes: entry.convocation.notes,
+        responseStatus: entry.responseStatus,
+      };
+    });
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">

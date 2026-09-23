@@ -138,6 +138,7 @@ export default async function ParentCalendarPage() {
             convocation: {
               select: {
                 notes: true,
+                meetingAt: true,
                 categoryId: true,
                 category: {
                   select: {
@@ -207,7 +208,9 @@ export default async function ParentCalendarPage() {
       .map((entry) => ({
         id: `convocation-${entry.id}`,
         title: `Convocazione - ${entry.convocation.event!.title}`,
-        date: toFloatingDateTime(entry.convocation.event!.startAt),
+        date: toFloatingDateTime(
+          entry.convocation.meetingAt ?? entry.convocation.event!.startAt,
+        ),
         type: "CONVOCAZIONE" as const,
         location: entry.convocation.event!.location,
         details: entry.convocation.notes,

@@ -13,7 +13,8 @@ type ParentConvocationItem = {
   athleteFullName: string;
   categoryName: string;
   eventTitle: string;
-  eventStartAtLabel: string;
+  meetingAtLabel: string;
+  matchStartAtLabel: string;
   eventLocation: string | null;
   notes: string | null;
   responseStatus: ConvocationResponseStatus;
@@ -116,7 +117,8 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
           </span>
         </div>
         <p className="mt-2 text-base font-semibold text-zinc-900">{item.eventTitle}</p>
-        <p className="mt-1 text-sm text-zinc-600">{item.eventStartAtLabel}</p>
+        <p className="mt-1 text-sm text-zinc-600">Convocazione: {item.meetingAtLabel}</p>
+        <p className="text-sm text-zinc-600">Partita: {item.matchStartAtLabel}</p>
         <p className="text-sm text-zinc-600">Luogo: {item.eventLocation || "-"}</p>
         {item.notes ? <p className="mt-1 text-sm text-zinc-600">Note: {item.notes}</p> : null}
         {isUnanswered ? (

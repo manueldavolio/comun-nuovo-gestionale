@@ -351,13 +351,16 @@ model Event {
 }
 
 model Convocation {
-  id          String   @id @default(cuid())
-  eventId     String?  @unique
+  id          String    @id @default(cuid())
+  eventId     String?   @unique
   categoryId  String
+  /// Orario di ritrovo/presentazione (distinto da Event.startAt = inizio partita).
+  /// Nullable per retrocompatibilità con convocazioni già create.
+  meetingAt   DateTime?
   notes       String?
   createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   event      Event?               @relation(fields: [eventId], references: [id], onDelete: SetNull)
   category   Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)

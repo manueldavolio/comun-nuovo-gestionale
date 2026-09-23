@@ -8,21 +8,17 @@ import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
+import {
+  defaultMeetingAtFromMatchStart,
+  formatConvocationWallClockDateTime,
+} from "@/lib/convocation-times";
+import { toDateTimeLocalValueUTC } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
 type AdminConvocationPageProps = {
   params: Promise<{ id: string }>;
 };
-
-const dateFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "long",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export default async function AdminConvocationPage({ params }: AdminConvocationPageProps) {
   const { id } = await params;
@@ -76,6 +72,7 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
   let convocation:
     | {
         notes: string | null;
+        meetingAt: Date | null;
         athletes: Array<{ athleteId: string; responseStatus: "PENDING" | "PRESENT" | "ABSENT" }>;
       }
     | null = null;
@@ -86,6 +83,7 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
       where: { eventId: event.id },
       select: {
         notes: true,
+        meetingAt: true,
         athletes: {
           select: {
             athleteId: true,
@@ -114,6 +112,10 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
     responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
   }));
 
+  const initialMeetingAt = toDateTimeLocalValueUTC(
+    convocation?.meetingAt ?? defaultMeetingAtFromMatchStart(event.startAt),
+  );
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
@@ -139,7 +141,8 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
             eventId={event.id}
             eventTitle={`${event.title} (${formatEventType(event.type)})`}
             eventCategoryName={`Categoria: ${event.category.name}`}
-            eventDateLabel={dateFormatter.format(new Date(event.startAt))}
+            matchStartAtLabel={formatConvocationWallClockDateTime(event.startAt)}
+            initialMeetingAt={initialMeetingAt}
             initialNotes={convocation?.notes ?? ""}
             athletes={athletes}
           />

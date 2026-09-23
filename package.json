@@ -13,6 +13,7 @@
     "test:mister-stats": "tsx --test src/lib/mister-stats.test.ts",
     "test:convocation-email": "tsx --test src/lib/convocation-email.test.ts",
     "test:whatsapp": "tsx --test src/lib/whatsapp-phone.test.ts src/lib/whatsapp.test.ts",
+    "test:convocation-times": "tsx --test src/lib/convocation-times.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
