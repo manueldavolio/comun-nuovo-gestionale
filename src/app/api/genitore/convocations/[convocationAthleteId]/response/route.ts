@@ -4,6 +4,7 @@ import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
+import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 import { respondConvocationSchema } from "@/lib/validation/convocations";
 
@@ -42,30 +43,13 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
-  let convocationAthlete:
-    | {
-        id: string;
-        athlete: {
-          parent: {
-            userId: string;
-          };
-        };
-      }
-    | null = null;
+  let convocationAthlete: { id: string; athleteId: string } | null = null;
   try {
     convocationAthlete = await prisma.convocationAthlete.findUnique({
       where: { id: convocationAthleteId },
       select: {
         id: true,
-        athlete: {
-          select: {
-            parent: {
-              select: {
-                userId: true,
-              },
-            },
-          },
-        },
+        athleteId: true,
       },
     });
   } catch (error) {
@@ -79,7 +63,11 @@ export async function PUT(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Convocazione non trovata." }, { status: 404 });
   }
 
-  if (convocationAthlete.athlete.parent.userId !== session.user.id) {
+  const access = await assertUserParentAssociatedToAthlete({
+    userId: session.user.id,
+    athleteId: convocationAthlete.athleteId,
+  });
+  if (!access.ok) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 

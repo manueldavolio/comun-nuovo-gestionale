@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { createEventSchema } from "@/lib/validation/events";
 import { sendEventEmails } from "@/lib/mail";
+import { parentUsersLinkedToCategoryWhere } from "@/lib/parent-athletes";
 
 type EmailSummary = {
   attempted: boolean;
@@ -18,16 +19,7 @@ async function resolveCategoryEventRecipientEmails(categoryId: string) {
     where: {
       isActive: true,
       OR: [
-        {
-          role: UserRole.PARENT,
-          parentProfile: {
-            athletes: {
-              some: {
-                categoryId,
-              },
-            },
-          },
-        },
+        parentUsersLinkedToCategoryWhere(categoryId),
         {
           role: UserRole.COACH,
           coachProfile: {
@@ -45,7 +37,7 @@ async function resolveCategoryEventRecipientEmails(categoryId: string) {
     },
   });
 
-  return users.map((user) => user.email);
+  return [...new Set(users.map((user) => user.email))];
 }
 
 export async function POST(request: Request) {

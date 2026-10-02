@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getAuthSession } from "@/lib/auth";
 import { sendReceiptMail } from "@/lib/mail";
+import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
 import { generateReceiptPdf } from "@/lib/pdf";
 import { prisma } from "@/lib/prisma";
 
@@ -110,17 +111,13 @@ export async function POST(request: Request, context: RouteContext) {
           receiptTaxCode: true,
           receiptAddress: true,
           receiptEmail: true,
+          athleteId: true,
           athlete: {
             select: {
               firstName: true,
               lastName: true,
               taxCode: true,
               birthDate: true,
-              parent: {
-                select: {
-                  userId: true,
-                },
-              },
             },
           },
           category: {
@@ -145,7 +142,11 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Pagamento non trovato." }, { status: 404 });
   }
 
-  if (existing.enrollment.athlete.parent.userId !== session.user.id) {
+  const access = await assertUserParentAssociatedToAthlete({
+    userId: session.user.id,
+    athleteId: existing.enrollment.athleteId,
+  });
+  if (!access.ok) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 

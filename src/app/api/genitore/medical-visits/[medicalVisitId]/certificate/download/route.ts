@@ -5,6 +5,7 @@ import {
   MedicalVisitCertificateStorageError,
   readMedicalVisitCertificate,
 } from "@/lib/medical-visit-certificates";
+import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -39,15 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
     where: { id: medicalVisitId },
     select: {
       certificateFilePath: true,
-      athlete: {
-        select: {
-          parent: {
-            select: {
-              userId: true,
-            },
-          },
-        },
-      },
+      athleteId: true,
     },
   });
 
@@ -55,7 +48,11 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Visita medica non trovata." }, { status: 404 });
   }
 
-  if (medicalVisit.athlete.parent.userId !== session.user.id) {
+  const access = await assertUserParentAssociatedToAthlete({
+    userId: session.user.id,
+    athleteId: medicalVisit.athleteId,
+  });
+  if (!access.ok) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 

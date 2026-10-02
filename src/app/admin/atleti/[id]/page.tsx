@@ -52,12 +52,30 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
       medicalNotes: true,
       parent: {
         select: {
+          id: true,
           firstName: true,
           lastName: true,
           taxCode: true,
           phone: true,
           city: true,
           province: true,
+        },
+      },
+      additionalParents: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          parent: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              taxCode: true,
+              phone: true,
+              city: true,
+              province: true,
+            },
+          },
         },
       },
       category: {
@@ -184,16 +202,45 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium text-zinc-900">Genitore collegato</p>
-              <p className="text-sm text-zinc-700">
-                {athlete.parent.firstName} {athlete.parent.lastName}
-              </p>
-              <p className="text-xs text-zinc-500">
-                {athlete.parent.taxCode} - {athlete.parent.phone}
-              </p>
-              <p className="text-xs text-zinc-500">
-                {athlete.parent.city} ({athlete.parent.province})
-              </p>
+              <p className="text-sm font-medium text-zinc-900">Genitori associati</p>
+              <ul className="space-y-2">
+                <li className="rounded-lg border border-blue-100 bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+                    Genitore principale
+                  </p>
+                  <p className="text-sm font-medium text-zinc-900">
+                    {athlete.parent.firstName} {athlete.parent.lastName}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {athlete.parent.taxCode} - {athlete.parent.phone}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {athlete.parent.city} ({athlete.parent.province})
+                  </p>
+                </li>
+                {athlete.additionalParents.map((link) => (
+                  <li
+                    key={link.id}
+                    className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                      Genitore aggiuntivo
+                    </p>
+                    <p className="text-sm font-medium text-zinc-900">
+                      {link.parent.firstName} {link.parent.lastName}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {link.parent.taxCode} - {link.parent.phone}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {link.parent.city} ({link.parent.province})
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {athlete.additionalParents.length === 0 ? (
+                <p className="text-xs text-zinc-500">Nessun genitore aggiuntivo associato.</p>
+              ) : null}
 
               <div className="mt-4 border-t border-blue-100 pt-4">
                 <p className="text-sm font-medium text-zinc-900">Indirizzo</p>

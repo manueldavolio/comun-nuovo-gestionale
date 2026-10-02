@@ -105,6 +105,12 @@ enum AthleteGender {
   OTHER
 }
 
+enum ParentAthleteLinkRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -124,6 +130,7 @@ model User {
   createdConvocations Convocation[]
   evaluationsGiven  Evaluation[]
   accountingEntries AccountingEntry[]
+  reviewedParentAthleteLinkRequests ParentAthleteLinkRequest[] @relation("ParentAthleteLinkRequestReviewedBy")
 
   @@index([role])
   @@index([isActive])
@@ -169,8 +176,10 @@ model ParentProfile {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  athletes Athlete[]
+  user                   User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  athletes               Athlete[]
+  additionalAthleteLinks AthleteParent[]
+  athleteLinkRequests    ParentAthleteLinkRequest[]
 
   @@index([lastName, firstName])
 }
@@ -226,18 +235,56 @@ model Athlete {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  parent       ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Restrict)
-  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  enrollments  Enrollment[]
-  attendances  Attendance[]
-  convocationEntries ConvocationAthlete[]
-  medicalVisits MedicalVisit[]
-  documents    Document[]
-  evaluations  Evaluation[]
+  parent               ParentProfile              @relation(fields: [parentId], references: [id], onDelete: Restrict)
+  category             Category                   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  enrollments          Enrollment[]
+  attendances          Attendance[]
+  convocationEntries   ConvocationAthlete[]
+  medicalVisits        MedicalVisit[]
+  documents            Document[]
+  evaluations          Evaluation[]
+  additionalParents    AthleteParent[]
+  parentLinkRequests   ParentAthleteLinkRequest[]
 
   @@index([lastName, firstName])
   @@index([parentId])
   @@index([categoryId])
+}
+
+/// Genitori aggiuntivi (oltre ad Athlete.parentId = genitore principale/legacy).
+model AthleteParent {
+  id        String   @id @default(cuid())
+  athleteId String
+  parentId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athlete Athlete       @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  parent  ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([athleteId, parentId])
+  @@index([parentId])
+  @@index([athleteId])
+}
+
+model ParentAthleteLinkRequest {
+  id                String                         @id @default(cuid())
+  requesterParentId String
+  athleteId         String
+  status            ParentAthleteLinkRequestStatus @default(PENDING)
+  reviewedAt        DateTime?
+  reviewedById      String?
+  adminNote         String?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+
+  requesterParent ParentProfile @relation(fields: [requesterParentId], references: [id], onDelete: Cascade)
+  athlete         Athlete       @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  reviewedBy      User?         @relation("ParentAthleteLinkRequestReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([requesterParentId, athleteId])
+  @@index([athleteId])
 }
 
 model Enrollment {

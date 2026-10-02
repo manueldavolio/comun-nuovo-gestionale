@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MediaGallery } from "@/components/media/media-gallery";
-import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
+import { prisma } from "@/lib/prisma";
 
 export default async function ParentMediaPage() {
   const session = await getAuthSession();
@@ -18,20 +19,19 @@ export default async function ParentMediaPage() {
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    select: {
-      athletes: {
-        select: {
-          categoryId: true,
-        },
-      },
-    },
+    select: { id: true },
   });
 
   if (!parentProfile) {
     redirect("/unauthorized");
   }
 
-  const categoryIds = Array.from(new Set(parentProfile.athletes.map((athlete) => athlete.categoryId)));
+  const athletes = await prisma.athlete.findMany({
+    where: athletesAssociatedToParentWhere(parentProfile.id),
+    select: { categoryId: true },
+  });
+
+  const categoryIds = Array.from(new Set(athletes.map((athlete) => athlete.categoryId)));
   const now = new Date();
 
   const mediaItems =

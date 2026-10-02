@@ -11,6 +11,10 @@ import {
   formatConvocationWallClockDateTime,
   resolveMeetingAt,
 } from "@/lib/convocation-times";
+import {
+  athletesAssociatedToParentWhere,
+  getParentProfileIdForUser,
+} from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 
 export default async function ParentConvocationsPage() {
@@ -21,6 +25,11 @@ export default async function ParentConvocationsPage() {
   }
 
   if (session.user.role !== "PARENT") {
+    redirect("/unauthorized");
+  }
+
+  const parentProfileId = await getParentProfileIdForUser(session.user.id);
+  if (!parentProfileId) {
     redirect("/unauthorized");
   }
 
@@ -40,11 +49,7 @@ export default async function ParentConvocationsPage() {
   try {
     convocationEntries = await prisma.convocationAthlete.findMany({
       where: {
-        athlete: {
-          parent: {
-            userId: session.user.id,
-          },
-        },
+        athlete: athletesAssociatedToParentWhere(parentProfileId),
         convocation: {
           event: {
             isNot: null,

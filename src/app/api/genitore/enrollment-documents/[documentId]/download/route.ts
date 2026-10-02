@@ -5,6 +5,7 @@ import {
   getEnrollmentDocumentDownloadName,
   readEnrollmentDocument,
 } from "@/lib/enrollment-documents";
+import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -47,15 +48,7 @@ export async function GET(_request: Request, context: RouteContext) {
       mimeType: true,
       enrollment: {
         select: {
-          athlete: {
-            select: {
-              parent: {
-                select: {
-                  userId: true,
-                },
-              },
-            },
-          },
+          athleteId: true,
         },
       },
     },
@@ -65,7 +58,11 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Documento non trovato." }, { status: 404 });
   }
 
-  if (document.enrollment.athlete.parent.userId !== session.user.id) {
+  const access = await assertUserParentAssociatedToAthlete({
+    userId: session.user.id,
+    athleteId: document.enrollment.athleteId,
+  });
+  if (!access.ok) {
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
+import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 import { readReceiptPdf, ReceiptStorageError } from "@/lib/receipt-storage";
 
@@ -34,15 +35,7 @@ export async function GET(_request: Request, context: RouteContext) {
         select: {
           enrollment: {
             select: {
-              athlete: {
-                select: {
-                  parent: {
-                    select: {
-                      userId: true,
-                    },
-                  },
-                },
-              },
+              athleteId: true,
             },
           },
         },
@@ -54,8 +47,14 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Ricevuta non trovata." }, { status: 404 });
   }
 
-  if (session.user.role === "PARENT" && receipt.payment.enrollment.athlete.parent.userId !== session.user.id) {
-    return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
+  if (session.user.role === "PARENT") {
+    const access = await assertUserParentAssociatedToAthlete({
+      userId: session.user.id,
+      athleteId: receipt.payment.enrollment.athleteId,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
+    }
   }
 
   if (!receipt.filePath) {

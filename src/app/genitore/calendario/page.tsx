@@ -4,8 +4,9 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { toFloatingDateTime } from "@/lib/date-input";
-import { prisma } from "@/lib/prisma";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
+import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
+import { prisma } from "@/lib/prisma";
 
 type CalendarEventType = CalendarEvent["type"];
 
@@ -50,35 +51,36 @@ export default async function ParentCalendarPage() {
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    select: {
-      athletes: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          categoryId: true,
-          category: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
-    },
+    select: { id: true },
   });
 
   if (!parentProfile) {
     redirect("/unauthorized");
   }
 
+  const athletes = await prisma.athlete.findMany({
+    where: athletesAssociatedToParentWhere(parentProfile.id),
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      categoryId: true,
+      category: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
   const categoryMap = new Map<string, string>();
-  for (const athlete of parentProfile.athletes) {
+  for (const athlete of athletes) {
     categoryMap.set(athlete.categoryId, athlete.category.name);
   }
   const categoryIds = [...categoryMap.keys()];
-  const athleteIds = parentProfile.athletes.map((athlete) => athlete.id);
+  const athleteIds = athletes.map((athlete) => athlete.id);
   const athleteNameById = new Map(
-    parentProfile.athletes.map((athlete) => [
+    athletes.map((athlete) => [
       athlete.id,
       `${athlete.firstName} ${athlete.lastName}`.trim(),
     ]),

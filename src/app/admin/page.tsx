@@ -414,6 +414,15 @@ export default async function AdminDashboardPage() {
 
         <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <Link
+            href="/admin/associazioni-genitori"
+            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+          >
+            <h2 className="text-base font-semibold text-zinc-900">Associazioni genitore-atleta</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Richieste di secondo genitore da approvare o rifiutare.
+            </p>
+          </Link>
+          <Link
             href="/admin/calendario"
             className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
           >

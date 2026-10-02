@@ -8,6 +8,10 @@ import {
 import { saveConvocationSchema } from "@/lib/validation/convocations";
 import { canManageCategoryForConvocations } from "@/lib/convocations";
 import { sendConvocationEmails } from "@/lib/mail";
+import {
+  dedupeByNormalizedKey,
+  listAssociatedParentsForAthlete,
+} from "@/lib/parent-athletes";
 import { sendConvocationWhatsAppMessages } from "@/lib/whatsapp";
 
 type EmailSummary = {
@@ -197,29 +201,31 @@ export async function POST(request: Request) {
         select: {
           athlete: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
-              parent: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  user: {
-                    select: {
-                      email: true,
-                    },
-                  },
-                },
-              },
             },
           },
         },
       });
 
-      const recipients = convocationAthletes.map((entry) => ({
-        email: entry.athlete.parent.user.email,
-        athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
-        parentFullName: `${entry.athlete.parent.firstName} ${entry.athlete.parent.lastName}`.trim(),
-      }));
+      const recipientsRaw: Array<{
+        email: string;
+        athleteFullName: string;
+        parentFullName: string;
+      }> = [];
+      for (const entry of convocationAthletes) {
+        const athleteFullName = `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim();
+        const parents = await listAssociatedParentsForAthlete(entry.athlete.id);
+        for (const parent of parents) {
+          recipientsRaw.push({
+            email: parent.email,
+            athleteFullName,
+            parentFullName: `${parent.firstName} ${parent.lastName}`.trim(),
+          });
+        }
+      }
+      const recipients = dedupeByNormalizedKey(recipientsRaw, (item) => item.email);
 
       const emailResult = await sendConvocationEmails({
         recipients,
@@ -293,26 +299,31 @@ export async function POST(request: Request) {
         select: {
           athlete: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
-              parent: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  phone: true,
-                },
-              },
             },
           },
         },
       });
 
-      // One WhatsApp per convocated athlete (two siblings => two messages).
-      const recipients = convocationAthletes.map((entry) => ({
-        phone: entry.athlete.parent.phone,
-        athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
-        parentFullName: `${entry.athlete.parent.firstName} ${entry.athlete.parent.lastName}`.trim(),
-      }));
+      const recipientsRaw: Array<{
+        phone: string;
+        athleteFullName: string;
+        parentFullName: string;
+      }> = [];
+      for (const entry of convocationAthletes) {
+        const athleteFullName = `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim();
+        const parents = await listAssociatedParentsForAthlete(entry.athlete.id);
+        for (const parent of parents) {
+          recipientsRaw.push({
+            phone: parent.phone,
+            athleteFullName,
+            parentFullName: `${parent.firstName} ${parent.lastName}`.trim(),
+          });
+        }
+      }
+      const recipients = dedupeByNormalizedKey(recipientsRaw, (item) => item.phone);
 
       const whatsAppResult = await sendConvocationWhatsAppMessages({
         recipients,

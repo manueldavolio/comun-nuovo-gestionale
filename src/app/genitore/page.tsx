@@ -20,6 +20,7 @@ import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
+import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 
 type ParentDashboardPageProps = {
   searchParams: Promise<{ enrolled?: string }>;
@@ -96,51 +97,57 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     where: { userId: session.user.id },
     select: {
       id: true,
-      athletes: {
-        orderBy: [{ createdAt: "desc" }],
+    },
+  });
+
+  if (!parentProfile) {
+    redirect("/unauthorized");
+  }
+
+  const associatedAthletes = await prisma.athlete.findMany({
+    where: athletesAssociatedToParentWhere(parentProfile.id),
+    orderBy: [{ createdAt: "desc" }],
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      category: {
         select: {
           id: true,
-          firstName: true,
-          lastName: true,
-          category: {
+          name: true,
+        },
+      },
+      documents: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, type: true, title: true, expiryDate: true },
+      },
+      medicalVisits: {
+        orderBy: { visitDate: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          visitDate: true,
+          expiryDate: true,
+          notes: true,
+          certificateFilePath: true,
+        },
+      },
+      enrollments: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          seasonLabel: true,
+          status: true,
+          createdAt: true,
+          payments: {
             select: {
               id: true,
-              name: true,
-            },
-          },
-              documents: {
-                orderBy: { createdAt: "desc" },
-                select: { id: true, type: true, title: true, expiryDate: true },
-              },
-              medicalVisits: {
-                orderBy: { visitDate: "desc" },
-                take: 1,
-                select: {
-                  id: true,
-                  visitDate: true,
-                  expiryDate: true,
-                  notes: true,
-                  certificateFilePath: true,
-                },
-              },
-          enrollments: {
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              seasonLabel: true,
+              type: true,
               status: true,
-              createdAt: true,
-              payments: {
+              receipt: {
                 select: {
                   id: true,
-                  type: true,
-                  status: true,
-                  receipt: {
-                    select: {
-                      id: true,
-                      filePath: true,
-                    },
-                  },
+                  filePath: true,
                 },
               },
             },
@@ -150,13 +157,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     },
   });
 
-  if (!parentProfile) {
-    redirect("/unauthorized");
-  }
-
   const now = new Date();
 
-  const athleteRows = parentProfile.athletes.map((athlete) => {
+  const athleteRows = associatedAthletes.map((athlete) => {
     const latestEnrollment = athlete.enrollments[0];
     const deposit = latestEnrollment?.payments.find((payment) => payment.type === "DEPOSIT");
     const balance = latestEnrollment?.payments.find((payment) => payment.type === "BALANCE");
@@ -434,12 +437,20 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 Visualizzi solo dati collegati al tuo account genitore.
               </p>
             </div>
-            <Link
-              href="/genitore/iscrizione/nuova"
-              className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
-            >
-              Nuova iscrizione
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/genitore/iscrizione/nuova"
+                className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+              >
+                Nuova iscrizione
+              </Link>
+              <Link
+                href="/genitore/associa-figlio"
+                className="inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
+              >
+                Associa un figlio già iscritto
+              </Link>
+            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">

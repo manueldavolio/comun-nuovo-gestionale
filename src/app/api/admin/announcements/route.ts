@@ -5,6 +5,7 @@ import { getAuthSession } from "@/lib/auth";
 import { createAnnouncementSchema } from "@/lib/validation/announcements";
 import { parseDateInputToUTC } from "@/lib/date-input";
 import { sendAnnouncementEmails } from "@/lib/mail";
+import { parentUsersLinkedToCategoryWhere } from "@/lib/parent-athletes";
 
 type EmailSummary = {
   attempted: boolean;
@@ -38,16 +39,7 @@ async function resolveRecipientEmails(input: {
     CATEGORY_ONLY: {
       isActive: true,
       OR: [
-        {
-          role: UserRole.PARENT,
-          parentProfile: {
-            athletes: {
-              some: {
-                categoryId: input.categoryId!,
-              },
-            },
-          },
-        },
+        parentUsersLinkedToCategoryWhere(input.categoryId!),
         {
           role: UserRole.COACH,
           coachProfile: {
@@ -69,7 +61,7 @@ async function resolveRecipientEmails(input: {
     },
   });
 
-  return users.map((user) => user.email);
+  return [...new Set(users.map((user) => user.email))];
 }
 
 export async function POST(request: Request) {
