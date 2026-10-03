@@ -13,6 +13,8 @@ import {
   buildGoogleMapsSearchUrl,
   matchDayScoreLines,
   matchDayTeamLayout,
+  resolveMatchDayOpponentName,
+  resolveMatchDaySecondaryLabel,
   type MatchDayPhase,
 } from "@/lib/match-day";
 
@@ -47,18 +49,22 @@ export function MatchDayCard({
   playerGoals,
   playerAssists,
 }: MatchDayCardProps) {
-  const teams = matchDayTeamLayout({ opponentName, isHome });
+  const resolvedOpponent = resolveMatchDayOpponentName({ opponentName, title });
+  const secondaryLabel = resolveMatchDaySecondaryLabel({
+    title,
+    resolvedOpponent,
+  });
+  const teams = matchDayTeamLayout({ opponentName: resolvedOpponent, isHome });
   const mapsUrl = buildGoogleMapsSearchUrl(location);
   const hasResult = homeScore != null && awayScore != null;
-  const score =
-    hasResult
-      ? matchDayScoreLines({
-          opponentName,
-          isHome,
-          homeScore: homeScore!,
-          awayScore: awayScore!,
-        })
-      : null;
+  const score = hasResult
+    ? matchDayScoreLines({
+        opponentName: resolvedOpponent,
+        isHome,
+        homeScore: homeScore!,
+        awayScore: awayScore!,
+      })
+    : null;
 
   const phaseBadge =
     phase === "PRE_MATCH"
@@ -71,147 +77,140 @@ export function MatchDayCard({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-blue-700 bg-blue-800 text-white shadow-md">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-sky-200">
-            Match Day
-          </p>
-          <p className="mt-0.5 text-lg font-black tracking-tight sm:text-xl">
-            {phaseBadge.label}
-          </p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-200">Match Day</p>
+          <p className="text-base font-black tracking-tight sm:text-lg">{phaseBadge.label}</p>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${phaseBadge.className}`}
+          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${phaseBadge.className}`}
         >
           {formatConvocationWallClockDate(startAt)}
         </span>
       </div>
 
-      <div className="relative px-4 py-5 sm:px-6 sm:py-6">
-        <div className="absolute -right-8 top-0 h-36 w-36 rounded-full bg-sky-400/10" aria-hidden />
+      <div className="relative px-3 py-3 sm:px-4 sm:py-3.5">
+        <div className="absolute -right-8 top-0 h-28 w-28 rounded-full bg-sky-400/10" aria-hidden />
 
         {phase === "FULL_TIME" && score ? (
-          <div className="relative space-y-3">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-bold uppercase tracking-wide text-sky-100 sm:text-base">
-                  {score.leftName}
-                </p>
-                <p className="mt-1 text-4xl font-black tabular-nums sm:text-5xl">{score.leftScore}</p>
-              </div>
-              <p className="text-sm font-bold text-sky-200">FT</p>
-              <div className="text-left">
-                <p className="text-sm font-bold uppercase tracking-wide text-sky-100 sm:text-base">
-                  {score.rightName}
-                </p>
-                <p className="mt-1 text-4xl font-black tabular-nums sm:text-5xl">{score.rightScore}</p>
-              </div>
+          <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
+            <div className="min-w-0 text-right">
+              <p className="truncate text-xs font-bold uppercase tracking-wide text-sky-100 sm:text-sm">
+                {score.leftName}
+              </p>
+              <p className="text-3xl font-black tabular-nums sm:text-4xl">{score.leftScore}</p>
+            </div>
+            <p className="text-xs font-bold text-sky-200">FT</p>
+            <div className="min-w-0 text-left">
+              <p className="truncate text-xs font-bold uppercase tracking-wide text-sky-100 sm:text-sm">
+                {score.rightName}
+              </p>
+              <p className="text-3xl font-black tabular-nums sm:text-4xl">{score.rightScore}</p>
             </div>
           </div>
-        ) : phase === "FULL_TIME" ? (
-          <div className="relative space-y-3 text-center">
-            <p className="text-2xl font-black uppercase tracking-tight sm:text-3xl">
-              {teams.topName}
-            </p>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-200">vs</p>
-            <p className="text-2xl font-black uppercase tracking-tight sm:text-3xl">
-              {teams.bottomName}
-            </p>
-            <p className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-sky-100">
-              Risultato non ancora disponibile
-            </p>
-          </div>
         ) : (
-          <div className="relative space-y-2 text-center">
-            <p className="text-2xl font-black uppercase tracking-tight sm:text-4xl">
-              {teams.topName}
-            </p>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-200">vs</p>
-            <p className="text-2xl font-black uppercase tracking-tight sm:text-4xl">
-              {teams.bottomName}
-            </p>
-            {teams.mode === "neutral" ? (
-              <p className="text-xs text-sky-200/90">{title}</p>
+          <div className="relative space-y-1.5">
+            <div className="grid grid-cols-1 items-center gap-1 md:grid-cols-[1fr_auto_1fr] md:gap-3">
+              <p className="truncate text-center text-xl font-black uppercase tracking-tight md:text-right md:text-2xl lg:text-[1.65rem]">
+                {teams.topName}
+              </p>
+              <p className="text-center text-[10px] font-bold uppercase tracking-[0.24em] text-sky-200">
+                vs
+              </p>
+              <p className="truncate text-center text-xl font-black uppercase tracking-tight md:text-left md:text-2xl lg:text-[1.65rem]">
+                {teams.bottomName}
+              </p>
+            </div>
+            {secondaryLabel ? (
+              <p className="text-center text-[11px] font-medium text-sky-200/90">{secondaryLabel}</p>
+            ) : null}
+            {phase === "FULL_TIME" && !hasResult ? (
+              <p className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1.5 text-center text-xs text-sky-100">
+                Risultato non ancora disponibile
+              </p>
             ) : null}
           </div>
         )}
 
         {phase !== "FULL_TIME" || !hasResult ? (
-          <div className="relative mt-5 grid gap-2 sm:grid-cols-2">
+          <div className="relative mt-3 grid gap-1.5 sm:grid-cols-3">
             {meetingAt ? (
-              <div className="rounded-xl border border-white/15 bg-white/10 px-3 py-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-200">
+              <div className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-200">
                   Convocazione
                 </p>
-                <p className="mt-0.5 text-lg font-bold tabular-nums">
+                <p className="text-base font-bold tabular-nums">
                   {formatConvocationWallClockTime(meetingAt)}
                 </p>
               </div>
             ) : null}
-            <div className="rounded-xl border border-white/15 bg-white/10 px-3 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-200">
+            <div className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-200">
                 Partita
               </p>
-              <p className="mt-0.5 inline-flex items-center gap-1.5 text-lg font-bold tabular-nums">
-                <CalendarDays className="h-4 w-4 text-sky-200" aria-hidden />
+              <p className="inline-flex items-center gap-1 text-base font-bold tabular-nums">
+                <CalendarDays className="h-3.5 w-3.5 text-sky-200" aria-hidden />
                 {formatConvocationWallClockTime(startAt)}
               </p>
             </div>
             {location ? (
-              <div className="rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 sm:col-span-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-200">
+              <div
+                className={[
+                  "rounded-lg border border-white/15 bg-white/10 px-2.5 py-1.5",
+                  meetingAt ? "sm:col-span-1" : "sm:col-span-2",
+                ].join(" ")}
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-200">
                   Campo
                 </p>
-                <p className="mt-0.5 inline-flex items-start gap-1.5 text-sm font-semibold">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" aria-hidden />
-                  {location}
+                <p className="inline-flex items-start gap-1 text-xs font-semibold leading-snug">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-200" aria-hidden />
+                  <span className="line-clamp-2">{location}</span>
                 </p>
               </div>
             ) : null}
           </div>
         ) : null}
 
-        {isConvoked ? (
-          <div className="relative mt-4 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-500/20 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-100">
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-              Convocato
-            </span>
-            {responseStatus ? (
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${CONVOCATION_RESPONSE_BADGE_CLASS[responseStatus]}`}
-              >
-                {CONVOCATION_RESPONSE_LABEL[responseStatus]}
+        <div className="relative mt-2.5 flex flex-wrap items-center gap-2">
+          {isConvoked ? (
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-100">
+                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                Convocato
               </span>
-            ) : null}
-          </div>
-        ) : null}
+              {responseStatus ? (
+                <span
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${CONVOCATION_RESPONSE_BADGE_CLASS[responseStatus]}`}
+                >
+                  {CONVOCATION_RESPONSE_LABEL[responseStatus]}
+                </span>
+              ) : null}
+            </>
+          ) : null}
 
-        {phase === "FULL_TIME" && (playerGoals > 0 || playerAssists > 0) ? (
-          <div className="relative mt-4 rounded-xl border border-sky-300/30 bg-sky-500/15 px-3 py-3">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-100">
-              La tua partita
-            </p>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm font-semibold">
+          {phase === "FULL_TIME" && (playerGoals > 0 || playerAssists > 0) ? (
+            <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-sky-300/30 bg-sky-500/15 px-2.5 py-1 text-xs font-semibold">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-sky-100">
+                La tua partita
+              </span>
               {playerGoals > 0 ? <span>⚽ {playerGoals} GOL</span> : null}
               {playerAssists > 0 ? <span>🎯 {playerAssists} ASSIST</span> : null}
-            </div>
-          </div>
-        ) : null}
+            </span>
+          ) : null}
 
-        {mapsUrl ? (
-          <div className="relative mt-5">
+          {mapsUrl ? (
             <Link
               href={mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-blue-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-800 sm:w-auto"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-blue-800 transition hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-800 sm:ml-auto"
             >
               Apri il campo su Maps
-              <ExternalLink className="h-4 w-4" aria-hidden />
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
             </Link>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </section>
   );

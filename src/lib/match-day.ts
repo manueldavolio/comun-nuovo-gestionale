@@ -110,6 +110,76 @@ export function buildGoogleMapsSearchUrl(location: string | null | undefined): s
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+/**
+ * Resolve display opponent for Match Day.
+ * Priority: Event.opponentName → prudent parse from Event.title → "Avversario".
+ */
+export function resolveMatchDayOpponentName(input: {
+  opponentName: string | null | undefined;
+  title: string | null | undefined;
+}): string {
+  const explicit = (input.opponentName ?? "").trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const title = (input.title ?? "").trim();
+  if (!title) {
+    return "Avversario";
+  }
+
+  const vsMatch = /\bvs\.?\b/i.exec(title);
+  if (vsMatch && vsMatch.index != null) {
+    const after = title.slice(vsMatch.index + vsMatch[0].length).trim().replace(/^[-–—:]\s*/, "");
+    if (after.length >= 2) {
+      return after;
+    }
+  }
+
+  const dashMatch = title.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+  if (dashMatch) {
+    const left = dashMatch[1].trim();
+    const right = dashMatch[2].trim();
+    if (/comun\s*nuovo/i.test(left) && right.length >= 2 && !/\bvs\.?\b/i.test(right)) {
+      return right;
+    }
+    if (/comun\s*nuovo/i.test(right) && left.length >= 2 && !/\bvs\.?\b/i.test(left)) {
+      return left;
+    }
+  }
+
+  return "Avversario";
+}
+
+/**
+ * Short non-redundant label from title when opponent was inferred or explicit
+ * (e.g. "Amichevole vs Pro Lurano" → "Amichevole"). Returns null if useless.
+ */
+export function resolveMatchDaySecondaryLabel(input: {
+  title: string | null | undefined;
+  resolvedOpponent: string;
+}): string | null {
+  let label = (input.title ?? "").trim();
+  if (!label) return null;
+
+  const opponent = input.resolvedOpponent.trim();
+  if (opponent && opponent !== "Avversario") {
+    const escaped = opponent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    label = label.replace(new RegExp(`\\s*\\bvs\\.?\\b\\s*${escaped}\\s*$`, "i"), "");
+    label = label.replace(new RegExp(`\\s*[-–—]\\s*${escaped}\\s*$`, "i"), "");
+    label = label.replace(new RegExp(`^${escaped}\\s*\\bvs\\.?\\b\\s*`, "i"), "");
+    label = label.replace(new RegExp(`^${escaped}\\s*[-–—]\\s*`, "i"), "");
+  }
+
+  label = label.replace(/\bcomun\s*nuovo\b/gi, "").replace(/^\s*[-–—:]\s*|\s*[-–—:]\s*$/g, "").trim();
+  label = label.replace(/\bvs\.?\b/gi, "").trim();
+
+  if (!label) return null;
+  if (label.toLowerCase() === opponent.toLowerCase()) return null;
+  if (label.length < 2) return null;
+  return label;
+}
+
 export type MatchDayTeamLayout = {
   topName: string;
   bottomName: string;

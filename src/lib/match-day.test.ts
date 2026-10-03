@@ -4,7 +4,9 @@ import {
   buildGoogleMapsSearchUrl,
   matchDayScoreLines,
   matchDayTeamLayout,
+  resolveMatchDayOpponentName,
   resolveMatchDayPhase,
+  resolveMatchDaySecondaryLabel,
   resolveMatchVisualEndAt,
   selectTodaysMatchDayEvent,
   shouldSuppressNextEventForMatchDay,
@@ -224,6 +226,61 @@ describe("match-day helpers", () => {
     assert.equal(shouldSuppressNextEventForMatchDay("evt-1", "evt-1"), true);
     assert.equal(shouldSuppressNextEventForMatchDay("evt-2", "evt-1"), false);
     assert.equal(shouldSuppressNextEventForMatchDay(null, "evt-1"), false);
+  });
+
+  it("resolves opponent with opponentName priority and title fallbacks", () => {
+    assert.equal(
+      resolveMatchDayOpponentName({
+        opponentName: "Paladina",
+        title: "Amichevole vs Pro Lurano",
+      }),
+      "Paladina",
+    );
+    assert.equal(
+      resolveMatchDayOpponentName({
+        opponentName: null,
+        title: "Amichevole vs Pro Lurano",
+      }),
+      "Pro Lurano",
+    );
+    assert.equal(
+      resolveMatchDayOpponentName({
+        opponentName: "  ",
+        title: "Comun Nuovo vs Paladina",
+      }),
+      "Paladina",
+    );
+    assert.equal(
+      resolveMatchDayOpponentName({
+        opponentName: null,
+        title: "Comun Nuovo - Paladina",
+      }),
+      "Paladina",
+    );
+    assert.equal(
+      resolveMatchDayOpponentName({
+        opponentName: null,
+        title: "Torneo U14 giornata 3",
+      }),
+      "Avversario",
+    );
+  });
+
+  it("builds a short secondary label without repeating the opponent", () => {
+    assert.equal(
+      resolveMatchDaySecondaryLabel({
+        title: "Amichevole vs Pro Lurano",
+        resolvedOpponent: "Pro Lurano",
+      }),
+      "Amichevole",
+    );
+    assert.equal(
+      resolveMatchDaySecondaryLabel({
+        title: "Comun Nuovo vs Paladina",
+        resolvedOpponent: "Paladina",
+      }),
+      null,
+    );
   });
 
   it("exposes athlete stats only when goals/assists > 0 (caller contract)", () => {
