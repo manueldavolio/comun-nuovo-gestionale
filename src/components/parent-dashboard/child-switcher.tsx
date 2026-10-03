@@ -19,7 +19,7 @@ export function ParentChildSwitcher({
   }
 
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
+    <div className="rounded-2xl border border-blue-100 bg-white/90 p-3 shadow-sm backdrop-blur-sm">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-800">
         Seleziona figlio
       </p>
@@ -31,9 +31,9 @@ export function ParentChildSwitcher({
               key={child.id}
               href={`/genitore?athleteId=${child.id}`}
               className={[
-                "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition",
+                "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 active
-                  ? "border-blue-700 bg-blue-700 text-white"
+                  ? "border-blue-700 bg-blue-700 text-white shadow-sm"
                   : "border-blue-100 bg-sky-50 text-blue-900 hover:bg-sky-100",
               ].join(" ")}
             >

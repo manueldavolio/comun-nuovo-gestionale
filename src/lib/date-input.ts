@@ -45,3 +45,34 @@ export function toDateTimeLocalValueUTC(date: Date): string {
   return toFloatingDateTime(date).slice(0, 16);
 }
 
+/**
+ * Current instant as Europe/Rome wall-clock encoded in UTC fields.
+ * Matches Event.startAt storage convention (local Rome time stored as UTC).
+ */
+export function nowAsEuropeRomeWallClockUtc(now = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "0";
+
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+  let hour = Number(get("hour"));
+  if (hour === 24) hour = 0;
+  const minute = Number(get("minute"));
+  const second = Number(get("second"));
+
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, second, 0));
+}
+
+
