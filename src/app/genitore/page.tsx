@@ -19,6 +19,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { PaymentActions } from "@/components/payments/payment-actions";
 import { AthleteHeroCard } from "@/components/parent-dashboard/athlete-hero-card";
+import { MatchDayCard } from "@/components/parent-dashboard/match-day-card";
 import { ParentAdminPanel } from "@/components/parent-dashboard/parent-admin-panel";
 import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
 import { getAuthSession } from "@/lib/auth";
@@ -31,6 +32,11 @@ import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
 import { COACH_VISIBLE_EVENT_TYPES, EVENT_TYPE_LABEL } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
+import {
+  resolveMatchDayPhase,
+  selectTodaysMatchDayEvent,
+  wallClockDayBounds,
+} from "@/lib/match-day";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import {
   computeSeasonAthleteStats,
@@ -257,6 +263,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const now = new Date();
   const wallNow = nowAsEuropeRomeWallClockUtc(now);
   const season = currentSeasonRange(wallNow);
+  const todayBounds = wallClockDayBounds(wallNow);
   const latestEnrollment = selectedAthlete.enrollments[0];
   const portraitDocumentId =
     selectedAthlete.enrollments.find((enrollment) => enrollment.documents[0])?.documents[0]?.id ??
@@ -271,7 +278,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const [
     attendances,
     matchStats,
-    nextEvent,
+    todaysMatchCandidates,
+    nextEventCandidates,
     recentResults,
     latestNote,
     recentMedia,
@@ -300,7 +308,42 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       },
       select: { goals: true, assists: true },
     }),
-    prisma.event.findFirst({
+    prisma.event.findMany({
+      where: {
+        categoryId: selectedAthlete.category.id,
+        type: { in: MATCH_EVENT_TYPES },
+        startAt: { gte: todayBounds.start, lte: todayBounds.end },
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        startAt: true,
+        endAt: true,
+        location: true,
+        opponentName: true,
+        isHome: true,
+        homeScore: true,
+        awayScore: true,
+        convocation: {
+          select: {
+            meetingAt: true,
+            athletes: {
+              where: { athleteId: selectedAthlete.id },
+              select: { responseStatus: true },
+              take: 1,
+            },
+          },
+        },
+        matchStats: {
+          where: { athleteId: selectedAthlete.id },
+          select: { goals: true, assists: true },
+          take: 1,
+        },
+      },
+    }),
+    prisma.event.findMany({
       where: {
         categoryId: selectedAthlete.category.id,
         type: { in: COACH_VISIBLE_EVENT_TYPES },
@@ -310,6 +353,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         ],
       },
       orderBy: { startAt: "asc" },
+      take: 8,
       select: {
         id: true,
         title: true,
@@ -392,6 +436,24 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     }),
   ]);
 
+  const matchDayEvent = selectTodaysMatchDayEvent(todaysMatchCandidates, wallNow);
+  const matchDayPhase = matchDayEvent
+    ? resolveMatchDayPhase({
+        startAt: matchDayEvent.startAt,
+        endAt: matchDayEvent.endAt,
+        wallNow,
+      })
+    : null;
+  const matchDayConvocationEntry = matchDayEvent?.convocation?.athletes[0] ?? null;
+  const matchDayMeetingAt =
+    matchDayEvent?.convocation?.meetingAt != null
+      ? resolveMeetingAt(matchDayEvent.convocation.meetingAt, matchDayEvent.startAt)
+      : null;
+  const matchDayPlayerStat = matchDayEvent?.matchStats[0] ?? null;
+
+  // Match Day owns today's match UI: Prossimo impegno must skip that same event.
+  const nextEvent =
+    nextEventCandidates.find((event) => event.id !== matchDayEvent?.id) ?? null;
   const seasonStats = computeSeasonAthleteStats({
     attendances: attendances.map((row) => ({
       status: row.status,
@@ -400,6 +462,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     matchStats,
   });
   const badges = computeSeasonBadges(seasonStats);
+  const recentResultsForList = recentResults.filter(
+    (event) => event.id !== matchDayEvent?.id,
+  );
 
   const nextEventConvocation = nextEvent?.convocation?.athletes[0] ?? null;
   const nextEventMeetingAt =
@@ -573,6 +638,24 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           }
         />
 
+        {matchDayEvent && matchDayPhase ? (
+          <MatchDayCard
+            phase={matchDayPhase}
+            title={matchDayEvent.title}
+            opponentName={matchDayEvent.opponentName}
+            isHome={matchDayEvent.isHome}
+            startAt={matchDayEvent.startAt}
+            location={matchDayEvent.location}
+            meetingAt={matchDayMeetingAt}
+            isConvoked={Boolean(matchDayConvocationEntry)}
+            responseStatus={matchDayConvocationEntry?.responseStatus ?? null}
+            homeScore={matchDayEvent.homeScore}
+            awayScore={matchDayEvent.awayScore}
+            playerGoals={matchDayPlayerStat?.goals ?? 0}
+            playerAssists={matchDayPlayerStat?.assists ?? 0}
+          />
+        ) : null}
+
         <div className="grid gap-4 lg:grid-cols-5 lg:gap-5">
           <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm lg:col-span-3">
             <div className="flex items-center justify-between gap-3 bg-blue-800 px-4 py-3 text-white">
@@ -701,13 +784,13 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </section>
         ) : null}
 
-        {recentResults.length > 0 ? (
+        {recentResultsForList.length > 0 ? (
           <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-800">
               Ultimi risultati
             </p>
             <ul className="mt-3 grid gap-2.5 sm:grid-cols-2">
-              {recentResults.map((event) => {
+              {recentResultsForList.map((event) => {
                 const homeScore = event.homeScore ?? 0;
                 const awayScore = event.awayScore ?? 0;
                 const clubIsHome = event.isHome !== false;
