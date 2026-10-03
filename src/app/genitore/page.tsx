@@ -13,6 +13,7 @@ import {
   MessageSquareQuote,
   Percent,
   Shirt,
+  StickyNote,
   Wallet,
 } from "lucide-react";
 import { AreaHeader } from "@/components/layout/area-header";
@@ -34,6 +35,7 @@ import { COACH_VISIBLE_EVENT_TYPES, EVENT_TYPE_LABEL } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import {
   resolveMatchDayPhase,
+  resolveConvocationNote,
   selectTodaysMatchDayEvent,
   wallClockDayBounds,
 } from "@/lib/match-day";
@@ -329,6 +331,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         convocation: {
           select: {
             meetingAt: true,
+            notes: true,
             athletes: {
               where: { athleteId: selectedAthlete.id },
               select: { responseStatus: true },
@@ -364,6 +367,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         convocation: {
           select: {
             meetingAt: true,
+            notes: true,
             athletes: {
               where: { athleteId: selectedAthlete.id },
               select: { responseStatus: true },
@@ -471,6 +475,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     nextEvent?.convocation != null
       ? resolveMeetingAt(nextEvent.convocation.meetingAt, nextEvent.startAt)
       : null;
+  const nextEventNote = resolveConvocationNote(nextEvent?.convocation?.notes);
   const nextWeekday = nextEvent ? WEEKDAY_LABELS[nextEvent.startAt.getUTCDay()] : null;
   const nextDay = nextEvent ? String(nextEvent.startAt.getUTCDate()).padStart(2, "0") : null;
   const nextMonth = nextEvent
@@ -649,6 +654,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             meetingAt={matchDayMeetingAt}
             isConvoked={Boolean(matchDayConvocationEntry)}
             responseStatus={matchDayConvocationEntry?.responseStatus ?? null}
+            convocationNotes={matchDayEvent.convocation?.notes ?? null}
             homeScore={matchDayEvent.homeScore}
             awayScore={matchDayEvent.awayScore}
             playerGoals={matchDayPlayerStat?.goals ?? 0}
@@ -722,6 +728,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                           {" · "}
                           Partita alle{" "}
                           <strong>{formatConvocationWallClockTime(nextEvent.startAt)}</strong>
+                        </p>
+                      ) : null}
+                      {nextEventNote ? (
+                        <p className="mt-2 flex items-start gap-1.5 text-sm leading-snug">
+                          <StickyNote className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          <span className="whitespace-pre-wrap break-words">{nextEventNote}</span>
                         </p>
                       ) : null}
                     </div>

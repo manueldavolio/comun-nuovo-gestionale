@@ -4,6 +4,7 @@ import {
   buildGoogleMapsSearchUrl,
   matchDayScoreLines,
   matchDayTeamLayout,
+  resolveConvocationNote,
   resolveMatchDayOpponentName,
   resolveMatchDayPhase,
   resolveMatchDaySecondaryLabel,
@@ -220,6 +221,16 @@ describe("match-day helpers", () => {
       "https://www.google.com/maps/search/?api=1&query=Centro%20Sportivo%20Comun%20Nuovo",
     );
     assert.ok(buildGoogleMapsSearchUrl("Via Roma 1, Bergamo")?.includes("Via%20Roma%201"));
+  });
+
+  it("resolves convocation notes only when non-empty", () => {
+    assert.equal(resolveConvocationNote(null), null);
+    assert.equal(resolveConvocationNote("   "), null);
+    assert.equal(resolveConvocationNote("Portare tuta e k-way"), "Portare tuta e k-way");
+    assert.equal(
+      resolveConvocationNote("  Arrivo anticipato\nPortare k-way  "),
+      "Arrivo anticipato\nPortare k-way",
+    );
   });
 
   it("suppresses duplicate next-event when Match Day owns the same event", () => {

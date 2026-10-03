@@ -110,6 +110,14 @@ export function buildGoogleMapsSearchUrl(location: string | null | undefined): s
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+/** Trimmed Convocation.notes for UI; null when empty/whitespace. */
+export function resolveConvocationNote(
+  notes: string | null | undefined,
+): string | null {
+  const value = (notes ?? "").trim();
+  return value.length > 0 ? value : null;
+}
+
 /**
  * Resolve display opponent for Match Day.
  * Priority: Event.opponentName → prudent parse from Event.title → "Avversario".

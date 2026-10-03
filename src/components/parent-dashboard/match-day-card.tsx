@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, MapPin, ExternalLink } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  MapPin,
+  ExternalLink,
+  StickyNote,
+} from "lucide-react";
 import {
   formatConvocationWallClockDate,
   formatConvocationWallClockTime,
@@ -13,6 +19,7 @@ import {
   buildGoogleMapsSearchUrl,
   matchDayScoreLines,
   matchDayTeamLayout,
+  resolveConvocationNote,
   resolveMatchDayOpponentName,
   resolveMatchDaySecondaryLabel,
   type MatchDayPhase,
@@ -28,6 +35,7 @@ type MatchDayCardProps = {
   meetingAt: Date | null;
   isConvoked: boolean;
   responseStatus: ConvocationResponseStatus | null;
+  convocationNotes: string | null;
   homeScore: number | null;
   awayScore: number | null;
   playerGoals: number;
@@ -44,6 +52,7 @@ export function MatchDayCard({
   meetingAt,
   isConvoked,
   responseStatus,
+  convocationNotes,
   homeScore,
   awayScore,
   playerGoals,
@@ -54,6 +63,7 @@ export function MatchDayCard({
     title,
     resolvedOpponent,
   });
+  const note = resolveConvocationNote(convocationNotes);
   const teams = matchDayTeamLayout({ opponentName: resolvedOpponent, isHome });
   const mapsUrl = buildGoogleMapsSearchUrl(location);
   const hasResult = homeScore != null && awayScore != null;
@@ -172,23 +182,33 @@ export function MatchDayCard({
           </div>
         ) : null}
 
-        <div className="relative mt-2.5 flex flex-wrap items-center gap-2">
-          {isConvoked ? (
-            <>
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-100">
-                <CheckCircle2 className="h-3 w-3" aria-hidden />
-                Convocato
-              </span>
-              {responseStatus ? (
-                <span
-                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${CONVOCATION_RESPONSE_BADGE_CLASS[responseStatus]}`}
-                >
-                  {CONVOCATION_RESPONSE_LABEL[responseStatus]}
+        {isConvoked || note ? (
+          <div className="relative mt-2.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
+            {isConvoked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-100">
+                  <CheckCircle2 className="h-3 w-3" aria-hidden />
+                  Convocato
                 </span>
-              ) : null}
-            </>
-          ) : null}
+                {responseStatus ? (
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${CONVOCATION_RESPONSE_BADGE_CLASS[responseStatus]}`}
+                  >
+                    {CONVOCATION_RESPONSE_LABEL[responseStatus]}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            {note ? (
+              <p className="inline-flex min-w-0 max-w-full items-start gap-1.5 rounded-lg border border-sky-300/25 bg-sky-500/10 px-2.5 py-1.5 text-xs leading-snug text-sky-50 sm:min-w-[12rem] sm:flex-1">
+                <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-200" aria-hidden />
+                <span className="whitespace-pre-wrap break-words">{note}</span>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
+        <div className="relative mt-2.5 flex flex-wrap items-center gap-2">
           {phase === "FULL_TIME" && (playerGoals > 0 || playerAssists > 0) ? (
             <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-sky-300/30 bg-sky-500/15 px-2.5 py-1 text-xs font-semibold">
               <span className="text-[10px] font-bold uppercase tracking-wide text-sky-100">
