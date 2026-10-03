@@ -5,6 +5,7 @@ import { AttendanceManager } from "@/components/attendance/attendance-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
 import { formatEventType } from "@/lib/events";
+import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
 type AdminAttendancePageProps = {
@@ -18,6 +19,7 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: "UTC",
 });
 
 export default async function AdminAttendancePage({ params }: AdminAttendancePageProps) {
@@ -49,6 +51,10 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
       title: true,
       type: true,
       startAt: true,
+      opponentName: true,
+      homeScore: true,
+      awayScore: true,
+      isHome: true,
       category: {
         select: {
           name: true,
@@ -63,6 +69,11 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
                 select: { status: true },
                 take: 1,
               },
+              matchStats: {
+                where: { eventId: id },
+                select: { goals: true, assists: true },
+                take: 1,
+              },
             },
           },
         },
@@ -74,12 +85,16 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
     redirect("/unauthorized");
   }
 
+  const matchMode = isMatchEventType(event.type);
+
   const athletes = event.category
     ? event.category.athletes.map((athlete) => ({
         id: athlete.id,
         firstName: athlete.firstName,
         lastName: athlete.lastName,
         status: athlete.attendances[0]?.status ?? "PRESENT",
+        goals: athlete.matchStats[0]?.goals ?? 0,
+        assists: athlete.matchStats[0]?.assists ?? 0,
       }))
     : [];
 
@@ -88,7 +103,11 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
         <AreaHeader
           title="Presenze evento (Admin)"
-          subtitle="Controllo e aggiornamento rapido appello"
+          subtitle={
+            matchMode
+              ? "Presenze, gol, assist e risultato partita"
+              : "Controllo e aggiornamento rapido appello"
+          }
           userName={session.user.name ?? "Amministratore"}
         />
 
@@ -106,6 +125,17 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
             eventCategoryName={`Categoria: ${event.category.name}`}
             eventDateLabel={dateFormatter.format(new Date(event.startAt))}
             athletes={athletes}
+            matchMode={matchMode}
+            initialMatchResult={
+              matchMode
+                ? {
+                    opponentName: event.opponentName,
+                    homeScore: event.homeScore,
+                    awayScore: event.awayScore,
+                    isHome: event.isHome,
+                  }
+                : undefined
+            }
           />
         ) : (
           <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

@@ -15,6 +15,7 @@
     "test:whatsapp": "tsx --test src/lib/whatsapp-phone.test.ts src/lib/whatsapp.test.ts",
     "test:convocation-times": "tsx --test src/lib/convocation-times.test.ts",
     "test:parent-athletes": "tsx --test src/lib/parent-athletes.test.ts",
+    "test:parent-season": "tsx --test src/lib/parent-season.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",

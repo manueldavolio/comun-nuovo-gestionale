@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
-import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
+import { assertUserPrimaryParentOfAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 import { readReceiptPdf, ReceiptStorageError } from "@/lib/receipt-storage";
 
@@ -48,12 +48,15 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (session.user.role === "PARENT") {
-    const access = await assertUserParentAssociatedToAthlete({
+    const access = await assertUserPrimaryParentOfAthlete({
       userId: session.user.id,
       athleteId: receipt.payment.enrollment.athleteId,
     });
     if (!access.ok) {
-      return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
+      return NextResponse.json(
+        { error: "Solo il genitore principale può scaricare le ricevute." },
+        { status: 403 },
+      );
     }
   }
 

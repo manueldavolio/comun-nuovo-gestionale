@@ -5,6 +5,7 @@ import { AttendanceManager } from "@/components/attendance/attendance-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
 import { formatEventType } from "@/lib/events";
+import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
 type MisterAttendancePageProps = {
@@ -18,6 +19,7 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: "UTC",
 });
 
 export default async function MisterAttendancePage({ params }: MisterAttendancePageProps) {
@@ -53,6 +55,10 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
       title: true,
       type: true,
       startAt: true,
+      opponentName: true,
+      homeScore: true,
+      awayScore: true,
+      isHome: true,
       category: {
         select: {
           name: true,
@@ -67,6 +73,11 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
                 select: { status: true },
                 take: 1,
               },
+              matchStats: {
+                where: { eventId: id },
+                select: { goals: true, assists: true },
+                take: 1,
+              },
             },
           },
         },
@@ -78,11 +89,15 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
     redirect("/unauthorized");
   }
 
+  const matchMode = isMatchEventType(event.type);
+
   const athletes = event.category.athletes.map((athlete) => ({
     id: athlete.id,
     firstName: athlete.firstName,
     lastName: athlete.lastName,
     status: athlete.attendances[0]?.status ?? "PRESENT",
+    goals: athlete.matchStats[0]?.goals ?? 0,
+    assists: athlete.matchStats[0]?.assists ?? 0,
   }));
 
   const backHref =
@@ -93,7 +108,11 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
         <AreaHeader
           title="Gestione presenze"
-          subtitle="Compila rapidamente l'appello evento"
+          subtitle={
+            matchMode
+              ? "Presenze, gol, assist e risultato partita"
+              : "Compila rapidamente l'appello evento"
+          }
           userName={session.user.name ?? "Staff"}
         />
 
@@ -110,6 +129,17 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
           eventCategoryName={`Categoria: ${event.category.name}`}
           eventDateLabel={dateFormatter.format(new Date(event.startAt))}
           athletes={athletes}
+          matchMode={matchMode}
+          initialMatchResult={
+            matchMode
+              ? {
+                  opponentName: event.opponentName,
+                  homeScore: event.homeScore,
+                  awayScore: event.awayScore,
+                  isHome: event.isHome,
+                }
+              : undefined
+          }
         />
       </div>
     </main>

@@ -1,29 +1,40 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  CalendarDays,
+  Camera,
+  ClipboardList,
+  FileText,
+  HeartPulse,
+  Wallet,
+} from "lucide-react";
 import { AreaHeader } from "@/components/layout/area-header";
-import { DashboardCard } from "@/components/layout/dashboard-card";
 import { StatusBadge } from "@/components/layout/status-badge";
-import { ParentConvocations } from "@/components/convocations/parent-convocations";
-import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { PaymentActions } from "@/components/payments/payment-actions";
-import { prisma } from "@/lib/prisma";
+import { AthleteHeroCard } from "@/components/parent-dashboard/athlete-hero-card";
+import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
 import { getAuthSession } from "@/lib/auth";
 import {
-  CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
-  isMissingConvocationsSchemaError,
-} from "@/lib/convocations-db";
-import {
-  formatConvocationWallClockDateTime,
+  formatConvocationWallClockDate,
+  formatConvocationWallClockTime,
   resolveMeetingAt,
 } from "@/lib/convocation-times";
-import { toFloatingDateTime } from "@/lib/date-input";
-import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
-import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
+import { COACH_VISIBLE_EVENT_TYPES, EVENT_TYPE_LABEL } from "@/lib/events";
+import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
+import {
+  computeSeasonAthleteStats,
+  computeSeasonBadges,
+  currentSeasonRange,
+  formatMatchResultLabel,
+  isMatchEventType,
+  MATCH_EVENT_TYPES,
+} from "@/lib/parent-season";
+import { prisma } from "@/lib/prisma";
 
 type ParentDashboardPageProps = {
-  searchParams: Promise<{ enrolled?: string }>;
+  searchParams: Promise<{ enrolled?: string; athleteId?: string; stripe?: string }>;
 };
 
 const ENROLLMENT_STATUS_LABEL: Record<string, string> = {
@@ -58,6 +69,12 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
   EXPIRED: "border-zinc-200 bg-zinc-50 text-zinc-700",
 };
 
+const RESPONSE_LABEL: Record<string, string> = {
+  PENDING: "In attesa",
+  PRESENT: "Confermato",
+  ABSENT: "Assente",
+};
+
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
   month: "2-digit",
@@ -69,15 +86,8 @@ function statusClass(
   status: string | null,
   fallback: string = "border-zinc-200 bg-zinc-50 text-zinc-700",
 ) {
-  if (!status) {
-    return fallback;
-  }
-
+  if (!status) return fallback;
   return palette[status] ?? fallback;
-}
-
-function isOpenPaymentStatus(status: string | null | undefined) {
-  return ["PENDING", "OVERDUE", "CANCELLED", "FAILED", "EXPIRED"].includes(status ?? "");
 }
 
 export default async function ParentDashboardPage({ searchParams }: ParentDashboardPageProps) {
@@ -95,9 +105,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
   const parentProfile = await prisma.parentProfile.findUnique({
     where: { userId: session.user.id },
-    select: {
-      id: true,
-    },
+    select: { id: true },
   });
 
   if (!parentProfile) {
@@ -106,17 +114,15 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
   const associatedAthletes = await prisma.athlete.findMany({
     where: athletesAssociatedToParentWhere(parentProfile.id),
-    orderBy: [{ createdAt: "desc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: {
       id: true,
       firstName: true,
       lastName: true,
-      category: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
+      parentId: true,
+      position: true,
+      shirtNumber: true,
+      category: { select: { id: true, name: true } },
       documents: {
         orderBy: { createdAt: "desc" },
         select: { id: true, type: true, title: true, expiryDate: true },
@@ -139,17 +145,17 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           seasonLabel: true,
           status: true,
           createdAt: true,
+          documents: {
+            where: { type: "ATHLETE_PORTRAIT" },
+            select: { id: true },
+            take: 1,
+          },
           payments: {
             select: {
               id: true,
               type: true,
               status: true,
-              receipt: {
-                select: {
-                  id: true,
-                  filePath: true,
-                },
-              },
+              receipt: { select: { id: true, filePath: true } },
             },
           },
         },
@@ -157,608 +163,611 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     },
   });
 
-  const now = new Date();
-
-  const athleteRows = associatedAthletes.map((athlete) => {
-    const latestEnrollment = athlete.enrollments[0];
-    const deposit = latestEnrollment?.payments.find((payment) => payment.type === "DEPOSIT");
-    const balance = latestEnrollment?.payments.find((payment) => payment.type === "BALANCE");
-    const medicalVisit = athlete.medicalVisits[0] ?? null;
-    const medicalVisitStatus = medicalVisit
-      ? computeMedicalVisitStatus(medicalVisit.expiryDate, now)
-      : null;
-
-    return {
-      id: athlete.id,
-      fullName: `${athlete.firstName} ${athlete.lastName}`.trim(),
-      categoryId: athlete.category.id,
-      categoryName: athlete.category.name,
-      enrollmentStatus: latestEnrollment?.status ?? null,
-      depositPayment: deposit ?? null,
-      balancePayment: balance ?? null,
-      seasonLabel: latestEnrollment?.seasonLabel ?? null,
-      documents: athlete.documents,
-      medicalVisit,
-      medicalVisitStatus,
-    };
-  });
-
-  const submittedEnrollments = athleteRows.filter((row) => row.enrollmentStatus === "SUBMITTED").length;
-  const pendingPayments = athleteRows.reduce((count, row) => {
-    const depositPending = isOpenPaymentStatus(row.depositPayment?.status ?? null);
-    const balancePending = isOpenPaymentStatus(row.balancePayment?.status ?? null);
-    return count + (depositPending ? 1 : 0) + (balancePending ? 1 : 0);
-  }, 0);
-  const medicalAlerts = athleteRows.reduce((count, row) => {
-    if (row.medicalVisitStatus === "EXPIRING" || row.medicalVisitStatus === "EXPIRED") {
-      return count + 1;
-    }
-    return count;
-  }, 0);
-  const categoryIds = Array.from(new Set(athleteRows.map((row) => row.categoryId)));
-  const [categoryCalendarEvents, relevantAnnouncements, convocationResult] = await Promise.all([
-    categoryIds.length === 0
-      ? Promise.resolve([])
-      : prisma.event.findMany({
-          where: {
-            startAt: {
-              gte: now,
-            },
-            categoryId: {
-              in: categoryIds,
-            },
-            type: {
-              in: COACH_VISIBLE_EVENT_TYPES,
-            },
-          },
-          orderBy: [{ startAt: "asc" }],
-          take: 300,
-          select: {
-            id: true,
-            title: true,
-            type: true,
-            startAt: true,
-            endAt: true,
-            location: true,
-            categoryId: true,
-          },
-        }),
-    prisma.announcement.findMany({
-      where: {
-        publishedAt: {
-          not: null,
-          lte: now,
-        },
-        OR: [
-          { audience: "ALL" },
-          { audience: "PARENTS" },
-          {
-            audience: "CATEGORY_ONLY",
-            categoryId: {
-              in: categoryIds,
-            },
-          },
-        ],
-      },
-      orderBy: [{ publishedAt: "desc" }],
-      take: 30,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        audience: true,
-        categoryId: true,
-        publishedAt: true,
-        category: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    }),
-    (async () => {
-      if (athleteRows.length === 0) {
-        return { entries: [], isSchemaMissing: false };
-      }
-
-      try {
-        const entries = await prisma.convocationAthlete.findMany({
-          where: {
-            athleteId: {
-              in: athleteRows.map((row) => row.id),
-            },
-            convocation: {
-              event: {
-                startAt: {
-                  gte: now,
-                },
-              },
-            },
-          },
-          orderBy: {
-            convocation: {
-              event: {
-                startAt: "asc",
-              },
-            },
-          },
-          select: {
-            id: true,
-            responseStatus: true,
-            athlete: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-            convocation: {
-              select: {
-                notes: true,
-                meetingAt: true,
-                category: {
-                  select: {
-                    name: true,
-                  },
-                },
-                event: {
-                  select: {
-                    title: true,
-                    startAt: true,
-                    location: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        return { entries, isSchemaMissing: false };
-      } catch (error) {
-        if (isMissingConvocationsSchemaError(error)) {
-          return { entries: [], isSchemaMissing: true };
-        }
-        throw error;
-      }
-    })(),
-  ]);
-
-  const calendarEventsByCategory = new Map(
-    categoryIds.map((categoryId) => [
-      categoryId,
-      categoryCalendarEvents.filter((event) => event.categoryId === categoryId),
-    ]),
-  );
-
-  const communicationsByCategory = new Map(
-    categoryIds.map((categoryId) => [
-      categoryId,
-      relevantAnnouncements
-        .filter((announcement) => {
-          if (announcement.audience === "ALL" || announcement.audience === "PARENTS") {
-            return true;
-          }
-          return announcement.categoryId === categoryId;
-        })
-        .slice(0, 3),
-    ]),
-  );
-  const generalCommunications = relevantAnnouncements
-    .filter((announcement) => announcement.audience !== "CATEGORY_ONLY")
-    .slice(0, 3);
-  const parentConvocations = convocationResult.entries
-    .filter((entry) => Boolean(entry.convocation.event))
-    .map((entry) => {
-      const matchStartAt = entry.convocation.event!.startAt;
-      const meetingAt = resolveMeetingAt(entry.convocation.meetingAt, matchStartAt);
-      return {
-        convocationAthleteId: entry.id,
-        athleteFullName: `${entry.athlete.firstName} ${entry.athlete.lastName}`.trim(),
-        categoryName: entry.convocation.category.name,
-        eventTitle: entry.convocation.event!.title,
-        meetingAtLabel: formatConvocationWallClockDateTime(meetingAt),
-        matchStartAtLabel: formatConvocationWallClockDateTime(matchStartAt),
-        eventLocation: entry.convocation.event!.location,
-        notes: entry.convocation.notes,
-        responseStatus: entry.responseStatus,
-      };
-    });
-  const pendingConvocations = parentConvocations.filter(
-    (entry) => entry.responseStatus === "PENDING",
-  ).length;
-
-  return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
-        <AreaHeader
-          title="Area Genitore"
-          subtitle="Dashboard famiglia: iscrizioni, scadenze e comunicazioni"
-          userName={session.user.name ?? "Genitore"}
-        />
-
-        {showEnrollmentSuccess && (
-          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
-            Iscrizione inviata correttamente. Le scadenze economiche sono state generate.
-          </p>
-        )}
-
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <DashboardCard
-            title="Figli iscritti"
-            value={athleteRows.length}
-            description="Atleti collegati al tuo profilo"
+  if (associatedAthletes.length === 0) {
+    return (
+      <main className="min-h-screen bg-sky-50 p-4 md:p-8">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+          <AreaHeader
+            title="Area Genitore"
+            subtitle="Dashboard famiglia ASD Comun Nuovo"
+            userName={session.user.name ?? "Genitore"}
           />
-          <DashboardCard
-            title="Stato iscrizione"
-            value={submittedEnrollments}
-            description="Iscrizioni inviate in attesa di gestione"
-          />
-          <DashboardCard
-            title="Pagamenti"
-            value={pendingPayments}
-            description="Scadenze aperte tra acconto e saldo"
-          />
-          <DashboardCard
-            title="Visite da controllare"
-            value={medicalAlerts}
-            description="Visite mediche in scadenza o scadute"
-          />
-          <DashboardCard
-            title="Convocazioni"
-            value={pendingConvocations}
-            description="Da confermare per i prossimi eventi"
-          />
-        </section>
-
-        {!convocationResult.isSchemaMissing && pendingConvocations > 0 ? (
-          <section className="rounded-xl border border-amber-300 bg-amber-100 p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-amber-900">Convocazioni da confermare</p>
-                <p className="mt-1 text-base font-semibold text-amber-950">
-                  Hai {pendingConvocations}{" "}
-                  {pendingConvocations === 1 ? "convocazione da confermare" : "convocazioni da confermare"}
-                </p>
-              </div>
-              <Link
-                href="/genitore/convocazioni"
-                className="inline-flex items-center justify-center rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-50"
-              >
-                Vai alle convocazioni
-              </Link>
-            </div>
-          </section>
-        ) : null}
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">Dashboard figli</h2>
-              <p className="mt-1 text-sm text-zinc-600">
-                Visualizzi solo dati collegati al tuo account genitore.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
+          <section className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-zinc-900">Nessun figlio collegato</h2>
+            <p className="mt-2 text-sm text-zinc-600">
+              Inizia con una nuova iscrizione oppure associa un figlio già iscritto.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href="/genitore/iscrizione/nuova"
-                className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
               >
                 Nuova iscrizione
               </Link>
               <Link
                 href="/genitore/associa-figlio"
-                className="inline-flex items-center justify-center rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
+                className="rounded-xl border border-blue-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-sky-100"
               >
-                Associa un figlio già iscritto
+                Associa figlio
               </Link>
             </div>
-          </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link
-              href="/genitore/calendario"
-              className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-            >
-              Apri calendario
-            </Link>
-            <Link
-              href="/genitore/media"
-              className="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-            >
-              Apri media categoria
-            </Link>
-            <Link
-              href="/genitore/convocazioni"
-              className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
-            >
-              Apri convocazioni
-              {pendingConvocations > 0 ? (
-                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full border border-amber-300 bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-900">
-                  {pendingConvocations}
+  const requestedAthleteId = (params.athleteId ?? "").trim();
+  const selectedAthlete =
+    associatedAthletes.find((athlete) => athlete.id === requestedAthleteId) ??
+    associatedAthletes[0];
+
+  const isPrimaryParent = selectedAthlete.parentId === parentProfile.id;
+  const now = new Date();
+  const season = currentSeasonRange(now);
+  const latestEnrollment = selectedAthlete.enrollments[0];
+  const portraitDocumentId =
+    selectedAthlete.enrollments.find((enrollment) => enrollment.documents[0])?.documents[0]?.id ??
+    null;
+  const deposit = latestEnrollment?.payments.find((payment) => payment.type === "DEPOSIT") ?? null;
+  const balance = latestEnrollment?.payments.find((payment) => payment.type === "BALANCE") ?? null;
+  const medicalVisit = selectedAthlete.medicalVisits[0] ?? null;
+  const medicalVisitStatus = medicalVisit
+    ? computeMedicalVisitStatus(medicalVisit.expiryDate, now)
+    : null;
+
+  const [
+    attendances,
+    matchStats,
+    nextEvent,
+    recentResults,
+    latestNote,
+    recentMedia,
+    pendingConvocationsCount,
+  ] = await Promise.all([
+    prisma.attendance.findMany({
+      where: {
+        athleteId: selectedAthlete.id,
+        event: {
+          startAt: { gte: season.start, lte: season.end },
+          type: { in: COACH_VISIBLE_EVENT_TYPES },
+        },
+      },
+      select: {
+        status: true,
+        event: { select: { type: true } },
+      },
+    }),
+    prisma.matchPlayerStat.findMany({
+      where: {
+        athleteId: selectedAthlete.id,
+        event: {
+          startAt: { gte: season.start, lte: season.end },
+          type: { in: MATCH_EVENT_TYPES },
+        },
+      },
+      select: { goals: true, assists: true },
+    }),
+    prisma.event.findFirst({
+      where: {
+        categoryId: selectedAthlete.category.id,
+        startAt: { gte: now },
+        type: { in: COACH_VISIBLE_EVENT_TYPES },
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        startAt: true,
+        location: true,
+        opponentName: true,
+        convocation: {
+          select: {
+            meetingAt: true,
+            athletes: {
+              where: { athleteId: selectedAthlete.id },
+              select: { responseStatus: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    }),
+    prisma.event.findMany({
+      where: {
+        categoryId: selectedAthlete.category.id,
+        type: { in: MATCH_EVENT_TYPES },
+        startAt: { gte: season.start, lte: season.end, lt: now },
+        homeScore: { not: null },
+        awayScore: { not: null },
+      },
+      orderBy: { startAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        opponentName: true,
+        homeScore: true,
+        awayScore: true,
+        isHome: true,
+        startAt: true,
+      },
+    }),
+    prisma.athleteCoachNote.findFirst({
+      where: { athleteId: selectedAthlete.id },
+      orderBy: [{ year: "desc" }, { month: "desc" }, { updatedAt: "desc" }],
+      select: { content: true, year: true, month: true, updatedAt: true },
+    }),
+    prisma.mediaItem.findMany({
+      where: {
+        categoryId: selectedAthlete.category.id,
+        publishedAt: { not: null, lte: now },
+        mediaType: "PHOTO",
+      },
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: 4,
+      select: {
+        id: true,
+        title: true,
+        mediaUrl: true,
+        filePath: true,
+        publishedAt: true,
+      },
+    }),
+    prisma.convocationAthlete.count({
+      where: {
+        athleteId: selectedAthlete.id,
+        responseStatus: "PENDING",
+        convocation: {
+          event: { startAt: { gte: now } },
+        },
+      },
+    }),
+  ]);
+
+  const seasonStats = computeSeasonAthleteStats({
+    attendances: attendances.map((row) => ({
+      status: row.status,
+      eventType: row.event.type,
+    })),
+    matchStats,
+  });
+  const badges = computeSeasonBadges(seasonStats);
+
+  const nextEventConvocation = nextEvent?.convocation?.athletes[0] ?? null;
+  const nextEventMeetingAt =
+    nextEvent?.convocation != null
+      ? resolveMeetingAt(nextEvent.convocation.meetingAt, nextEvent.startAt)
+      : null;
+
+  const quickActions = [
+    {
+      href: "/genitore/convocazioni",
+      label: "Convocazioni",
+      icon: ClipboardList,
+      tone: "border-amber-200 bg-amber-50 text-amber-900",
+      badge: pendingConvocationsCount > 0 ? pendingConvocationsCount : null,
+    },
+    {
+      href: "/genitore/calendario",
+      label: "Calendario",
+      icon: CalendarDays,
+      tone: "border-blue-200 bg-sky-50 text-blue-900",
+      badge: null,
+    },
+    {
+      href: "#documenti",
+      label: "Documenti",
+      icon: FileText,
+      tone: "border-blue-200 bg-white text-blue-900",
+      badge: null,
+    },
+    {
+      href: "#visita-medica",
+      label: "Certificato",
+      icon: HeartPulse,
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-900",
+      badge: null,
+    },
+    {
+      href: "/genitore/media",
+      label: "Foto",
+      icon: Camera,
+      tone: "border-blue-200 bg-sky-50 text-blue-900",
+      badge: null,
+    },
+    ...(isPrimaryParent
+      ? [
+          {
+            href: "#pagamenti",
+            label: "Pagamenti",
+            icon: Wallet,
+            tone: "border-blue-200 bg-blue-50 text-blue-900",
+            badge: null as number | null,
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <main className="min-h-screen bg-sky-50 p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+        <AreaHeader
+          title="Area Genitore"
+          subtitle="Dashboard sportiva famiglia"
+          userName={session.user.name ?? "Genitore"}
+        />
+
+        {showEnrollmentSuccess ? (
+          <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
+            Iscrizione inviata correttamente. Le scadenze economiche sono state generate.
+          </p>
+        ) : null}
+
+        <ParentChildSwitcher
+          childrenOptions={associatedAthletes.map((athlete) => ({
+            id: athlete.id,
+            firstName: athlete.firstName,
+            lastName: athlete.lastName,
+          }))}
+          selectedId={selectedAthlete.id}
+        />
+
+        <AthleteHeroCard
+          firstName={selectedAthlete.firstName}
+          lastName={selectedAthlete.lastName}
+          categoryName={selectedAthlete.category.name}
+          position={selectedAthlete.position}
+          shirtNumber={selectedAthlete.shirtNumber}
+          portraitUrl={
+            portraitDocumentId
+              ? `/api/genitore/enrollment-documents/${portraitDocumentId}/download`
+              : null
+          }
+        />
+
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+            Prossimo impegno
+          </p>
+          {nextEvent ? (
+            <div className="mt-2 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold uppercase text-blue-800">
+                  {EVENT_TYPE_LABEL[nextEvent.type]}
                 </span>
-              ) : null}
-            </Link>
-          </div>
-
-          <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
-            <h4 className="text-sm font-semibold text-zinc-900">Comunicazioni generali famiglia</h4>
-            {generalCommunications.length === 0 ? (
-              <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                Nessuna comunicazione generale recente.
+                {isMatchEventType(nextEvent.type) && nextEventConvocation ? (
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase text-emerald-800">
+                    Convocato
+                  </span>
+                ) : null}
+              </div>
+              <h3 className="text-xl font-bold text-zinc-900">
+                {nextEvent.opponentName?.trim()
+                  ? `${isMatchEventType(nextEvent.type) ? "vs " : ""}${nextEvent.opponentName}`
+                  : nextEvent.title}
+              </h3>
+              <p className="text-sm text-zinc-700">
+                {formatConvocationWallClockDate(nextEvent.startAt)} · ore{" "}
+                {formatConvocationWallClockTime(nextEvent.startAt)}
+                {nextEvent.location ? ` · ${nextEvent.location}` : ""}
               </p>
-            ) : (
-              <ul className="mt-2 space-y-2">
-                {generalCommunications.map((announcement) => (
-                  <li key={announcement.id} className="rounded-lg border border-blue-100 bg-white p-3">
-                    <p className="text-sm font-semibold text-zinc-900">{announcement.title}</p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {announcement.publishedAt ? dateFormatter.format(new Date(announcement.publishedAt)) : "-"}
-                    </p>
-                    <p className="mt-1 text-sm text-zinc-700">
-                      {announcement.content.length > 180
-                        ? `${announcement.content.slice(0, 180)}...`
-                        : announcement.content}
+              {nextEventMeetingAt && nextEventConvocation ? (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                  <p>Convocazione alle {formatConvocationWallClockTime(nextEventMeetingAt)}</p>
+                  <p>Partita alle {formatConvocationWallClockTime(nextEvent.startAt)}</p>
+                  <p className="mt-1 font-semibold">
+                    Risposta: {RESPONSE_LABEL[nextEventConvocation.responseStatus] ?? "—"}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-zinc-600">Nessun impegno in programma.</p>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+            La sua stagione
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {[
+              { label: "Presenze", value: String(seasonStats.matchPresences) },
+              { label: "Gol", value: String(seasonStats.goals) },
+              { label: "Assist", value: String(seasonStats.assists) },
+              {
+                label: "Allenamenti %",
+                value:
+                  seasonStats.trainingPercent == null
+                    ? "—"
+                    : `${seasonStats.trainingPercent}%`,
+              },
+            ].map((kpi) => (
+              <div
+                key={kpi.label}
+                className="rounded-2xl border border-sky-100 bg-sky-50/80 px-3 py-4 text-center"
+              >
+                <p className="text-3xl font-bold tracking-tight text-blue-800">{kpi.value}</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  {kpi.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {badges.length > 0 ? (
+          <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+              Traguardi
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {badges.map((badge) => (
+                <span
+                  key={badge.id}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+            Ultimi risultati
+          </p>
+          {recentResults.length === 0 ? (
+            <p className="mt-2 text-sm text-zinc-600">Nessun risultato disponibile.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {recentResults.map((event) => {
+                const label = formatMatchResultLabel({
+                  opponentName: event.opponentName,
+                  homeScore: event.homeScore,
+                  awayScore: event.awayScore,
+                  isHome: event.isHome,
+                  fallbackTitle: event.title,
+                });
+                return (
+                  <li
+                    key={event.id}
+                    className="rounded-xl border border-sky-100 bg-sky-50/60 px-3 py-2"
+                  >
+                    <p className="text-sm font-semibold text-zinc-900">{label}</p>
+                    <p className="text-xs text-zinc-500">
+                      {formatConvocationWallClockDate(event.startAt)}
                     </p>
                   </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-          <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-zinc-900">Convocazioni ricevute</h4>
-              <Link
-                href="/genitore/convocazioni"
-                className="text-xs font-semibold text-blue-700 hover:text-blue-800"
-              >
-                Vedi tutte
-              </Link>
-            </div>
-            <p className="mt-1 text-xs text-zinc-600">
-              Per ogni atleta conferma rapidamente presenza o assenza.
-            </p>
-            {convocationResult.isSchemaMissing ? (
-              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                {CONVOCATIONS_SCHEMA_MISSING_MESSAGE}
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+            Messaggio del mister
+          </p>
+          {latestNote ? (
+            <div className="mt-2 rounded-xl border border-blue-50 bg-slate-50 px-3 py-3">
+              <p className="text-sm text-zinc-800 whitespace-pre-wrap">{latestNote.content}</p>
+              <p className="mt-2 text-xs text-zinc-500">
+                {String(latestNote.month).padStart(2, "0")}/{latestNote.year}
               </p>
-            ) : (
-              <ParentConvocations items={parentConvocations.slice(0, 8)} />
-            )}
-          </section>
-
-          {athleteRows.length === 0 ? (
-            <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-700">
-              Nessun figlio iscritto al momento. Usa il pulsante “Nuova iscrizione” per iniziare.
-            </p>
+            </div>
           ) : (
-            <div className="mt-4 space-y-4">
-              {athleteRows.map((row) => {
-                const childEvents = calendarEventsByCategory.get(row.categoryId) ?? [];
-                const childCommunications = communicationsByCategory.get(row.categoryId) ?? [];
-                const childCalendarEvents: CalendarEvent[] = childEvents.map((event) => ({
-                  id: `event-${event.id}`,
-                  title: event.title,
-                  date: toFloatingDateTime(event.startAt),
-                  endDate: event.endAt ? toFloatingDateTime(event.endAt) : null,
-                  type:
-                    event.type === "TRAINING"
-                      ? "ALLENAMENTO"
-                      : event.type === "FRIENDLY"
-                        ? "AMICHEVOLE"
-                        : "PARTITA",
-                  categoryId: row.categoryId,
-                  categoryName: row.categoryName,
-                  location: event.location,
-                }));
+            <p className="mt-2 text-sm text-zinc-600">Nessuna nota privata al momento.</p>
+          )}
+        </section>
 
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+              Ultime foto
+            </p>
+            <Link href="/genitore/media" className="text-xs font-semibold text-blue-700">
+              Vedi tutte
+            </Link>
+          </div>
+          {recentMedia.length === 0 ? (
+            <p className="mt-2 text-sm text-zinc-600">Nessuna foto recente.</p>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {recentMedia.map((item) => {
+                const source = item.mediaUrl || item.filePath;
                 return (
-                  <article key={row.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-                    <div className="flex flex-col gap-3 border-b border-blue-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-zinc-900">{row.fullName}</h3>
-                        <p className="text-sm text-zinc-600">{row.categoryName}</p>
+                  <article
+                    key={item.id}
+                    className="overflow-hidden rounded-xl border border-sky-100 bg-sky-50"
+                  >
+                    {source && item.mediaUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={source}
+                        alt={item.title}
+                        className="aspect-square w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex aspect-square items-center justify-center bg-blue-100 px-2 text-center text-xs font-semibold text-blue-800">
+                        {item.title}
                       </div>
-                      <span
-                        className={[
-                          "inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
-                          statusClass(ENROLLMENT_STATUS_COLORS, row.enrollmentStatus),
-                        ].join(" ")}
-                      >
-                        Iscrizione:{" "}
-                        {row.enrollmentStatus
-                          ? ENROLLMENT_STATUS_LABEL[row.enrollmentStatus] ?? row.enrollmentStatus
-                          : "Non disponibile"}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                      <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-                        <h4 className="text-sm font-semibold text-zinc-900">Sezione anagrafica</h4>
-                        <dl className="mt-2 space-y-1 text-sm text-zinc-700">
-                          <div className="flex items-center justify-between gap-2">
-                            <dt>Nome e cognome</dt>
-                            <dd className="font-medium text-zinc-900">{row.fullName}</dd>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <dt>Categoria</dt>
-                            <dd className="font-medium text-zinc-900">{row.categoryName}</dd>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <dt>Stagione</dt>
-                            <dd className="font-medium text-zinc-900">{row.seasonLabel ?? "-"}</dd>
-                          </div>
-                        </dl>
-                      </section>
-
-                      <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-                        <h4 className="text-sm font-semibold text-zinc-900">Sezione pagamenti</h4>
-                        <div className="mt-2 space-y-3">
-                          {[
-                            { label: "Acconto", payment: row.depositPayment },
-                            { label: "Saldo", payment: row.balancePayment },
-                          ].map(({ label, payment }) => (
-                            <div key={label} className="rounded-lg border border-blue-100 bg-white p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-sm font-medium text-zinc-900">{label}</p>
-                                <span
-                                  className={[
-                                    "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold",
-                                    statusClass(PAYMENT_STATUS_COLORS, payment?.status ?? null),
-                                  ].join(" ")}
-                                >
-                                  {payment
-                                    ? PAYMENT_STATUS_LABEL[payment.status] ?? payment.status
-                                    : "Non generato"}
-                                </span>
-                              </div>
-                              {payment ? (
-                                <div className="mt-2">
-                                  {payment.type === "DEPOSIT" || payment.type === "BALANCE" ? (
-                                    <PaymentActions
-                                      paymentId={payment.id}
-                                      paymentType={payment.type}
-                                      status={payment.status}
-                                      receiptId={payment.receipt?.id ?? null}
-                                    />
-                                  ) : (
-                                    <p className="text-xs text-zinc-500">Tipo pagamento non disponibile</p>
-                                  )}
-                                </div>
-                              ) : (
-                                <p className="mt-2 text-xs text-zinc-500">Pagamento non disponibile</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-
-                      <section className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-                        <h4 className="text-sm font-semibold text-zinc-900">Sezione visita medica</h4>
-                        {row.medicalVisit ? (
-                          <div className="mt-2 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <StatusBadge status={row.medicalVisitStatus ?? "EXPIRED"} />
-                              <span
-                                className={[
-                                  "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold",
-                                  statusClass(
-                                    {
-                                      VALID: "border-emerald-200 bg-emerald-50 text-emerald-800",
-                                      EXPIRING: "border-amber-200 bg-amber-50 text-amber-800",
-                                      EXPIRED: "border-red-200 bg-red-50 text-red-700",
-                                    },
-                                    row.medicalVisitStatus,
-                                  ),
-                                ].join(" ")}
-                              >
-                                {row.medicalVisitStatus ?? "EXPIRED"}
-                              </span>
-                            </div>
-                            <p className="text-sm text-zinc-700">
-                              Scadenza:{" "}
-                              <span className="font-semibold text-zinc-900">
-                                {dateFormatter.format(new Date(row.medicalVisit.expiryDate))}
-                              </span>
-                            </p>
-                            {row.medicalVisit.certificateFilePath ? (
-                              <a
-                                href={`/api/genitore/medical-visits/${row.medicalVisit.id}/certificate/download`}
-                                className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
-                              >
-                                Scarica certificato
-                              </a>
-                            ) : (
-                              <p className="text-xs text-zinc-500">Certificato non disponibile.</p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                            Nessuna visita medica registrata.
-                          </p>
-                        )}
-                      </section>
-
-                      <section className="rounded-lg border border-blue-100 bg-slate-50 p-3 lg:col-span-2">
-                        <h4 className="text-sm font-semibold text-zinc-900">Sezione calendario</h4>
-                        <div className="mt-3">
-                          <MonthCalendar events={childCalendarEvents} />
-                        </div>
-                      </section>
-                    </div>
-
-                    <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
-                      <h4 className="text-sm font-semibold text-zinc-900">Sezione comunicazioni</h4>
-                      {childCommunications.length === 0 ? (
-                        <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                          Nessuna comunicazione recente.
-                        </p>
-                      ) : (
-                        <ul className="mt-2 space-y-2">
-                          {childCommunications.map((announcement) => (
-                            <li key={announcement.id} className="rounded-lg border border-blue-100 bg-white p-3">
-                              <p className="text-sm font-semibold text-zinc-900">{announcement.title}</p>
-                              <p className="mt-1 text-xs text-zinc-500">
-                                {announcement.publishedAt
-                                  ? dateFormatter.format(new Date(announcement.publishedAt))
-                                  : "-"}
-                                {announcement.category?.name
-                                  ? ` - Categoria ${announcement.category.name}`
-                                  : " - Comunicazione generale"}
-                              </p>
-                              <p className="mt-1 text-sm text-zinc-700">
-                                {announcement.content.length > 160
-                                  ? `${announcement.content.slice(0, 160)}...`
-                                  : announcement.content}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </section>
-
-                    <section className="mt-4 rounded-lg border border-blue-100 bg-slate-50 p-3">
-                      <h4 className="text-sm font-semibold text-zinc-900">Documenti</h4>
-                      {row.documents.length === 0 ? (
-                        <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                          Nessun documento caricato.
-                        </p>
-                      ) : (
-                        <div className="mt-2 overflow-x-auto">
-                          <table className="min-w-full divide-y divide-blue-100 text-xs md:text-sm">
-                            <thead>
-                              <tr className="text-left text-[11px] uppercase tracking-wide text-blue-800">
-                                <th className="px-2 py-2 font-semibold">Tipo</th>
-                                <th className="px-2 py-2 font-semibold">Scadenza</th>
-                                <th className="px-2 py-2 font-semibold">Stato</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-blue-50 text-zinc-700">
-                              {row.documents.map((doc) => {
-                                const status = computeExpiryBadgeStatus(doc.expiryDate, now);
-                                return (
-                                  <tr key={doc.id}>
-                                    <td className="px-2 py-2 font-medium text-zinc-900">
-                                      {DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}
-                                    </td>
-                                    <td className="px-2 py-2">
-                                      {doc.expiryDate ? dateFormatter.format(new Date(doc.expiryDate)) : "-"}
-                                    </td>
-                                    <td className="px-2 py-2">
-                                      <StatusBadge status={status} />
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </section>
+                    )}
                   </article>
                 );
               })}
             </div>
           )}
+        </section>
+
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+            Azioni rapide
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className={`relative flex items-center gap-2 rounded-2xl border px-3 py-3 text-sm font-semibold ${action.tone}`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{action.label}</span>
+                  {action.badge ? (
+                    <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white">
+                      {action.badge}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white/90 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Area amministrativa
+              </p>
+              <h3 className="text-base font-semibold text-zinc-900">
+                Iscrizione, documenti e scadenze
+              </h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/genitore/iscrizione/nuova"
+                className="rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+              >
+                Nuova iscrizione
+              </Link>
+              <Link
+                href="/genitore/associa-figlio"
+                className="rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+              >
+                Associa figlio
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-zinc-900">Iscrizione</p>
+                <span
+                  className={[
+                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                    statusClass(ENROLLMENT_STATUS_COLORS, latestEnrollment?.status ?? null),
+                  ].join(" ")}
+                >
+                  {latestEnrollment?.status
+                    ? ENROLLMENT_STATUS_LABEL[latestEnrollment.status] ?? latestEnrollment.status
+                    : "Non disponibile"}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-zinc-600">
+                Stagione: {latestEnrollment?.seasonLabel ?? "—"}
+              </p>
+            </div>
+
+            {isPrimaryParent ? (
+              <div id="pagamenti" className="rounded-xl border border-zinc-100 bg-zinc-50 p-3">
+                <p className="text-sm font-semibold text-zinc-900">Pagamenti</p>
+                <div className="mt-2 space-y-2">
+                  {[
+                    { label: "Acconto", payment: deposit },
+                    { label: "Saldo", payment: balance },
+                  ].map(({ label, payment }) => (
+                    <div key={label} className="rounded-lg border border-zinc-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-zinc-900">{label}</p>
+                        <span
+                          className={[
+                            "inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                            statusClass(PAYMENT_STATUS_COLORS, payment?.status ?? null),
+                          ].join(" ")}
+                        >
+                          {payment
+                            ? PAYMENT_STATUS_LABEL[payment.status] ?? payment.status
+                            : "Non generato"}
+                        </span>
+                      </div>
+                      {payment && (payment.type === "DEPOSIT" || payment.type === "BALANCE") ? (
+                        <div className="mt-2">
+                          <PaymentActions
+                            paymentId={payment.id}
+                            paymentType={payment.type}
+                            status={payment.status}
+                            receiptId={payment.receipt?.id ?? null}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600">
+                I pagamenti sono gestiti dal genitore principale.
+              </div>
+            )}
+
+            <div id="visita-medica" className="rounded-xl border border-zinc-100 bg-zinc-50 p-3">
+              <p className="text-sm font-semibold text-zinc-900">Visita medica</p>
+              {medicalVisit ? (
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={medicalVisitStatus ?? "EXPIRED"} />
+                  </div>
+                  <p className="text-sm text-zinc-700">
+                    Scadenza:{" "}
+                    <span className="font-semibold">
+                      {dateFormatter.format(new Date(medicalVisit.expiryDate))}
+                    </span>
+                  </p>
+                  {medicalVisit.certificateFilePath ? (
+                    <a
+                      href={`/api/genitore/medical-visits/${medicalVisit.id}/certificate/download`}
+                      className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                    >
+                      Scarica certificato
+                    </a>
+                  ) : (
+                    <p className="text-xs text-zinc-500">Certificato non disponibile.</p>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-red-700">Nessuna visita medica registrata.</p>
+              )}
+            </div>
+
+            <div id="documenti" className="rounded-xl border border-zinc-100 bg-zinc-50 p-3">
+              <p className="text-sm font-semibold text-zinc-900">Documenti</p>
+              {selectedAthlete.documents.length === 0 ? (
+                <p className="mt-2 text-sm text-zinc-600">Nessun documento caricato.</p>
+              ) : (
+                <ul className="mt-2 space-y-1 text-sm text-zinc-700">
+                  {selectedAthlete.documents.slice(0, 6).map((doc) => {
+                    const status = computeExpiryBadgeStatus(doc.expiryDate, now);
+                    return (
+                      <li
+                        key={doc.id}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1.5"
+                      >
+                        <span>{DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}</span>
+                        <StatusBadge status={status} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
         </section>
       </div>
     </main>

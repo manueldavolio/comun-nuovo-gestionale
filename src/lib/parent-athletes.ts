@@ -102,6 +102,42 @@ export async function assertUserParentAssociatedToAthlete(options: {
   return { ok: true, parentProfileId };
 }
 
+/** Pagamenti/ricevute: solo genitore principale (Athlete.parentId). */
+export async function isPrimaryParentOfAthlete(options: {
+  parentProfileId: string;
+  athleteId: string;
+}): Promise<boolean> {
+  const athlete = await prisma.athlete.findFirst({
+    where: {
+      id: options.athleteId,
+      parentId: options.parentProfileId,
+    },
+    select: { id: true },
+  });
+  return Boolean(athlete);
+}
+
+export async function assertUserPrimaryParentOfAthlete(options: {
+  userId: string;
+  athleteId: string;
+}): Promise<{ ok: true; parentProfileId: string } | { ok: false }> {
+  const parentProfileId = await getParentProfileIdForUser(options.userId);
+  if (!parentProfileId) {
+    return { ok: false };
+  }
+
+  const isPrimary = await isPrimaryParentOfAthlete({
+    parentProfileId,
+    athleteId: options.athleteId,
+  });
+
+  if (!isPrimary) {
+    return { ok: false };
+  }
+
+  return { ok: true, parentProfileId };
+}
+
 export type AssociatedParentContact = {
   parentProfileId: string;
   firstName: string;

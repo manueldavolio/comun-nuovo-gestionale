@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 import { updateAttendanceSchema } from "@/lib/validation/attendance";
 
@@ -45,6 +46,7 @@ export async function PUT(
     select: {
       id: true,
       categoryId: true,
+      type: true,
     },
   });
 
@@ -69,6 +71,14 @@ export async function PUT(
     );
   }
 
+  const isMatch = isMatchEventType(event.type);
+  if (parsed.data.matchResult && !isMatch) {
+    return NextResponse.json(
+      { error: "Il risultato è disponibile solo per eventi partita." },
+      { status: 400 },
+    );
+  }
+
   const athletes = await prisma.athlete.findMany({
     where: {
       categoryId: event.categoryId,
@@ -85,9 +95,9 @@ export async function PUT(
     );
   }
 
-  await prisma.$transaction(
-    parsed.data.entries.map((entry) =>
-      prisma.attendance.upsert({
+  await prisma.$transaction(async (tx) => {
+    for (const entry of parsed.data.entries) {
+      await tx.attendance.upsert({
         where: {
           athleteId_eventId: {
             athleteId: entry.athleteId,
@@ -102,9 +112,58 @@ export async function PUT(
           eventId: event.id,
           status: entry.status,
         },
-      }),
-    ),
-  );
+      });
+
+      if (isMatch) {
+        const present = entry.status === "PRESENT";
+        const goals = present ? (entry.goals ?? 0) : 0;
+        const assists = present ? (entry.assists ?? 0) : 0;
+
+        if (goals > 0 || assists > 0) {
+          await tx.matchPlayerStat.upsert({
+            where: {
+              eventId_athleteId: {
+                eventId: event.id,
+                athleteId: entry.athleteId,
+              },
+            },
+            update: { goals, assists },
+            create: {
+              eventId: event.id,
+              athleteId: entry.athleteId,
+              goals,
+              assists,
+            },
+          });
+        } else {
+          await tx.matchPlayerStat.deleteMany({
+            where: {
+              eventId: event.id,
+              athleteId: entry.athleteId,
+            },
+          });
+        }
+      }
+    }
+
+    if (isMatch && parsed.data.matchResult) {
+      const result = parsed.data.matchResult;
+      await tx.event.update({
+        where: { id: event.id },
+        data: {
+          opponentName:
+            result.opponentName === undefined
+              ? undefined
+              : result.opponentName?.trim()
+                ? result.opponentName.trim()
+                : null,
+          homeScore: result.homeScore === undefined ? undefined : result.homeScore,
+          awayScore: result.awayScore === undefined ? undefined : result.awayScore,
+          isHome: result.isHome === undefined ? undefined : result.isHome,
+        },
+      });
+    }
+  });
 
   return NextResponse.json({ success: true, updated: parsed.data.entries.length });
 }

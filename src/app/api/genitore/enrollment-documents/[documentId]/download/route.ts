@@ -75,7 +75,9 @@ export async function GET(_request: Request, context: RouteContext) {
       status: 200,
       headers: {
         "Content-Type": detectContentType(fileName, document.mimeType),
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `${
+          document.mimeType.startsWith("image/") ? "inline" : "attachment"
+        }; filename="${fileName}"`,
       },
     });
   } catch (error) {

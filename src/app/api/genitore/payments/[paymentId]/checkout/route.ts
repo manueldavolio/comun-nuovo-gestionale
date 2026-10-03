@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
-import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
+import { assertUserPrimaryParentOfAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
 import { regenerateEnrollmentPaymentCheckout } from "@/lib/enrollment-payments";
 
@@ -35,12 +35,15 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Pagamento non trovato." }, { status: 404 });
   }
 
-  const access = await assertUserParentAssociatedToAthlete({
+  const access = await assertUserPrimaryParentOfAthlete({
     userId: session.user.id,
     athleteId: payment.enrollment.athleteId,
   });
   if (!access.ok) {
-    return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
+    return NextResponse.json(
+      { error: "Solo il genitore principale può gestire i pagamenti." },
+      { status: 403 },
+    );
   }
 
   const origin = new URL(request.url).origin;

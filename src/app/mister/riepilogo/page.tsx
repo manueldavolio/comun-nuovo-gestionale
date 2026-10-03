@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { subDays } from "date-fns";
 import { AreaHeader } from "@/components/layout/area-header";
 import { DashboardCard } from "@/components/layout/dashboard-card";
+import { AthleteRosterEditor } from "@/components/mister/athlete-roster-editor";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
@@ -20,6 +21,7 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: "UTC",
 });
 
 const LOOKBACK_DAYS = 90;
@@ -48,6 +50,8 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
 
   const now = new Date();
   const rangeStart = subDays(now, LOOKBACK_DAYS);
+  const noteYear = now.getUTCFullYear();
+  const noteMonth = now.getUTCMonth() + 1;
 
   const categories =
     coachCategoryIds.length === 0
@@ -85,7 +89,18 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
     prisma.athlete.findMany({
       where: { categoryId: selectedCategoryId },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      select: { id: true, firstName: true, lastName: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        position: true,
+        shirtNumber: true,
+        coachNotes: {
+          where: { year: noteYear, month: noteMonth },
+          select: { content: true },
+          take: 1,
+        },
+      },
     }),
     prisma.event.findMany({
       where: {
@@ -159,6 +174,14 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
   const pendingResponses = recentEvents.reduce((sum, event) => sum + event.convocationPending, 0);
   const athletesWithData = athleteStats.filter((row) => row.marked > 0).length;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const rosterAthletes = athletes.map((athlete) => ({
+    id: athlete.id,
+    firstName: athlete.firstName,
+    lastName: athlete.lastName,
+    position: athlete.position,
+    shirtNumber: athlete.shirtNumber,
+    noteContent: athlete.coachNotes[0]?.content ?? null,
+  }));
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -230,6 +253,12 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
             description="Convocazioni passate senza risposta famiglia"
           />
         </section>
+
+        <AthleteRosterEditor
+          athletes={rosterAthletes}
+          noteYear={noteYear}
+          noteMonth={noteMonth}
+        />
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">Eventi recenti</h2>

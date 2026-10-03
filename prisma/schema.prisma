@@ -131,6 +131,7 @@ model User {
   evaluationsGiven  Evaluation[]
   accountingEntries AccountingEntry[]
   reviewedParentAthleteLinkRequests ParentAthleteLinkRequest[] @relation("ParentAthleteLinkRequestReviewedBy")
+  athleteCoachNotes AthleteCoachNote[]
 
   @@index([role])
   @@index([isActive])
@@ -230,6 +231,10 @@ model Athlete {
   province     String
   clothingSize String?
   medicalNotes String?
+  /// Ruolo in campo (testo libero semplice, es. Difensore).
+  position     String?
+  /// Numero maglia opzionale.
+  shirtNumber  Int?
   parentId     String
   categoryId   String
   createdAt    DateTime     @default(now())
@@ -245,6 +250,8 @@ model Athlete {
   evaluations          Evaluation[]
   additionalParents    AthleteParent[]
   parentLinkRequests   ParentAthleteLinkRequest[]
+  matchStats           MatchPlayerStat[]
+  coachNotes           AthleteCoachNote[]
 
   @@index([lastName, firstName])
   @@index([parentId])
@@ -375,22 +382,29 @@ model StripeWebhookEvent {
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  type        EventType
-  startAt     DateTime
-  endAt       DateTime?
-  location    String?
-  categoryId  String?
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  type         EventType
+  startAt      DateTime
+  endAt        DateTime?
+  location     String?
+  categoryId   String?
+  createdById  String
+  /// Avversario (solo eventi partita, opzionale).
+  opponentName String?
+  homeScore    Int?
+  awayScore    Int?
+  /// true = Comun Nuovo in casa; null su eventi senza risultato strutturato.
+  isHome       Boolean?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  category    Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy   User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   attendances Attendance[]
   convocation Convocation?
+  matchStats  MatchPlayerStat[]
 
   @@index([categoryId])
   @@index([createdById])
@@ -462,6 +476,43 @@ model Attendance {
 
   @@unique([athleteId, eventId])
   @@index([eventId, status])
+}
+
+/// Gol/assist per singolo atleta in una partita (la presenza resta su Attendance).
+model MatchPlayerStat {
+  id        String   @id @default(cuid())
+  eventId   String
+  athleteId String
+  goals     Int      @default(0)
+  assists   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, athleteId])
+  @@index([athleteId])
+  @@index([eventId])
+}
+
+/// Nota privata mensile del mister sull'atleta (visibile a mister categoria, genitori associati, admin).
+model AthleteCoachNote {
+  id          String   @id @default(cuid())
+  athleteId   String
+  authorId    String
+  year        Int
+  month       Int
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@unique([athleteId, year, month])
+  @@index([athleteId, year, month])
+  @@index([authorId])
 }
 
 model MedicalVisit {
