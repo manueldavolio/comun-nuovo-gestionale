@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/layout/status-badge";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
+import { AthleteDeleteButton } from "@/components/admin/athlete-delete-button";
 import { AthleteEnrollmentDocuments } from "@/components/admin/athlete-enrollment-documents";
 import { ChangeAthleteCategoryInline } from "@/components/admin/change-athlete-category-inline";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
@@ -360,6 +361,31 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
             </div>
           )}
         </section>
+
+        {canManageAthleteCategory ? (
+          <section className="rounded-xl border border-red-200 bg-red-50/60 p-4 shadow-sm">
+            <h2 className="text-lg font-semibold text-red-800">Zona pericolo</h2>
+            <p className="mt-1 text-sm text-red-700">
+              Elimina definitivamente questo atleta e i dati collegati (iscrizione, pagamenti non
+              saldati, documenti, convocazioni). Genitore, account utente e categoria non vengono
+              eliminati. Operazione irreversibile e bloccata se esistono pagamenti o movimenti
+              contabili reali.
+            </p>
+            <p className="mt-2 text-xs text-red-600/90">
+              ID atleta (verifica prima di eliminare):{" "}
+              <span className="font-mono font-semibold">{athlete.id}</span>
+            </p>
+            <div className="mt-4">
+              <AthleteDeleteButton
+                athleteId={athlete.id}
+                firstName={athlete.firstName}
+                lastName={athlete.lastName}
+                categoryName={athlete.category.name}
+                categorySeasonLabel={athlete.category.seasonLabel}
+              />
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

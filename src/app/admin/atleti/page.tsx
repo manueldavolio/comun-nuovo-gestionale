@@ -11,7 +11,7 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
 });
 
 type AdminAthletesPageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; deleted?: string }>;
 };
 
 type AthleteRow = {
@@ -116,6 +116,7 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
 
   const params = await searchParams;
   const q = (params.q ?? "").trim();
+  const showDeletedSuccess = params.deleted === "1";
 
   const athletes = await prisma.athlete.findMany({
     where: q
@@ -149,6 +150,12 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <AreaHeader title="Atleti (Admin)" subtitle="Anagrafiche e documenti" userName={session.user.name ?? "Amministratore"} />
+
+        {showDeletedSuccess ? (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
+            Atleta eliminato correttamente.
+          </p>
+        ) : null}
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

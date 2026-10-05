@@ -30,7 +30,7 @@ export class EnrollmentDocumentStorageError extends Error {
   constructor(
     message: string,
     public readonly details: {
-      stage: "env" | "upload" | "download";
+      stage: "env" | "upload" | "download" | "delete";
       bucket?: string;
       bucketPath?: string;
       code?: string;
@@ -308,4 +308,40 @@ export async function readEnrollmentDocument(filePath: string): Promise<Buffer> 
     bucketPath,
     code: "DOCUMENT_NOT_FOUND",
   });
+}
+
+/**
+ * Best-effort removal of enrollment document objects from Supabase Storage.
+ * Never throws for missing env / missing files: returns per-path outcomes.
+ */
+export async function deleteEnrollmentDocumentsBestEffort(
+  filePaths: string[],
+): Promise<{ removed: string[]; failed: string[] }> {
+  const uniquePaths = [
+    ...new Set(
+      filePaths
+        .map((path) => path.trim())
+        .filter(Boolean)
+        .map((path) => normalizeBucketPath(path)),
+    ),
+  ];
+
+  if (uniquePaths.length === 0) {
+    return { removed: [], failed: [] };
+  }
+
+  let client: SupabaseClient;
+  let bucket: string;
+  try {
+    ({ client, bucket } = getSupabaseStorageClient());
+  } catch {
+    return { removed: [], failed: uniquePaths };
+  }
+
+  const { error } = await client.storage.from(bucket).remove(uniquePaths);
+  if (error) {
+    return { removed: [], failed: uniquePaths };
+  }
+
+  return { removed: uniquePaths, failed: [] };
 }
