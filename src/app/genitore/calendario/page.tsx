@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
+import { currentCalendarMonthStart, formatYearMonth } from "@/lib/calendar-range";
 import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
@@ -262,6 +263,7 @@ export default async function ParentCalendarPage() {
           subtitle="Tap sul giorno per vedere gli impegni, tap sull'evento per i dettagli."
           events={calendarEvents}
           categoryOptions={categoryOptions}
+          initialYearMonth={formatYearMonth(currentCalendarMonthStart())}
           emptyMessage="Nessun evento disponibile per i tuoi figli."
         />
       </div>

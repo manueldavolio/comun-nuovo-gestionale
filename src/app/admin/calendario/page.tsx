@@ -1,40 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { subMonths } from "date-fns";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { normalizeCalendarEventType } from "@/lib/calendar-event-type";
+import {
+  calendarVisibleRangeForMonth,
+  currentCalendarMonthStart,
+  formatYearMonth,
+} from "@/lib/calendar-range";
 import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-
-function normalizeCalendarEventType(type: string | null | undefined): CalendarEvent["type"] {
-  switch (type) {
-    case "ALLENAMENTO":
-    case "TRAINING":
-      return "ALLENAMENTO";
-    case "PARTITA":
-    case "LEAGUE_MATCH":
-    case "MATCH":
-      return "PARTITA";
-    case "AMICHEVOLE":
-    case "FRIENDLY":
-      return "AMICHEVOLE";
-    case "TORNEO":
-    case "TOURNAMENT":
-      return "TORNEO";
-    case "RIUNIONE":
-    case "MEETING":
-      return "RIUNIONE";
-    case "CONVOCAZIONE":
-    case "CONVOCATION":
-      return "CONVOCAZIONE";
-    default:
-      return "ALLENAMENTO";
-  }
-}
 
 export default async function AdminCalendarPage() {
   const session = await getAuthSession();
@@ -58,7 +37,11 @@ export default async function AdminCalendarPage() {
     ? { categoryId: { in: assignedCategoryIds } }
     : {};
 
-  const rangeStart = subMonths(new Date(), 6);
+  const currentMonth = currentCalendarMonthStart();
+  const { start: rangeStart, end: rangeEnd } = calendarVisibleRangeForMonth(
+    currentMonth.getUTCFullYear(),
+    currentMonth.getUTCMonth(),
+  );
 
   const [categories, events] = await Promise.all([
     prisma.category.findMany({
@@ -76,10 +59,9 @@ export default async function AdminCalendarPage() {
       where: {
         ...categoryFilter,
         type: { in: COACH_VISIBLE_EVENT_TYPES },
-        startAt: { gte: rangeStart },
+        startAt: { gte: rangeStart, lte: rangeEnd },
       },
       orderBy: [{ startAt: "asc" }],
-      take: 500,
       select: {
         id: true,
         title: true,
@@ -147,7 +129,9 @@ export default async function AdminCalendarPage() {
           events={calendarEvents}
           categoryOptions={categories}
           showTypeFilter
-          emptyMessage="Nessun evento disponibile nel periodo visualizzabile."
+          eventsSourceUrl="/api/calendar/events"
+          initialYearMonth={formatYearMonth(currentMonth)}
+          emptyMessage="Nessun evento in questo mese."
         />
       </div>
     </main>

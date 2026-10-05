@@ -8,15 +8,23 @@ type PaymentActionsProps = {
   paymentType: "DEPOSIT" | "BALANCE";
   status: "PENDING" | "PAID" | "OVERDUE" | "CANCELLED" | "FAILED" | "EXPIRED";
   receiptId: string | null;
+  /** Importo che verrà addebitato (già calcolato server-side). */
+  displayAmountLabel: string;
+  checkoutLabel: string;
+  canCheckout: boolean;
 };
 
-export function PaymentActions({ paymentId, paymentType, status, receiptId }: PaymentActionsProps) {
+export function PaymentActions({
+  paymentId,
+  status,
+  receiptId,
+  displayAmountLabel,
+  checkoutLabel,
+  canCheckout,
+}: PaymentActionsProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canPay = status !== "PAID";
-  const isRetryPayment =
-    status === "CANCELLED" || status === "OVERDUE" || status === "FAILED" || status === "EXPIRED";
 
   async function handleCheckout() {
     setError(null);
@@ -51,24 +59,25 @@ export function PaymentActions({ paymentId, paymentType, status, receiptId }: Pa
 
   return (
     <div className="flex min-w-[170px] flex-col gap-2">
-      {canPay ? (
+      <p className="text-base font-bold tabular-nums text-zinc-900">{displayAmountLabel}</p>
+
+      {status === "PAID" ? (
+        <span className="text-xs text-zinc-500">Pagamento chiuso</span>
+      ) : null}
+      {status === "CANCELLED" ? (
+        <span className="text-xs text-zinc-500">Annullato — non addebitabile</span>
+      ) : null}
+
+      {canCheckout ? (
         <button
           type="button"
           onClick={handleCheckout}
           disabled={isSubmitting}
-          className="rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting
-            ? "Apertura checkout..."
-            : isRetryPayment
-              ? "Riprova pagamento"
-              : paymentType === "DEPOSIT"
-                ? "Paga acconto"
-                : "Paga saldo"}
+          {isSubmitting ? "Apertura checkout..." : `${checkoutLabel} · ${displayAmountLabel}`}
         </button>
-      ) : (
-        <span className="text-xs text-zinc-500">Pagamento chiuso</span>
-      )}
+      ) : null}
 
       {receiptId ? (
         <a
@@ -78,9 +87,9 @@ export function PaymentActions({ paymentId, paymentType, status, receiptId }: Pa
         >
           Scarica ricevuta
         </a>
-      ) : (
+      ) : status === "PAID" ? (
         <span className="text-xs text-zinc-500">Ricevuta non disponibile</span>
-      )}
+      ) : null}
 
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>

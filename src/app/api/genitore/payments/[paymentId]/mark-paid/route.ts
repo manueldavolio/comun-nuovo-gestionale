@@ -105,6 +105,7 @@ export async function POST(request: Request, context: RouteContext) {
       paidAt: true,
       enrollment: {
         select: {
+          id: true,
           seasonLabel: true,
           receiptFirstName: true,
           receiptLastName: true,
@@ -123,6 +124,13 @@ export async function POST(request: Request, context: RouteContext) {
           category: {
             select: {
               name: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              type: true,
+              status: true,
             },
           },
         },
@@ -212,6 +220,30 @@ export async function POST(request: Request, context: RouteContext) {
       { error: "Errore database durante aggiornamento pagamento." },
       { status: 500 },
     );
+  }
+
+  if (updatedPayment.type === "BALANCE") {
+    const deposit = existing.enrollment.payments.find((row) => row.type === "DEPOSIT");
+    if (
+      deposit &&
+      (deposit.status === "PENDING" || deposit.status === "OVERDUE")
+    ) {
+      try {
+        await prisma.payment.update({
+          where: { id: deposit.id },
+          data: {
+            status: "CANCELLED",
+            notes: "Annullato: iscrizione già coperta dal pagamento completo/saldo.",
+          },
+        });
+      } catch (error) {
+        console.error("[payments:mark-paid] Cancel unpaid deposit failed", {
+          paymentId,
+          depositId: deposit.id,
+          error: toErrorMessage(error),
+        });
+      }
+    }
   }
 
   // Optional bookkeeping integration: keep accounting income aligned with paid enrollment payments.

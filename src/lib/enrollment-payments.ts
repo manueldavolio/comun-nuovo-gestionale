@@ -1,4 +1,10 @@
 import { Prisma, type PaymentType } from "@prisma/client";
+import {
+  EnrollmentFeesConfigError,
+  resolveCategoryEnrollmentFees,
+  resolveCheckoutChargeAmount,
+  shouldCancelUnpaidDepositAfterBalancePaid,
+} from "@/lib/enrollment-fees";
 import { prisma } from "@/lib/prisma";
 import { generateReceiptPdf } from "@/lib/pdf";
 import { sendReceiptMail } from "@/lib/mail";
@@ -14,7 +20,6 @@ const CLUB_DATA = {
 
 const RECEIPT_SEQUENCE_PAD = 6;
 const RECEIPT_COUNTER_ID = 1;
-const RETRYABLE_PAYMENT_STATUSES = ["PENDING", "OVERDUE", "CANCELLED"] as const;
 
 type PaymentWithRelations = {
   id: string;
@@ -293,6 +298,7 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
         },
         enrollment: {
           select: {
+            id: true,
             seasonLabel: true,
             receiptFirstName: true,
             receiptLastName: true,
@@ -300,6 +306,13 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
             receiptAddress: true,
             receiptEmail: true,
             category: { select: { name: true } },
+            payments: {
+              select: {
+                id: true,
+                type: true,
+                status: true,
+              },
+            },
             athlete: {
               select: {
                 firstName: true,
@@ -363,6 +376,25 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
       },
     });
 
+    // Pagamento unico / saldo che chiude il dovuto: annulla acconto ancora aperto (non PAID, non CANCELLED).
+    if (existing.type === "BALANCE") {
+      const deposit = existing.enrollment.payments.find((row) => row.type === "DEPOSIT");
+      if (
+        shouldCancelUnpaidDepositAfterBalancePaid({
+          balanceJustPaid: true,
+          depositStatus: deposit?.status,
+        }) &&
+        deposit
+      ) {
+        await tx.payment.update({
+          where: { id: deposit.id },
+          data: {
+            status: "CANCELLED",
+            notes: "Annullato: iscrizione già coperta dal pagamento completo/saldo.",
+          },
+        });
+      }
+    }
     const athleteFullName =
       `${updatedPayment.enrollment.athlete.firstName} ${updatedPayment.enrollment.athlete.lastName}`.trim();
 
@@ -468,9 +500,25 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
       type: true,
       status: true,
       amount: true,
+      enrollmentId: true,
       enrollment: {
         select: {
           seasonLabel: true,
+          category: {
+            select: {
+              depositFee: true,
+              balanceFee: true,
+              annualFee: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              type: true,
+              status: true,
+              amount: true,
+            },
+          },
           athlete: {
             select: {
               firstName: true,
@@ -499,18 +547,58 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
     return { error: "PAYMENT_ALREADY_PAID" as const };
   }
 
-  if (!RETRYABLE_PAYMENT_STATUSES.includes(payment.status)) {
+  if (payment.status !== "PENDING" && payment.status !== "OVERDUE") {
     return { error: "PAYMENT_STATUS_NOT_RETRYABLE" as const };
+  }
+
+  let fees;
+  try {
+    fees = resolveCategoryEnrollmentFees({
+      depositFee: payment.enrollment.category.depositFee,
+      balanceFee: payment.enrollment.category.balanceFee,
+      annualFee: payment.enrollment.category.annualFee,
+    });
+  } catch (error) {
+    if (error instanceof EnrollmentFeesConfigError) {
+      return { error: "ENROLLMENT_FEES_CONFIG" as const, message: error.message };
+    }
+    throw error;
+  }
+
+  let chargeAmount: string;
+  try {
+    chargeAmount = resolveCheckoutChargeAmount({
+      paymentType: payment.type,
+      paymentAmount: payment.amount,
+      paymentStatus: payment.status,
+      annualFee: fees.annual,
+      enrollmentPayments: payment.enrollment.payments,
+    });
+  } catch (error) {
+    if (error instanceof EnrollmentFeesConfigError) {
+      return { error: "ENROLLMENT_FEES_CONFIG" as const, message: error.message };
+    }
+    throw error;
+  }
+
+  const chargeDecimal = new Prisma.Decimal(chargeAmount);
+  if (!payment.amount.equals(chargeDecimal)) {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { amount: chargeDecimal },
+    });
   }
 
   const stripe = getStripeClient();
   const athleteName =
     `${payment.enrollment.athlete.firstName} ${payment.enrollment.athlete.lastName}`.trim();
-  const amountCents = amountToCents(payment.amount);
+  const amountCents = amountToCents(chargeDecimal);
   const description =
     payment.type === "DEPOSIT"
       ? `Acconto iscrizione ${athleteName} - stagione ${payment.enrollment.seasonLabel}`
-      : `Saldo iscrizione ${athleteName} - stagione ${payment.enrollment.seasonLabel}`;
+      : payment.enrollment.payments.some((row) => row.type === "DEPOSIT" && row.status === "PAID")
+        ? `Saldo iscrizione ${athleteName} - stagione ${payment.enrollment.seasonLabel}`
+        : `Iscrizione completa ${athleteName} - stagione ${payment.enrollment.seasonLabel}`;
 
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",

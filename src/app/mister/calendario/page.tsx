@@ -1,38 +1,16 @@
 import { redirect } from "next/navigation";
-import { subMonths } from "date-fns";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
-import { toFloatingDateTime } from "@/lib/date-input";
+import { normalizeCalendarEventType } from "@/lib/calendar-event-type";
+import {
+  currentCalendarMonthStart,
+  formatYearMonth,
+} from "@/lib/calendar-range";
+import { nowAsEuropeRomeWallClockUtc, toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
-import { isMatchEventType } from "@/lib/parent-season";
+import { currentSeasonRange, isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
-
-function normalizeCalendarEventType(type: string | null | undefined): CalendarEvent["type"] {
-  switch (type) {
-    case "ALLENAMENTO":
-    case "TRAINING":
-      return "ALLENAMENTO";
-    case "PARTITA":
-    case "LEAGUE_MATCH":
-    case "MATCH":
-      return "PARTITA";
-    case "AMICHEVOLE":
-    case "FRIENDLY":
-      return "AMICHEVOLE";
-    case "TORNEO":
-    case "TOURNAMENT":
-      return "TORNEO";
-    case "RIUNIONE":
-    case "MEETING":
-      return "RIUNIONE";
-    case "CONVOCAZIONE":
-    case "CONVOCATION":
-      return "CONVOCAZIONE";
-    default:
-      return "ALLENAMENTO";
-  }
-}
 
 export default async function CoachCalendarPage() {
   const session = await getAuthSession();
@@ -46,7 +24,12 @@ export default async function CoachCalendarPage() {
   }
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
-  const rangeStart = subMonths(new Date(), 6);
+  const wallNow = nowAsEuropeRomeWallClockUtc();
+  const season = currentSeasonRange(wallNow);
+  const currentMonth = currentCalendarMonthStart();
+  // Stagione corrente completa (niente take:500): il mister ha poche categorie.
+  const rangeStart = season.start;
+  const rangeEnd = season.end;
 
   const [categories, events, convocations, announcements] = await Promise.all([
     coachCategoryIds.length === 0
@@ -67,10 +50,9 @@ export default async function CoachCalendarPage() {
           where: {
             categoryId: { in: coachCategoryIds },
             type: { in: COACH_VISIBLE_EVENT_TYPES },
-            startAt: { gte: rangeStart },
+            startAt: { gte: rangeStart, lte: rangeEnd },
           },
           orderBy: [{ startAt: "asc" }],
-          take: 500,
           select: {
             id: true,
             title: true,
@@ -94,7 +76,11 @@ export default async function CoachCalendarPage() {
             categoryId: { in: coachCategoryIds },
             AND: [
               { event: { isNot: null } },
-              { event: { is: { startAt: { gte: rangeStart } } } },
+              {
+                event: {
+                  is: { startAt: { gte: rangeStart, lte: rangeEnd } },
+                },
+              },
             ],
           },
           orderBy: {
@@ -102,7 +88,6 @@ export default async function CoachCalendarPage() {
               startAt: "asc",
             },
           },
-          take: 300,
           select: {
             id: true,
             notes: true,
@@ -128,6 +113,7 @@ export default async function CoachCalendarPage() {
         publishedAt: {
           not: null,
           lte: new Date(),
+          gte: rangeStart,
         },
         OR: [
           { audience: "ALL" },
@@ -141,7 +127,6 @@ export default async function CoachCalendarPage() {
         ],
       },
       orderBy: [{ publishedAt: "desc" }],
-      take: 80,
       select: {
         id: true,
         title: true,
@@ -232,6 +217,7 @@ export default async function CoachCalendarPage() {
           events={calendarEvents}
           categoryOptions={categories}
           showTypeFilter
+          initialYearMonth={formatYearMonth(currentMonth)}
           emptyMessage="Nessun evento disponibile per le categorie assegnate."
         />
       </div>

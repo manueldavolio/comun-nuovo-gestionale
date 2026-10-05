@@ -12,6 +12,10 @@ import {
   EnrollmentDocumentStorageError,
   validateEnrollmentDocumentStorageEnv,
 } from "@/lib/enrollment-documents";
+import {
+  EnrollmentFeesConfigError,
+  resolveCategoryEnrollmentFees,
+} from "@/lib/enrollment-fees";
 import { sendAdminEnrollmentNotification } from "@/lib/mail";
 
 export const runtime = "nodejs";
@@ -58,6 +62,9 @@ async function getFallbackCategory(tx: Prisma.TransactionClient) {
       id: true,
       name: true,
       seasonLabel: true,
+      depositFee: true,
+      balanceFee: true,
+      annualFee: true,
     },
   });
 }
@@ -222,11 +229,28 @@ export async function POST(request: Request) {
                 id: true,
                 name: true,
                 seasonLabel: true,
+                depositFee: true,
+                balanceFee: true,
+                annualFee: true,
               },
             });
 
       if (!category) {
         category = await getFallbackCategory(tx);
+      }
+
+      let fees;
+      try {
+        fees = resolveCategoryEnrollmentFees({
+          depositFee: category.depositFee,
+          balanceFee: category.balanceFee,
+          annualFee: category.annualFee,
+        });
+      } catch (error) {
+        if (error instanceof EnrollmentFeesConfigError) {
+          throw Object.assign(new Error(error.message), { code: "ENROLLMENT_FEES_CONFIG" });
+        }
+        throw error;
       }
 
       const seasonLabel = category.seasonLabel || parsed.data.seasonLabel;
@@ -276,12 +300,15 @@ export async function POST(request: Request) {
         },
       });
 
+      const depositAmount = fees.deposit;
+      const balanceAmount = fees.balance;
+
       await tx.payment.createMany({
         data: [
           {
             enrollmentId: enrollment.id,
             type: "DEPOSIT",
-            amount: new Prisma.Decimal("50.00"),
+            amount: new Prisma.Decimal(depositAmount),
             dueDate: DEPOSIT_DUE_DATE,
             status: "PENDING",
             notes: "Acconto iscrizione Comun Nuovo Calcio.",
@@ -289,7 +316,7 @@ export async function POST(request: Request) {
           {
             enrollmentId: enrollment.id,
             type: "BALANCE",
-            amount: new Prisma.Decimal("200.00"),
+            amount: new Prisma.Decimal(balanceAmount),
             dueDate: BALANCE_DUE_DATE,
             status: "PENDING",
             notes: "Saldo iscrizione Comun Nuovo Calcio.",
@@ -365,6 +392,13 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error as { code?: string }).code === "ENROLLMENT_FEES_CONFIG"
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json(
         {

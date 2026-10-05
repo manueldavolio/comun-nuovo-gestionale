@@ -48,6 +48,11 @@ import {
   myComunWeekBounds,
   summarizeWeekTrainings,
 } from "@/lib/my-comun-nuovo/week";
+import {
+  buildParentPaymentDisplay,
+  formatEuroAmount,
+  resolveCategoryEnrollmentFees,
+} from "@/lib/enrollment-fees";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import {
   computeSeasonAthleteStats,
@@ -131,10 +136,6 @@ function statusClass(
   return palette[status] ?? fallback;
 }
 
-function isOpenPaymentStatus(status: string | null | undefined) {
-  return ["PENDING", "OVERDUE", "CANCELLED", "FAILED", "EXPIRED"].includes(status ?? "");
-}
-
 export default async function ParentDashboardPage({ searchParams }: ParentDashboardPageProps) {
   const session = await getAuthSession();
   if (!session?.user) {
@@ -167,7 +168,15 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       parentId: true,
       position: true,
       shirtNumber: true,
-      category: { select: { id: true, name: true } },
+      category: {
+        select: {
+          id: true,
+          name: true,
+          depositFee: true,
+          balanceFee: true,
+          annualFee: true,
+        },
+      },
       documents: {
         orderBy: { createdAt: "desc" },
         select: { id: true, type: true, title: true, expiryDate: true },
@@ -200,6 +209,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
               id: true,
               type: true,
               status: true,
+              amount: true,
               receipt: { select: { id: true, filePath: true } },
             },
           },
@@ -259,6 +269,34 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     null;
   const deposit = latestEnrollment?.payments.find((payment) => payment.type === "DEPOSIT") ?? null;
   const balance = latestEnrollment?.payments.find((payment) => payment.type === "BALANCE") ?? null;
+
+  let paymentDisplayRows: ReturnType<typeof buildParentPaymentDisplay> = [];
+  let paymentFeesError: string | null = null;
+  if (latestEnrollment && (deposit || balance)) {
+    try {
+      const fees = resolveCategoryEnrollmentFees({
+        depositFee: selectedAthlete.category.depositFee,
+        balanceFee: selectedAthlete.category.balanceFee,
+        annualFee: selectedAthlete.category.annualFee,
+      });
+      paymentDisplayRows = buildParentPaymentDisplay({
+        fees,
+        payments: latestEnrollment.payments.map((payment) => ({
+          id: payment.id,
+          type: payment.type,
+          status: payment.status,
+          amount: payment.amount,
+          receiptId: payment.receipt?.id ?? null,
+        })),
+      });
+    } catch (error) {
+      paymentFeesError =
+        error instanceof Error
+          ? error.message
+          : "Quote categoria non configurate per i pagamenti.";
+    }
+  }
+
   const medicalVisit = selectedAthlete.medicalVisits[0] ?? null;
   const medicalVisitStatus = medicalVisit
     ? computeMedicalVisitStatus(medicalVisit.expiryDate, now)
@@ -580,9 +618,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           ? "border-amber-200 bg-amber-50 text-amber-900"
           : "border-sky-200 bg-sky-50 text-sky-900";
 
-  const openPaymentsCount = [deposit, balance].filter((payment) =>
-    isOpenPaymentStatus(payment?.status),
-  ).length;
+  const openPaymentsCount = paymentDisplayRows.filter((row) => row.canCheckout).length;
   const medicalNeedsAttention =
     !medicalVisit ||
     medicalVisitStatus === "EXPIRING" ||
@@ -893,35 +929,50 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           {isPrimaryParent ? (
             <div id="pagamenti" className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="text-sm font-semibold text-zinc-900">Pagamenti</p>
+              {paymentFeesError ? (
+                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {paymentFeesError}
+                </p>
+              ) : null}
               <div className="mt-2 space-y-2">
-                {[
-                  { label: "Acconto", payment: deposit },
-                  { label: "Saldo", payment: balance },
-                ].map(({ label, payment }) => (
-                  <div key={label} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                {paymentDisplayRows.length === 0 && !paymentFeesError ? (
+                  <p className="text-sm text-zinc-600">Nessuna scadenza di pagamento generata.</p>
+                ) : null}
+                {paymentDisplayRows.map((row) => (
+                  <div
+                    key={row.paymentId}
+                    className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-zinc-900">{label}</p>
+                      <p className="text-sm font-medium text-zinc-900">{row.label}</p>
                       <span
                         className={[
                           "inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
-                          statusClass(PAYMENT_STATUS_COLORS, payment?.status ?? null),
+                          statusClass(PAYMENT_STATUS_COLORS, row.status),
                         ].join(" ")}
                       >
-                        {payment
-                          ? PAYMENT_STATUS_LABEL[payment.status] ?? payment.status
-                          : "Non generato"}
+                        {PAYMENT_STATUS_LABEL[row.status] ?? row.status}
                       </span>
                     </div>
-                    {payment && (payment.type === "DEPOSIT" || payment.type === "BALANCE") ? (
-                      <div className="mt-2">
-                        <PaymentActions
-                          paymentId={payment.id}
-                          paymentType={payment.type}
-                          status={payment.status}
-                          receiptId={payment.receipt?.id ?? null}
-                        />
-                      </div>
-                    ) : null}
+                    <div className="mt-2">
+                      <PaymentActions
+                        paymentId={row.paymentId}
+                        paymentType={row.paymentType}
+                        status={
+                          row.status as
+                            | "PENDING"
+                            | "PAID"
+                            | "OVERDUE"
+                            | "CANCELLED"
+                            | "FAILED"
+                            | "EXPIRED"
+                        }
+                        receiptId={row.receiptId}
+                        displayAmountLabel={formatEuroAmount(row.displayAmount)}
+                        checkoutLabel={row.checkoutLabel}
+                        canCheckout={row.canCheckout}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

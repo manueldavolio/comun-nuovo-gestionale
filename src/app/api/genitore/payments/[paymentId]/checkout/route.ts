@@ -67,6 +67,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (result.error === "PAYMENT_STATUS_NOT_RETRYABLE") {
       return NextResponse.json({ error: "Stato pagamento non valido per il checkout." }, { status: 400 });
     }
+    if (result.error === "ENROLLMENT_FEES_CONFIG") {
+      return NextResponse.json(
+        { error: "message" in result && result.message ? result.message : "Quote categoria non configurate." },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: "Impossibile creare checkout." }, { status: 500 });
   }
 

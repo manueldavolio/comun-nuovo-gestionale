@@ -18,6 +18,8 @@
     "test:parent-season": "tsx --test src/lib/parent-season.test.ts",
     "test:my-comun-nuovo": "tsx --test src/lib/my-comun-nuovo/my-comun-nuovo.test.ts",
     "test:match-day": "tsx --test src/lib/match-day.test.ts",
+    "test:calendar-range": "tsx --test src/lib/calendar-range.test.ts",
+    "test:enrollment-fees": "tsx --test src/lib/enrollment-fees.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
