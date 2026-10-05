@@ -32,6 +32,8 @@ export type CalendarEvent = {
   /** Link rapido gestione evento (solo se il ruolo ha permesso). */
   manageHref?: string | null;
   manageLabel?: string | null;
+  /** Link convocazione (mister/admin). */
+  convocationHref?: string | null;
   /** Link modifica evento (admin/mister). */
   editHref?: string | null;
   /** Endpoint DELETE completo, es. `/api/events/xyz`. */
@@ -386,7 +388,7 @@ export function MonthCalendar({
                     </p>
                     {event.location ? <p className="mt-1 text-sm">Luogo: {event.location}</p> : null}
                     {event.categoryName ? <p className="mt-1 text-sm">Categoria: {event.categoryName}</p> : null}
-                    {event.manageHref || event.editHref || event.deleteEndpoint ? (
+                    {event.manageHref || event.convocationHref || event.editHref || event.deleteEndpoint ? (
                       <div className="mt-3 flex flex-wrap items-start gap-2">
                         {event.manageHref ? (
                           <Link
@@ -394,6 +396,14 @@ export function MonthCalendar({
                             className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
                           >
                             {event.manageLabel ?? "Gestisci evento"}
+                          </Link>
+                        ) : null}
+                        {event.convocationHref ? (
+                          <Link
+                            href={event.convocationHref}
+                            className="inline-flex rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-semibold text-violet-700 hover:bg-violet-100"
+                          >
+                            Convocazione
                           </Link>
                         ) : null}
                         {event.editHref ? (

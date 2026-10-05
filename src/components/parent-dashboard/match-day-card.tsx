@@ -40,6 +40,8 @@ type MatchDayCardProps = {
   awayScore: number | null;
   playerGoals: number;
   playerAssists: number;
+  /** Dettaglio tempi Pulcini/Esordienti, es. "1-0 · 1-0 · 1-0 · 0-10". */
+  periodScoresDetail?: string | null;
 };
 
 export function MatchDayCard({
@@ -57,6 +59,7 @@ export function MatchDayCard({
   awayScore,
   playerGoals,
   playerAssists,
+  periodScoresDetail = null,
 }: MatchDayCardProps) {
   const resolvedOpponent = resolveMatchDayOpponentName({ opponentName, title });
   const secondaryLabel = resolveMatchDaySecondaryLabel({
@@ -103,21 +106,28 @@ export function MatchDayCard({
         <div className="absolute -right-8 top-0 h-28 w-28 rounded-full bg-sky-400/10" aria-hidden />
 
         {phase === "FULL_TIME" && score ? (
-          <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
-            <div className="min-w-0 text-right">
-              <p className="truncate text-xs font-bold uppercase tracking-wide text-sky-100 sm:text-sm">
-                {score.leftName}
-              </p>
-              <p className="text-3xl font-black tabular-nums sm:text-4xl">{score.leftScore}</p>
+          <>
+            <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
+              <div className="min-w-0 text-right">
+                <p className="truncate text-xs font-bold uppercase tracking-wide text-sky-100 sm:text-sm">
+                  {score.leftName}
+                </p>
+                <p className="text-3xl font-black tabular-nums sm:text-4xl">{score.leftScore}</p>
+              </div>
+              <p className="text-xs font-bold text-sky-200">FT</p>
+              <div className="min-w-0 text-left">
+                <p className="truncate text-xs font-bold uppercase tracking-wide text-sky-100 sm:text-sm">
+                  {score.rightName}
+                </p>
+                <p className="text-3xl font-black tabular-nums sm:text-4xl">{score.rightScore}</p>
+              </div>
             </div>
-            <p className="text-xs font-bold text-sky-200">FT</p>
-            <div className="min-w-0 text-left">
-              <p className="truncate text-xs font-bold uppercase tracking-wide text-sky-100 sm:text-sm">
-                {score.rightName}
+            {periodScoresDetail ? (
+              <p className="relative mt-2 text-center text-[11px] font-medium text-sky-200/90">
+                Tempi: {periodScoresDetail}
               </p>
-              <p className="text-3xl font-black tabular-nums sm:text-4xl">{score.rightScore}</p>
-            </div>
-          </div>
+            ) : null}
+          </>
         ) : (
           <div className="relative space-y-1.5">
             <div className="grid grid-cols-1 items-center gap-1 md:grid-cols-[1fr_auto_1fr] md:gap-3">

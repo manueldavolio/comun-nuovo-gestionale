@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { CheckCircle2, Shirt } from "lucide-react";
+import { athleteInitials } from "@/lib/parent-season";
 
 type AthleteRosterEditorProps = {
   athletes: Array<{
@@ -33,8 +35,11 @@ const MONTH_LABELS = [
 
 export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRosterEditorProps) {
   const [rows, setRows] = useState(athletes);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+
+  const monthLabel = MONTH_LABELS[noteMonth] ?? String(noteMonth);
 
   async function saveProfile(athleteId: string) {
     const row = rows.find((item) => item.id === athleteId);
@@ -44,13 +49,12 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
     setFeedback((prev) => ({ ...prev, [athleteId]: "" }));
 
     try {
-      const shirtRaw = row.shirtNumber;
       const response = await fetch(`/api/mister/athletes/${athleteId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           position: row.position,
-          shirtNumber: shirtRaw,
+          shirtNumber: row.shirtNumber,
         }),
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -103,103 +107,150 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
   }
 
   return (
-    <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-zinc-900">Ruolo, maglia e nota mensile</h2>
-      <p className="mt-1 text-sm text-zinc-600">
-        Nota di {MONTH_LABELS[noteMonth]} {noteYear} — visibile ai genitori del singolo atleta.
-      </p>
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-bold text-zinc-900">Rosa</h2>
+        <p className="mt-1 text-sm text-zinc-600">
+          Nota di {monthLabel} {noteYear} — opzionale, visibile ai genitori dell&apos;atleta.
+        </p>
+      </div>
 
-      <ul className="mt-4 space-y-3">
-        {rows.map((athlete) => (
-          <li key={athlete.id} className="rounded-xl border border-sky-100 bg-sky-50/40 p-3">
-            <p className="text-sm font-semibold text-zinc-900">
-              {athlete.firstName} {athlete.lastName}
-            </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <label className="text-xs font-medium text-zinc-700">
-                Ruolo
-                <input
-                  value={athlete.position ?? ""}
-                  onChange={(event) =>
-                    setRows((prev) =>
-                      prev.map((row) =>
-                        row.id === athlete.id
-                          ? { ...row, position: event.target.value || null }
-                          : row,
-                      ),
-                    )
-                  }
-                  placeholder="Es. Difensore"
-                  className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
-              <label className="text-xs font-medium text-zinc-700">
-                Numero maglia
-                <input
-                  type="number"
-                  min={0}
-                  max={99}
-                  value={athlete.shirtNumber ?? ""}
-                  onChange={(event) =>
-                    setRows((prev) =>
-                      prev.map((row) =>
-                        row.id === athlete.id
-                          ? {
-                              ...row,
-                              shirtNumber:
-                                event.target.value === ""
-                                  ? null
-                                  : Number.parseInt(event.target.value, 10) || 0,
-                            }
-                          : row,
-                      ),
-                    )
-                  }
-                  className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
-            </div>
-            <label className="mt-2 block text-xs font-medium text-zinc-700">
-              Nota mister
-              <textarea
-                value={athlete.noteContent ?? ""}
-                onChange={(event) =>
-                  setRows((prev) =>
-                    prev.map((row) =>
-                      row.id === athlete.id
-                        ? { ...row, noteContent: event.target.value }
-                        : row,
-                    ),
-                  )
-                }
-                rows={2}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                placeholder="Nota privata sul mese in corso..."
-              />
-            </label>
-            <div className="mt-2 flex flex-wrap gap-2">
+      <ul className="space-y-3">
+        {rows.map((athlete) => {
+          const hasNote = Boolean((athlete.noteContent ?? "").trim());
+          const open = expandedId === athlete.id;
+          const initials = athleteInitials(athlete.firstName, athlete.lastName);
+
+          return (
+            <li
+              key={athlete.id}
+              className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm"
+            >
               <button
                 type="button"
-                disabled={pendingId === athlete.id}
-                onClick={() => saveProfile(athlete.id)}
-                className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                onClick={() => setExpandedId(open ? null : athlete.id)}
+                className="flex w-full items-center gap-3 p-4 text-left"
               >
-                Salva ruolo/maglia
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-800 text-base font-bold text-white">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-zinc-900">
+                    {athlete.firstName} {athlete.lastName}
+                  </p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+                    <span className="inline-flex items-center gap-1">
+                      <Shirt className="h-3.5 w-3.5" />
+                      {athlete.shirtNumber != null ? `#${athlete.shirtNumber}` : "Maglia —"}
+                    </span>
+                    <span>{athlete.position?.trim() || "Ruolo —"}</span>
+                  </p>
+                  {hasNote ? (
+                    <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Nota {monthLabel.toLowerCase()}
+                    </span>
+                  ) : (
+                    <span className="mt-1 inline-flex text-[11px] font-semibold text-amber-700">
+                      Nota da compilare
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs font-semibold text-blue-700">{open ? "Chiudi" : "Modifica"}</span>
               </button>
-              <button
-                type="button"
-                disabled={pendingId === athlete.id || !(athlete.noteContent ?? "").trim()}
-                onClick={() => saveNote(athlete.id)}
-                className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-              >
-                Salva nota mese
-              </button>
-            </div>
-            {feedback[athlete.id] ? (
-              <p className="mt-2 text-xs text-zinc-600">{feedback[athlete.id]}</p>
-            ) : null}
-          </li>
-        ))}
+
+              {open ? (
+                <div className="border-t border-blue-50 bg-sky-50/40 p-4">
+                  <p className="text-sm font-bold uppercase tracking-wide text-blue-900">
+                    {athlete.firstName} {athlete.lastName}
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-zinc-700">
+                      Ruolo
+                      <input
+                        value={athlete.position ?? ""}
+                        onChange={(event) =>
+                          setRows((prev) =>
+                            prev.map((row) =>
+                              row.id === athlete.id
+                                ? { ...row, position: event.target.value || null }
+                                : row,
+                            ),
+                          )
+                        }
+                        placeholder="Es. Difensore"
+                        className="mt-1 block min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-zinc-700">
+                      Numero maglia
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        value={athlete.shirtNumber ?? ""}
+                        onChange={(event) =>
+                          setRows((prev) =>
+                            prev.map((row) =>
+                              row.id === athlete.id
+                                ? {
+                                    ...row,
+                                    shirtNumber:
+                                      event.target.value === ""
+                                        ? null
+                                        : Number.parseInt(event.target.value, 10) || 0,
+                                  }
+                                : row,
+                            ),
+                          )
+                        }
+                        className="mt-1 block min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={pendingId === athlete.id}
+                    onClick={() => saveProfile(athlete.id)}
+                    className="mt-3 min-h-11 rounded-xl bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-60"
+                  >
+                    Salva ruolo/maglia
+                  </button>
+
+                  <label className="mt-4 block text-xs font-medium text-zinc-700">
+                    Nota di {monthLabel}
+                    <textarea
+                      value={athlete.noteContent ?? ""}
+                      onChange={(event) =>
+                        setRows((prev) =>
+                          prev.map((row) =>
+                            row.id === athlete.id
+                              ? { ...row, noteContent: event.target.value }
+                              : row,
+                          ),
+                        )
+                      }
+                      rows={3}
+                      className="mt-1 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                      placeholder="Nota privata sul mese in corso..."
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={pendingId === athlete.id || !(athlete.noteContent ?? "").trim()}
+                    onClick={() => saveNote(athlete.id)}
+                    className="mt-3 min-h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
+                  >
+                    Salva nota
+                  </button>
+                  {feedback[athlete.id] ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-600">{feedback[athlete.id]}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

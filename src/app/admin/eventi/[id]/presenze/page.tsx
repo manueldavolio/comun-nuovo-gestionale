@@ -4,23 +4,12 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { AttendanceManager } from "@/components/attendance/attendance-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
-import { formatEventType } from "@/lib/events";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
 type AdminAttendancePageProps = {
   params: Promise<{ id: string }>;
 };
-
-const dateFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "long",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "UTC",
-});
 
 export default async function AdminAttendancePage({ params }: AdminAttendancePageProps) {
   const { id } = await params;
@@ -51,10 +40,15 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
       title: true,
       type: true,
       startAt: true,
+      location: true,
       opponentName: true,
       homeScore: true,
       awayScore: true,
       isHome: true,
+      periodScores: {
+        select: { periodNumber: true, homeScore: true, awayScore: true },
+        orderBy: { periodNumber: "asc" },
+      },
       category: {
         select: {
           name: true,
@@ -64,6 +58,8 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
               id: true,
               firstName: true,
               lastName: true,
+              position: true,
+              shirtNumber: true,
               attendances: {
                 where: { eventId: id },
                 select: { status: true },
@@ -92,7 +88,9 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
         id: athlete.id,
         firstName: athlete.firstName,
         lastName: athlete.lastName,
-        status: athlete.attendances[0]?.status ?? "PRESENT",
+        position: athlete.position,
+        shirtNumber: athlete.shirtNumber,
+        status: athlete.attendances[0]?.status ?? null,
         goals: athlete.matchStats[0]?.goals ?? 0,
         assists: athlete.matchStats[0]?.assists ?? 0,
       }))
@@ -100,9 +98,9 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
         <AreaHeader
-          title="Presenze evento (Admin)"
+          title="Match Center (Admin)"
           subtitle={
             matchMode
               ? "Presenze, gol, assist e risultato partita"
@@ -121,9 +119,10 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
         {event.category ? (
           <AttendanceManager
             eventId={event.id}
-            eventTitle={`${event.title} (${formatEventType(event.type)})`}
-            eventCategoryName={`Categoria: ${event.category.name}`}
-            eventDateLabel={dateFormatter.format(new Date(event.startAt))}
+            eventTitle={event.title}
+            eventCategoryName={event.category.name}
+            eventStartAt={event.startAt}
+            eventLocation={event.location}
             athletes={athletes}
             matchMode={matchMode}
             initialMatchResult={
@@ -136,6 +135,7 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
                   }
                 : undefined
             }
+            initialPeriodScores={matchMode ? event.periodScores : undefined}
           />
         ) : (
           <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

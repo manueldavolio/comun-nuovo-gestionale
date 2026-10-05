@@ -405,10 +405,27 @@ model Event {
   attendances Attendance[]
   convocation Convocation?
   matchStats  MatchPlayerStat[]
+  periodScores MatchPeriodScore[]
 
   @@index([categoryId])
   @@index([createdById])
   @@index([startAt])
+}
+
+/// Gol per singolo tempo (Pulcini / Esordienti). null = tempo non inserito; 0 = 0 reale.
+model MatchPeriodScore {
+  id           String   @id @default(cuid())
+  eventId      String
+  periodNumber Int
+  homeScore    Int?
+  awayScore    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, periodNumber])
+  @@index([eventId])
 }
 
 model Convocation {

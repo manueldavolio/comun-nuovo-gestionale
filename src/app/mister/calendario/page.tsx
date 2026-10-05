@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { subMonths } from "date-fns";
-import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { toFloatingDateTime } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
+import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
 function normalizeCalendarEventType(type: string | null | undefined): CalendarEvent["type"] {
@@ -163,6 +162,7 @@ export default async function CoachCalendarPage() {
       const canManage = Boolean(
         event.categoryId && coachCategoryIds.includes(event.categoryId),
       );
+      const match = isMatchEventType(event.type);
 
       return {
         id: `event-${event.id}`,
@@ -175,9 +175,14 @@ export default async function CoachCalendarPage() {
         categoryId: event.categoryId,
         categoryName: event.category?.name ?? null,
         manageHref: canManage ? `/mister/eventi/${event.id}/presenze` : null,
-        manageLabel: canManage ? "Gestisci evento" : null,
+        manageLabel: canManage
+          ? match
+            ? "Gestisci partita"
+            : "Registra presenze"
+          : null,
         editHref: canManage ? `/mister/eventi/${event.id}/modifica` : null,
         deleteEndpoint: canManage ? `/api/events/${event.id}` : null,
+        convocationHref: canManage ? `/mister/eventi/${event.id}/convocazioni` : null,
       };
     }),
     ...convocations
@@ -209,26 +214,21 @@ export default async function CoachCalendarPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-        <AreaHeader
-          title="Calendario mister"
-          subtitle="Impegni mensili delle categorie assegnate"
-          userName={session.user.name ?? "Mister"}
-        />
-
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/mister"
-            className="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-          >
-            Torna dashboard mister
-          </Link>
-        </div>
+    <main className="p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+        <header className="rounded-2xl border border-blue-700 bg-blue-800 p-5 text-white shadow-md">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-200">
+            Area Mister
+          </p>
+          <h1 className="mt-1 text-2xl font-black tracking-tight">Calendario</h1>
+          <p className="mt-1 text-sm text-sky-100">
+            Impegni delle categorie assegnate · {session.user.name ?? "Mister"}
+          </p>
+        </header>
 
         <MonthCalendar
           title="Calendario mensile"
-          subtitle="Visualizzi solo eventi, convocazioni e comunicazioni pertinenti alle tue categorie."
+          subtitle="Eventi, convocazioni e comunicazioni delle tue categorie. Usa Gestisci partita / Registra presenze per il Match Center."
           events={calendarEvents}
           categoryOptions={categories}
           showTypeFilter

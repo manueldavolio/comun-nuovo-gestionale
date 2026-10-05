@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { subDays } from "date-fns";
 import { AreaHeader } from "@/components/layout/area-header";
 import { DashboardCard } from "@/components/layout/dashboard-card";
-import { AthleteRosterEditor } from "@/components/mister/athlete-roster-editor";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
@@ -50,8 +49,6 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
 
   const now = new Date();
   const rangeStart = subDays(now, LOOKBACK_DAYS);
-  const noteYear = now.getUTCFullYear();
-  const noteMonth = now.getUTCMonth() + 1;
 
   const categories =
     coachCategoryIds.length === 0
@@ -64,8 +61,8 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
 
   if (!selectedCategoryId) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <main className="p-4 md:p-8">
+        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           <AreaHeader
             title="Riepilogo mister"
             subtitle="Presenze e convocazioni delle tue categorie"
@@ -93,13 +90,6 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
         id: true,
         firstName: true,
         lastName: true,
-        position: true,
-        shirtNumber: true,
-        coachNotes: {
-          where: { year: noteYear, month: noteMonth },
-          select: { content: true },
-          take: 1,
-        },
       },
     }),
     prisma.event.findMany({
@@ -174,20 +164,12 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
   const pendingResponses = recentEvents.reduce((sum, event) => sum + event.convocationPending, 0);
   const athletesWithData = athleteStats.filter((row) => row.marked > 0).length;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
-  const rosterAthletes = athletes.map((athlete) => ({
-    id: athlete.id,
-    firstName: athlete.firstName,
-    lastName: athlete.lastName,
-    position: athlete.position,
-    shirtNumber: athlete.shirtNumber,
-    noteContent: athlete.coachNotes[0]?.content ?? null,
-  }));
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+    <main className="p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
         <AreaHeader
-          title="Riepilogo mister"
+          title="Riepilogo analitico"
           subtitle={`Presenze e convocazioni - ultimi ${LOOKBACK_DAYS} giorni`}
           userName={session.user.name ?? "Mister"}
         />
@@ -198,6 +180,12 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
             className="inline-flex rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
           >
             Torna dashboard mister
+          </Link>
+          <Link
+            href="/mister/squadra"
+            className="inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+          >
+            Apri rosa / note
           </Link>
           <Link
             href="/mister/calendario"
@@ -254,11 +242,15 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
           />
         </section>
 
-        <AthleteRosterEditor
-          athletes={rosterAthletes}
-          noteYear={noteYear}
-          noteMonth={noteMonth}
-        />
+        <section className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm">
+          <p className="text-sm text-emerald-900">
+            Rosa, ruoli, maglie e note mensili sono ora in{" "}
+            <Link href="/mister/squadra" className="font-bold underline">
+              La mia squadra
+            </Link>
+            .
+          </p>
+        </section>
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">Eventi recenti</h2>

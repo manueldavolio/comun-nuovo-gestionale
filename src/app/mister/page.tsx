@@ -1,20 +1,27 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
-import { DashboardCard } from "@/components/layout/dashboard-card";
-import { EventList } from "@/components/events/event-list";
-import { prisma } from "@/lib/prisma";
+import { Camera, ClipboardList } from "lucide-react";
+import { IncompleteMatchesPanel } from "@/components/mister/incomplete-matches-panel";
+import { MisterHero } from "@/components/mister/mister-hero";
+import { NextCommitmentCard } from "@/components/mister/next-commitment-card";
+import { WeekTimeline } from "@/components/mister/week-timeline";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
-import { ANNOUNCEMENT_AUDIENCE_LABEL } from "@/lib/announcements";
-import { DeleteButton } from "@/components/common/delete-button";
-
-const dateFormatter = new Intl.DateTimeFormat("it-IT", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
+import {
+  isSameWallClockDay,
+  selectTodaysMatchDayEvent,
+  wallClockDayBounds,
+} from "@/lib/match-day";
+import {
+  INCOMPLETE_MATCH_LOOKBACK_DAYS,
+  selectIncompleteMatches,
+} from "@/lib/mister-incomplete";
+import { buildMisterWeekTimeline, wallClockWeekBounds } from "@/lib/mister-week";
+import { computeFourPeriodBreakdown } from "@/lib/four-period-scoring";
+import { isMatchEventType } from "@/lib/parent-season";
+import { prisma } from "@/lib/prisma";
 
 export default async function CoachDashboardPage() {
   const session = await getAuthSession();
@@ -27,280 +34,213 @@ export default async function CoachDashboardPage() {
   }
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
+  const wallNow = nowAsEuropeRomeWallClockUtc();
+  const week = wallClockWeekBounds(wallNow);
+  const todayBounds = wallClockDayBounds(wallNow);
+  const lookbackStart = new Date(
+    wallNow.getTime() - INCOMPLETE_MATCH_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+  );
 
-  const now = new Date();
-  const [categories, teamEvents, relevantAnnouncements] = await Promise.all([
+  const [categories, upcomingEvents, recentMatches, weekEvents] = await Promise.all([
     coachCategoryIds.length === 0
       ? Promise.resolve([])
       : prisma.category.findMany({
-          where: {
-            id: {
-              in: coachCategoryIds,
-            },
-          },
+          where: { id: { in: coachCategoryIds } },
           orderBy: { name: "asc" },
+          select: { id: true, name: true },
         }),
     coachCategoryIds.length === 0
       ? Promise.resolve([])
       : prisma.event.findMany({
           where: {
-            startAt: {
-              gte: now,
-            },
-            categoryId: {
-              in: coachCategoryIds,
-            },
-            type: {
-              in: COACH_VISIBLE_EVENT_TYPES,
-            },
+            categoryId: { in: coachCategoryIds },
+            type: { in: COACH_VISIBLE_EVENT_TYPES },
+            startAt: { gte: todayBounds.start },
           },
           orderBy: [{ startAt: "asc" }],
-          take: 80,
+          take: 60,
           select: {
             id: true,
             title: true,
             type: true,
             startAt: true,
+            endAt: true,
             location: true,
-            description: true,
+            opponentName: true,
+            isHome: true,
+            category: { select: { name: true } },
+            convocation: { select: { id: true, notes: true } },
+          },
+        }),
+    coachCategoryIds.length === 0
+      ? Promise.resolve([])
+      : prisma.event.findMany({
+          where: {
+            categoryId: { in: coachCategoryIds },
+            type: { in: ["LEAGUE_MATCH", "FRIENDLY", "TOURNAMENT"] },
+            startAt: { gte: lookbackStart, lte: wallNow },
+          },
+          orderBy: [{ startAt: "desc" }],
+          take: 40,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            startAt: true,
+            endAt: true,
             categoryId: true,
-            category: {
-              select: {
-                name: true,
-              },
+            category: { select: { name: true } },
+            opponentName: true,
+            homeScore: true,
+            awayScore: true,
+            isHome: true,
+            attendances: { select: { id: true } },
+            matchStats: { select: { goals: true } },
+            periodScores: {
+              select: { periodNumber: true, homeScore: true, awayScore: true },
             },
           },
         }),
-    prisma.announcement.findMany({
-      where: {
-        publishedAt: {
-          not: null,
-          lte: now,
-        },
-        OR: [
-          { audience: "ALL" },
-          { audience: "COACHES" },
-          {
-            audience: "CATEGORY_ONLY",
-            categoryId: {
-              in: coachCategoryIds,
-            },
+    coachCategoryIds.length === 0
+      ? Promise.resolve([])
+      : prisma.event.findMany({
+          where: {
+            categoryId: { in: coachCategoryIds },
+            type: { in: COACH_VISIBLE_EVENT_TYPES },
+            startAt: { gte: week.start, lte: week.end },
           },
-        ],
-      },
-      orderBy: [{ publishedAt: "desc" }],
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        audience: true,
-        publishedAt: true,
-        categoryId: true,
-        category: {
+          orderBy: [{ startAt: "asc" }],
+          take: 60,
           select: {
-            name: true,
+            id: true,
+            title: true,
+            type: true,
+            startAt: true,
+            opponentName: true,
+            isHome: true,
           },
-        },
-      },
-    }),
+        }),
   ]);
-  const categoriesCount = categories.length;
-  const teamEventsWithDelete = teamEvents.map((event) => ({
-    ...event,
-    canDelete: Boolean(event.categoryId && coachCategoryIds.includes(event.categoryId)),
-    canEdit: Boolean(event.categoryId && coachCategoryIds.includes(event.categoryId)),
-  }));
-  const nextEventId = teamEvents[0]?.id ?? null;
-  const nextConvocationEventId = teamEvents.find((event) => Boolean(event.category))?.id ?? null;
+
+  const todaysMatch = selectTodaysMatchDayEvent(upcomingEvents, wallNow);
+  const todaysAny =
+    todaysMatch ??
+    upcomingEvents.find((event) => isSameWallClockDay(event.startAt, wallNow)) ??
+    null;
+  const nextUpcoming =
+    upcomingEvents.find((event) => event.startAt.getTime() >= wallNow.getTime()) ?? null;
+  const focusEvent = todaysAny ?? nextUpcoming;
+
+  const nextCommitment = focusEvent
+    ? {
+        id: focusEvent.id,
+        title: focusEvent.title,
+        type: focusEvent.type,
+        startAt: focusEvent.startAt,
+        endAt: focusEvent.endAt,
+        location: focusEvent.location,
+        opponentName: focusEvent.opponentName,
+        isHome: focusEvent.isHome,
+        categoryName: focusEvent.category?.name ?? null,
+        isToday: isSameWallClockDay(focusEvent.startAt, wallNow),
+        hasConvocation: Boolean(focusEvent.convocation),
+        convocationNotes: focusEvent.convocation?.notes ?? null,
+      }
+    : null;
+
+  const incomplete = selectIncompleteMatches(
+    recentMatches.map((event) => {
+      const periodScores = event.periodScores.map((row) => ({
+        periodNumber: row.periodNumber,
+        homeScore: row.homeScore,
+        awayScore: row.awayScore,
+      }));
+      const breakdown = computeFourPeriodBreakdown(periodScores, event.isHome);
+      return {
+        id: event.id,
+        type: event.type,
+        title: event.title,
+        startAt: event.startAt,
+        endAt: event.endAt,
+        categoryId: event.categoryId,
+        categoryName: event.category?.name ?? null,
+        opponentName: event.opponentName,
+        homeScore: event.homeScore,
+        awayScore: event.awayScore,
+        isHome: event.isHome,
+        attendanceCount: event.attendances.length,
+        playerGoalsSum: event.matchStats.reduce((sum, row) => sum + row.goals, 0),
+        periodScores,
+        realClubGoalsFromPeriods: breakdown.complete ? breakdown.realClubGoals : null,
+      };
+    }),
+    { allowedCategoryIds: coachCategoryIds, wallNow },
+  );
+
+  const weekDays = buildMisterWeekTimeline(weekEvents, wallNow);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-        <AreaHeader
-          title="Area Mister"
-          subtitle="Panoramica operativa staff tecnico"
+    <main className="p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-5">
+        <MisterHero
           userName={session.user.name ?? "Mister"}
+          categoryNames={categories.map((category) => category.name)}
         />
 
-        <div className="flex flex-wrap gap-2">
+        <NextCommitmentCard event={nextCommitment} wallNow={wallNow} />
+
+        <IncompleteMatchesPanel matches={incomplete} />
+
+        <WeekTimeline days={weekDays} />
+
+        <section className="grid gap-3 sm:grid-cols-3">
           <Link
-            href="/mister/riepilogo"
-            className="inline-flex rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+            href="/mister/squadra"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            Riepilogo presenze/convocazioni
+            <p className="text-sm font-bold text-blue-900">La mia squadra</p>
+            <p className="mt-1 text-xs text-zinc-600">Rosa, ruoli, maglie e note mensili</p>
           </Link>
           <Link
             href="/mister/calendario"
-            className="inline-flex rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            Apri calendario
+            <p className="text-sm font-bold text-blue-900">Calendario</p>
+            <p className="mt-1 text-xs text-zinc-600">Tutti gli impegni delle tue categorie</p>
+          </Link>
+          <Link
+            href={
+              focusEvent && isMatchEventType(focusEvent.type)
+                ? `/mister/eventi/${focusEvent.id}/convocazioni`
+                : nextUpcoming
+                  ? `/mister/eventi/${nextUpcoming.id}/convocazioni`
+                  : "/mister/calendario"
+            }
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
+          >
+            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-900">
+              <ClipboardList className="h-4 w-4" />
+              Convocazioni
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">Accesso rapido all&apos;impegno più vicino</p>
+          </Link>
+        </section>
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          <Link
+            href="/mister/riepilogo"
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 font-semibold text-zinc-600 hover:bg-zinc-50"
+          >
+            Riepilogo analitico
           </Link>
           <Link
             href="/mister/media"
-            className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 font-semibold text-zinc-600 hover:bg-zinc-50"
           >
-            Apri media categoria
+            <Camera className="h-3.5 w-3.5" />
+            Media
           </Link>
         </div>
-
-        <section className="grid gap-4 md:grid-cols-3">
-          <DashboardCard
-            title="Squadre assegnate"
-            value={categoriesCount}
-            description="Gruppi attivi disponibili per lo staff"
-          />
-          <DashboardCard
-            title="Eventi futuri"
-            value={teamEvents.length}
-            description="Eventi con appello e convocazioni disponibili"
-          />
-          <DashboardCard
-            title="Calendario"
-            value={teamEvents.length}
-            description="Eventi visibili per le tue categorie"
-          />
-        </section>
-
-        <EventList
-          title="Calendario squadra"
-          subtitle="Visualizzi solo eventi collegati alle categorie assegnate."
-          events={teamEventsWithDelete}
-          emptyMessage="Nessuna categoria assegnata o nessun evento disponibile."
-          attendanceBasePath="/mister/eventi"
-          convocationBasePath="/mister/eventi"
-          editBasePath="/mister/eventi"
-          eventDeleteEndpointBase="/api/events"
-        />
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Accesso rapido presenze</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Apri l&apos;evento piu vicino e aggiorna subito l&apos;appello.
-          </p>
-          {nextEventId ? (
-            <Link
-              href={`/mister/eventi/${nextEventId}/presenze`}
-              className="mt-3 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-            >
-              Gestisci presenze
-            </Link>
-          ) : (
-            <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Nessun evento disponibile per la gestione presenze.
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Accesso rapido convocazioni</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Apri l&apos;evento piu vicino e invia subito la convocazione alle famiglie.
-          </p>
-          {nextConvocationEventId ? (
-            <Link
-              href={`/mister/eventi/${nextConvocationEventId}/convocazioni`}
-              className="mt-3 inline-flex rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100"
-            >
-              Gestisci convocazione
-            </Link>
-          ) : (
-            <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Nessun evento disponibile per convocazioni.
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">Comunicazioni per mister</h2>
-              <p className="mt-1 text-sm text-zinc-600">
-                Visualizzi avvisi generali, dedicati mister e della tua categoria.
-              </p>
-            </div>
-            <Link
-              href="/mister/media"
-              className="inline-flex w-fit rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-            >
-              Apri media categoria
-            </Link>
-            <Link
-              href="/mister/calendario"
-              className="inline-flex w-fit rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-            >
-              Apri calendario
-            </Link>
-            <Link
-              href="/mister/riepilogo"
-              className="inline-flex w-fit rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
-            >
-              Apri riepilogo
-            </Link>
-          </div>
-
-          {relevantAnnouncements.length === 0 ? (
-            <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Nessuna comunicazione recente disponibile.
-            </p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {relevantAnnouncements.map((announcement) => (
-                <article key={announcement.id} className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-zinc-900">{announcement.title}</h3>
-                    <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                      {ANNOUNCEMENT_AUDIENCE_LABEL[announcement.audience]}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {announcement.publishedAt
-                      ? dateFormatter.format(new Date(announcement.publishedAt))
-                      : "-"}
-                    {announcement.category?.name ? ` - Categoria ${announcement.category.name}` : ""}
-                  </p>
-                  <p className="mt-2 text-sm text-zinc-700">
-                    {announcement.content.length > 180
-                      ? `${announcement.content.slice(0, 180)}...`
-                      : announcement.content}
-                  </p>
-                  {announcement.categoryId && coachCategoryIds.includes(announcement.categoryId) ? (
-                    <div className="mt-3">
-                      <DeleteButton
-                        endpoint={`/api/announcements/${announcement.id}`}
-                        confirmMessage="Sei sicuro di voler eliminare?"
-                        successMessage="Comunicazione eliminata correttamente."
-                      />
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Categorie disponibili</h2>
-          {categories.length === 0 ? (
-            <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Nessuna categoria assegnata. Contatta l&apos;amministrazione per abilitare l&apos;area
-              presenze.
-            </p>
-          ) : (
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {categories.map((category) => (
-                <article
-                  key={category.id}
-                  className="rounded-lg border border-blue-100 px-3 py-2"
-                >
-                  <p className="font-medium text-zinc-900">{category.name}</p>
-                  <p className="text-sm text-zinc-600">{category.birthYearsLabel}</p>
-                  <p className="text-xs text-zinc-500">Stagione {category.seasonLabel}</p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </main>
   );

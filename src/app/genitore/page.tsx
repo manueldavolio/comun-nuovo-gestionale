@@ -39,6 +39,7 @@ import {
   selectTodaysMatchDayEvent,
   wallClockDayBounds,
 } from "@/lib/match-day";
+import { formatPeriodScoresDetail } from "@/lib/four-period-scoring";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import {
   computeSeasonAthleteStats,
@@ -344,6 +345,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           select: { goals: true, assists: true },
           take: 1,
         },
+        periodScores: {
+          select: { periodNumber: true, homeScore: true, awayScore: true },
+          orderBy: { periodNumber: "asc" },
+        },
       },
     }),
     prisma.event.findMany({
@@ -395,6 +400,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         awayScore: true,
         isHome: true,
         startAt: true,
+        periodScores: {
+          select: { periodNumber: true, homeScore: true, awayScore: true },
+          orderBy: { periodNumber: "asc" },
+        },
       },
     }),
     prisma.athleteCoachNote.findFirst({
@@ -659,6 +668,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             awayScore={matchDayEvent.awayScore}
             playerGoals={matchDayPlayerStat?.goals ?? 0}
             playerAssists={matchDayPlayerStat?.assists ?? 0}
+            periodScoresDetail={formatPeriodScoresDetail(
+              matchDayEvent.periodScores ?? [],
+              matchDayEvent.isHome,
+            )}
           />
         ) : null}
 
@@ -823,6 +836,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                     : outcome === "SCONFITTA"
                       ? "bg-red-100 text-red-800"
                       : "bg-slate-100 text-slate-700";
+                const periodsDetail = formatPeriodScoresDetail(
+                  event.periodScores ?? [],
+                  event.isHome,
+                );
 
                 return (
                   <li
@@ -848,6 +865,11 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                         {rightName}
                       </p>
                     </div>
+                    {periodsDetail ? (
+                      <p className="mt-1.5 text-center text-[11px] font-medium text-zinc-500">
+                        Tempi: {periodsDetail}
+                      </p>
+                    ) : null}
                   </li>
                 );
               })}

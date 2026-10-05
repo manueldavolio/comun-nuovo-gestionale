@@ -1,26 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
 import { AttendanceManager } from "@/components/attendance/attendance-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
-import { formatEventType } from "@/lib/events";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
 type MisterAttendancePageProps = {
   params: Promise<{ id: string }>;
 };
-
-const dateFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "long",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "UTC",
-});
 
 export default async function MisterAttendancePage({ params }: MisterAttendancePageProps) {
   const { id } = await params;
@@ -55,10 +43,15 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
       title: true,
       type: true,
       startAt: true,
+      location: true,
       opponentName: true,
       homeScore: true,
       awayScore: true,
       isHome: true,
+      periodScores: {
+        select: { periodNumber: true, homeScore: true, awayScore: true },
+        orderBy: { periodNumber: "asc" },
+      },
       category: {
         select: {
           name: true,
@@ -68,6 +61,8 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
               id: true,
               firstName: true,
               lastName: true,
+              position: true,
+              shirtNumber: true,
               attendances: {
                 where: { eventId: id },
                 select: { status: true },
@@ -95,7 +90,9 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
     id: athlete.id,
     firstName: athlete.firstName,
     lastName: athlete.lastName,
-    status: athlete.attendances[0]?.status ?? "PRESENT",
+    position: athlete.position,
+    shirtNumber: athlete.shirtNumber,
+    status: athlete.attendances[0]?.status ?? null,
     goals: athlete.matchStats[0]?.goals ?? 0,
     assists: athlete.matchStats[0]?.assists ?? 0,
   }));
@@ -104,30 +101,21 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
     session.user.role === "ADMIN" || session.user.role === "YOUTH_DIRECTOR" ? "/admin" : "/mister";
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-        <AreaHeader
-          title="Gestione presenze"
-          subtitle={
-            matchMode
-              ? "Presenze, gol, assist e risultato partita"
-              : "Compila rapidamente l'appello evento"
-          }
-          userName={session.user.name ?? "Staff"}
-        />
-
+    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-blue-50 p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
         <Link
           href={backHref}
-          className="inline-flex w-fit items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+          className="inline-flex w-fit items-center rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-sky-50"
         >
-          Torna alla dashboard
+          ← Torna alla dashboard
         </Link>
 
         <AttendanceManager
           eventId={event.id}
-          eventTitle={`${event.title} (${formatEventType(event.type)})`}
-          eventCategoryName={`Categoria: ${event.category.name}`}
-          eventDateLabel={dateFormatter.format(new Date(event.startAt))}
+          eventTitle={event.title}
+          eventCategoryName={event.category.name}
+          eventStartAt={event.startAt}
+          eventLocation={event.location}
           athletes={athletes}
           matchMode={matchMode}
           initialMatchResult={
@@ -140,6 +128,7 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
                 }
               : undefined
           }
+          initialPeriodScores={matchMode ? event.periodScores : undefined}
         />
       </div>
     </main>

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import {
+  resolveEventScoresFromPeriods,
+  usesFourPeriodScoring,
+  type PeriodScoreInput,
+} from "@/lib/four-period-scoring";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 import { updateAttendanceSchema } from "@/lib/validation/attendance";
@@ -47,6 +52,8 @@ export async function PUT(
       id: true,
       categoryId: true,
       type: true,
+      isHome: true,
+      category: { select: { name: true } },
     },
   });
 
@@ -72,9 +79,39 @@ export async function PUT(
   }
 
   const isMatch = isMatchEventType(event.type);
+  const fourPeriod = usesFourPeriodScoring(event.category?.name);
+
   if (parsed.data.matchResult && !isMatch) {
     return NextResponse.json(
       { error: "Il risultato è disponibile solo per eventi partita." },
+      { status: 400 },
+    );
+  }
+
+  if (parsed.data.periodScores && !isMatch) {
+    return NextResponse.json(
+      { error: "I risultati per tempi sono disponibili solo per eventi partita." },
+      { status: 400 },
+    );
+  }
+
+  if (fourPeriod) {
+    if (
+      parsed.data.matchResult &&
+      (parsed.data.matchResult.homeScore !== undefined ||
+        parsed.data.matchResult.awayScore !== undefined)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Per Pulcini/Esordienti il risultato classico non è ammesso: usa i quattro tempi.",
+        },
+        { status: 400 },
+      );
+    }
+  } else if (parsed.data.periodScores) {
+    return NextResponse.json(
+      { error: "I risultati per tempi non sono disponibili per questa categoria." },
       { status: 400 },
     );
   }
@@ -146,22 +183,105 @@ export async function PUT(
       }
     }
 
+    const effectiveIsHome =
+      parsed.data.matchResult?.isHome !== undefined
+        ? parsed.data.matchResult.isHome
+        : event.isHome;
+
     if (isMatch && parsed.data.matchResult) {
       const result = parsed.data.matchResult;
+      if (!fourPeriod) {
+        await tx.event.update({
+          where: { id: event.id },
+          data: {
+            opponentName:
+              result.opponentName === undefined
+                ? undefined
+                : result.opponentName?.trim()
+                  ? result.opponentName.trim()
+                  : null,
+            homeScore: result.homeScore === undefined ? undefined : result.homeScore,
+            awayScore: result.awayScore === undefined ? undefined : result.awayScore,
+            isHome: result.isHome === undefined ? undefined : result.isHome,
+          },
+        });
+      } else {
+        // Meta only: never classic scores for four-period.
+        await tx.event.update({
+          where: { id: event.id },
+          data: {
+            opponentName:
+              result.opponentName === undefined
+                ? undefined
+                : result.opponentName?.trim()
+                  ? result.opponentName.trim()
+                  : null,
+            isHome: result.isHome === undefined ? undefined : result.isHome,
+          },
+        });
+      }
+    }
+
+    if (isMatch && fourPeriod && parsed.data.periodScores) {
+      const periods: PeriodScoreInput[] = parsed.data.periodScores.map((row) => ({
+        periodNumber: row.periodNumber,
+        homeScore: row.homeScore,
+        awayScore: row.awayScore,
+      }));
+
+      for (const period of periods) {
+        await tx.matchPeriodScore.upsert({
+          where: {
+            eventId_periodNumber: {
+              eventId: event.id,
+              periodNumber: period.periodNumber,
+            },
+          },
+          update: {
+            homeScore: period.homeScore,
+            awayScore: period.awayScore,
+          },
+          create: {
+            eventId: event.id,
+            periodNumber: period.periodNumber,
+            homeScore: period.homeScore,
+            awayScore: period.awayScore,
+          },
+        });
+      }
+
+      const stored = await tx.matchPeriodScore.findMany({
+        where: { eventId: event.id },
+        select: { periodNumber: true, homeScore: true, awayScore: true },
+      });
+
+      const { homeScore, awayScore } = resolveEventScoresFromPeriods(stored, effectiveIsHome);
+
       await tx.event.update({
         where: { id: event.id },
         data: {
-          opponentName:
-            result.opponentName === undefined
-              ? undefined
-              : result.opponentName?.trim()
-                ? result.opponentName.trim()
-                : null,
-          homeScore: result.homeScore === undefined ? undefined : result.homeScore,
-          awayScore: result.awayScore === undefined ? undefined : result.awayScore,
-          isHome: result.isHome === undefined ? undefined : result.isHome,
+          homeScore,
+          awayScore,
         },
       });
+    } else if (
+      isMatch &&
+      fourPeriod &&
+      parsed.data.matchResult?.isHome !== undefined &&
+      !parsed.data.periodScores
+    ) {
+      // Ricalcola dual-write se cambia solo casa/trasferta.
+      const stored = await tx.matchPeriodScore.findMany({
+        where: { eventId: event.id },
+        select: { periodNumber: true, homeScore: true, awayScore: true },
+      });
+      if (stored.length > 0) {
+        const { homeScore, awayScore } = resolveEventScoresFromPeriods(stored, effectiveIsHome);
+        await tx.event.update({
+          where: { id: event.id },
+          data: { homeScore, awayScore },
+        });
+      }
     }
   });
 

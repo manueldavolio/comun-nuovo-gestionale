@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AttendanceStatus } from "@prisma/client";
+import { FOUR_PERIOD_COUNT } from "@/lib/four-period-scoring";
 
 const attendanceEntrySchema = z.object({
   athleteId: z.string().cuid("Atleta non valido."),
@@ -27,10 +28,33 @@ const matchResultSchema = z
     }
   });
 
+const periodScoreSchema = z
+  .object({
+    periodNumber: z
+      .number()
+      .int()
+      .min(1, "Il tempo deve essere tra 1 e 4.")
+      .max(FOUR_PERIOD_COUNT, "Il tempo deve essere tra 1 e 4."),
+    homeScore: z.number().int().min(0).max(99).nullable(),
+    awayScore: z.number().int().min(0).max(99).nullable(),
+  })
+  .superRefine((value, ctx) => {
+    const hasHome = value.homeScore != null;
+    const hasAway = value.awayScore != null;
+    if (hasHome !== hasAway) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Per ogni tempo inserisci entrambi i gol oppure nessuno (non inserito).",
+        path: ["homeScore"],
+      });
+    }
+  });
+
 export const updateAttendanceSchema = z
   .object({
     entries: z.array(attendanceEntrySchema).min(1, "Seleziona almeno un atleta."),
     matchResult: matchResultSchema.optional(),
+    periodScores: z.array(periodScoreSchema).max(FOUR_PERIOD_COUNT).optional(),
   })
   .superRefine((value, ctx) => {
     const seen = new Set<string>();
@@ -52,6 +76,20 @@ export const updateAttendanceSchema = z
             path: ["entries", index, "goals"],
           });
         }
+      }
+    }
+
+    if (value.periodScores) {
+      const periodSeen = new Set<number>();
+      for (const [index, period] of value.periodScores.entries()) {
+        if (periodSeen.has(period.periodNumber)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Tempo duplicato nella richiesta.",
+            path: ["periodScores", index, "periodNumber"],
+          });
+        }
+        periodSeen.add(period.periodNumber);
       }
     }
   });
