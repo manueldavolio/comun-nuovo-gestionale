@@ -1,17 +1,19 @@
 import { z } from "zod";
 
+import { ATHLETE_ROLE_CODES } from "@/lib/athlete-roles";
+
 export const updateAthleteProfileSchema = z.object({
-  position: z
-    .string()
-    .trim()
-    .max(40, "Ruolo troppo lungo.")
-    .optional()
-    .nullable()
-    .transform((value) => {
+  position: z.preprocess(
+    (value) => {
+      if (value === undefined) return undefined;
       if (value == null) return null;
+      if (typeof value !== "string") return value;
       const trimmed = value.trim();
-      return trimmed.length === 0 ? null : trimmed;
-    }),
+      if (trimmed.length === 0) return null;
+      return trimmed.toUpperCase();
+    },
+    z.union([z.enum(ATHLETE_ROLE_CODES), z.null()]).optional(),
+  ),
   shirtNumber: z
     .union([z.number().int().min(0).max(99), z.null()])
     .optional()

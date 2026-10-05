@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, Shirt } from "lucide-react";
+import {
+  ATHLETE_ROLE_CHOICES,
+  formatAthleteRoleDisplay,
+  hasAssignedAthleteRole,
+  parseCanonicalAthleteRole,
+  type AthleteRoleCode,
+} from "@/lib/athlete-roles";
 import { athleteInitials } from "@/lib/parent-season";
 
 type AthleteRosterEditorProps = {
@@ -40,6 +47,17 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
   const [feedback, setFeedback] = useState<Record<string, string>>({});
 
   const monthLabel = MONTH_LABELS[noteMonth] ?? String(noteMonth);
+  const missingRoleCount = useMemo(
+    () => rows.filter((row) => !hasAssignedAthleteRole(row.position)).length,
+    [rows],
+  );
+
+  function setRole(athleteId: string, role: AthleteRoleCode | null) {
+    setRows((prev) =>
+      prev.map((row) => (row.id === athleteId ? { ...row, position: role } : row)),
+    );
+    setFeedback((prev) => ({ ...prev, [athleteId]: "" }));
+  }
 
   async function saveProfile(athleteId: string) {
     const row = rows.find((item) => item.id === athleteId);
@@ -115,11 +133,28 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
         </p>
       </div>
 
+      {missingRoleCount > 0 ? (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Completa i ruoli della squadra per utilizzare tutte le funzioni Fanta.{" "}
+          <span className="font-semibold">
+            {missingRoleCount === 1
+              ? "1 giocatore senza ruolo."
+              : `${missingRoleCount} giocatori senza ruolo.`}
+          </span>
+        </p>
+      ) : null}
+
       <ul className="space-y-3">
         {rows.map((athlete) => {
           const hasNote = Boolean((athlete.noteContent ?? "").trim());
           const open = expandedId === athlete.id;
           const initials = athleteInitials(athlete.firstName, athlete.lastName);
+          const canonical = parseCanonicalAthleteRole(athlete.position);
+          const roleAssigned = hasAssignedAthleteRole(athlete.position);
+          const legacyLabel =
+            !roleAssigned && (athlete.position ?? "").trim()
+              ? (athlete.position ?? "").trim()
+              : null;
 
           return (
             <li
@@ -143,8 +178,13 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                       <Shirt className="h-3.5 w-3.5" />
                       {athlete.shirtNumber != null ? `#${athlete.shirtNumber}` : "Maglia —"}
                     </span>
-                    <span>{athlete.position?.trim() || "Ruolo —"}</span>
+                    <span>{formatAthleteRoleDisplay(athlete.position)}</span>
                   </p>
+                  {!roleAssigned ? (
+                    <span className="mt-1 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                      Ruolo da assegnare
+                    </span>
+                  ) : null}
                   {hasNote ? (
                     <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -164,24 +204,50 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                   <p className="text-sm font-bold uppercase tracking-wide text-blue-900">
                     {athlete.firstName} {athlete.lastName}
                   </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <label className="text-xs font-medium text-zinc-700">
-                      Ruolo
-                      <input
-                        value={athlete.position ?? ""}
-                        onChange={(event) =>
-                          setRows((prev) =>
-                            prev.map((row) =>
-                              row.id === athlete.id
-                                ? { ...row, position: event.target.value || null }
-                                : row,
-                            ),
-                          )
-                        }
-                        placeholder="Es. Difensore"
-                        className="mt-1 block min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                      />
-                    </label>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-medium text-zinc-700">Ruolo</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {ATHLETE_ROLE_CHOICES.map((choice) => {
+                          const active = canonical === choice.value;
+                          return (
+                            <button
+                              key={choice.value}
+                              type="button"
+                              onClick={() => setRole(athlete.id, choice.value)}
+                              className={`min-h-11 rounded-xl border px-2 text-xs font-bold uppercase tracking-wide ${
+                                active
+                                  ? "border-blue-700 bg-blue-800 text-white"
+                                  : "border-zinc-200 bg-white text-zinc-700 hover:bg-sky-50"
+                              }`}
+                              title={choice.label}
+                            >
+                              {choice.value}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {legacyLabel ? (
+                        <p className="mt-2 text-xs text-amber-800">
+                          Valore precedente: {legacyLabel}. Seleziona un ruolo standard (POR / DIF /
+                          CEN / ATT).
+                        </p>
+                      ) : null}
+                      {!roleAssigned && !legacyLabel ? (
+                        <p className="mt-2 text-xs font-semibold text-amber-800">
+                          Ruolo da assegnare
+                        </p>
+                      ) : null}
+                      {canonical ? (
+                        <button
+                          type="button"
+                          onClick={() => setRole(athlete.id, null)}
+                          className="mt-2 text-xs font-semibold text-zinc-500 underline"
+                        >
+                          Rimuovi ruolo
+                        </button>
+                      ) : null}
+                    </div>
                     <label className="text-xs font-medium text-zinc-700">
                       Numero maglia
                       <input
@@ -210,7 +276,12 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                   </div>
                   <button
                     type="button"
-                    disabled={pendingId === athlete.id}
+                    disabled={
+                      pendingId === athlete.id ||
+                      Boolean(
+                        athlete.position && !parseCanonicalAthleteRole(athlete.position),
+                      )
+                    }
                     onClick={() => saveProfile(athlete.id)}
                     className="mt-3 min-h-11 rounded-xl bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-60"
                   >

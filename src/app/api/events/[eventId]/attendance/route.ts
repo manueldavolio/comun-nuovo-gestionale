@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import { isGoalkeeperRole, shouldPersistMatchPlayerStat } from "@/lib/athlete-roles";
 import {
   resolveEventScoresFromPeriods,
   usesFourPeriodScoring,
@@ -120,16 +121,29 @@ export async function PUT(
     where: {
       categoryId: event.categoryId,
     },
-    select: { id: true },
+    select: { id: true, position: true },
   });
-  const athleteIds = new Set(athletes.map((athlete) => athlete.id));
+  const athleteById = new Map(athletes.map((athlete) => [athlete.id, athlete]));
 
-  const hasInvalidAthlete = parsed.data.entries.some((entry) => !athleteIds.has(entry.athleteId));
+  const hasInvalidAthlete = parsed.data.entries.some((entry) => !athleteById.has(entry.athleteId));
   if (hasInvalidAthlete) {
     return NextResponse.json(
       { error: "Uno o piu atleti non appartengono alla categoria dell'evento." },
       { status: 400 },
     );
+  }
+
+  for (const [index, entry] of parsed.data.entries.entries()) {
+    const athlete = athleteById.get(entry.athleteId)!;
+    const isGk = isGoalkeeperRole(athlete.position);
+    if (entry.goalsConceded != null && !isGk) {
+      return NextResponse.json(
+        {
+          error: `Gol subiti ammessi solo per portieri (atleta ${index + 1}).`,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   await prisma.$transaction(async (tx) => {
@@ -152,11 +166,56 @@ export async function PUT(
       });
 
       if (isMatch) {
+        const athlete = athleteById.get(entry.athleteId)!;
+        const isGk = isGoalkeeperRole(athlete.position);
         const present = entry.status === "PRESENT";
         const goals = present ? (entry.goals ?? 0) : 0;
         const assists = present ? (entry.assists ?? 0) : 0;
 
-        if (goals > 0 || assists > 0) {
+        const existing = await tx.matchPlayerStat.findUnique({
+          where: {
+            eventId_athleteId: {
+              eventId: event.id,
+              athleteId: entry.athleteId,
+            },
+          },
+          select: { goalsConceded: true },
+        });
+
+        // Assente → null. Non-POR → omit (undefined) per non cancellare storico
+        // se il ruolo è cambiato dopo partite già salvate. Solo POR aggiorna il campo.
+        let goalsConceded: number | null | undefined = entry.goalsConceded;
+        if (!present) {
+          goalsConceded = null;
+        } else if (!isGk) {
+          goalsConceded = undefined;
+        }
+
+        const persist = shouldPersistMatchPlayerStat({
+          present,
+          goals,
+          assists,
+          goalsConceded,
+          existingGoalsConceded: existing?.goalsConceded ?? null,
+        });
+
+        if (!present || !persist) {
+          await tx.matchPlayerStat.deleteMany({
+            where: {
+              eventId: event.id,
+              athleteId: entry.athleteId,
+            },
+          });
+        } else {
+          const updateData: {
+            goals: number;
+            assists: number;
+            goalsConceded?: number | null;
+          } = { goals, assists };
+          if (goalsConceded !== undefined) {
+            updateData.goalsConceded = goalsConceded;
+          }
+
           await tx.matchPlayerStat.upsert({
             where: {
               eventId_athleteId: {
@@ -164,19 +223,13 @@ export async function PUT(
                 athleteId: entry.athleteId,
               },
             },
-            update: { goals, assists },
+            update: updateData,
             create: {
               eventId: event.id,
               athleteId: entry.athleteId,
               goals,
               assists,
-            },
-          });
-        } else {
-          await tx.matchPlayerStat.deleteMany({
-            where: {
-              eventId: event.id,
-              athleteId: entry.athleteId,
+              goalsConceded: goalsConceded === undefined ? null : goalsConceded,
             },
           });
         }
@@ -206,7 +259,6 @@ export async function PUT(
           },
         });
       } else {
-        // Meta only: never classic scores for four-period.
         await tx.event.update({
           where: { id: event.id },
           data: {
@@ -270,7 +322,6 @@ export async function PUT(
       parsed.data.matchResult?.isHome !== undefined &&
       !parsed.data.periodScores
     ) {
-      // Ricalcola dual-write se cambia solo casa/trasferta.
       const stored = await tx.matchPeriodScore.findMany({
         where: { eventId: event.id },
         select: { periodNumber: true, homeScore: true, awayScore: true },

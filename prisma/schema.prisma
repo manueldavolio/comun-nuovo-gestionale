@@ -231,7 +231,7 @@ model Athlete {
   province     String
   clothingSize String?
   medicalNotes String?
-  /// Ruolo in campo (testo libero semplice, es. Difensore).
+  /// Ruolo in campo (codici canonici POR/DIF/CEN/ATT; legacy free-text ancora leggibile).
   position     String?
   /// Numero maglia opzionale.
   shirtNumber  Int?
@@ -495,15 +495,17 @@ model Attendance {
   @@index([eventId, status])
 }
 
-/// Gol/assist per singolo atleta in una partita (la presenza resta su Attendance).
+/// Gol/assist (e gol subiti portiere) per singolo atleta in una partita.
 model MatchPlayerStat {
-  id        String   @id @default(cuid())
-  eventId   String
-  athleteId String
-  goals     Int      @default(0)
-  assists   Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  eventId        String
+  athleteId      String
+  goals          Int      @default(0)
+  assists        Int      @default(0)
+  /// Solo portieri: null = non inserito; 0 = clean sheet confermato.
+  goalsConceded  Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)

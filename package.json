@@ -25,7 +25,9 @@
     "export:audit": "tsx scripts/export-v2/cli.ts",
     "test:export-audit": "tsx --test scripts/export-v2/tests/audit-core.test.ts scripts/export-v2/tests/connection.test.ts",
     "test:mister-incomplete": "tsx --test src/lib/mister-incomplete.test.ts",
-    "test:four-period": "tsx --test src/lib/four-period-scoring.test.ts"
+    "test:four-period": "tsx --test src/lib/four-period-scoring.test.ts",
+    "test:attendance": "tsx --test src/lib/validation/attendance.test.ts src/lib/athlete-roles.test.ts",
+    "test:athlete-roles": "tsx --test src/lib/athlete-roles.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

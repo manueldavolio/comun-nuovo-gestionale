@@ -19,6 +19,10 @@ import {
   usesFourPeriodScoring,
   type PeriodScoreInput,
 } from "@/lib/four-period-scoring";
+import {
+  formatAthleteRoleDisplay,
+  isGoalkeeperRole,
+} from "@/lib/athlete-roles";
 import { resolveMatchDayOpponentName } from "@/lib/match-day";
 import { normalizeStatsForStatus } from "@/lib/mister-incomplete";
 import { athleteInitials } from "@/lib/parent-season";
@@ -32,6 +36,8 @@ type AthleteRow = {
   status: AttendanceStatus | null;
   goals?: number;
   assists?: number;
+  /** null = non inserito; 0 = clean sheet confermato */
+  goalsConceded?: number | null;
 };
 
 type PeriodDraft = {
@@ -96,6 +102,14 @@ function buildInitialAssists(athletes: AthleteRow[]) {
   }, {});
 }
 
+function buildInitialGoalsConceded(athletes: AthleteRow[]) {
+  return athletes.reduce<Record<string, number | null>>((acc, athlete) => {
+    acc[athlete.id] =
+      athlete.goalsConceded === undefined ? null : athlete.goalsConceded;
+    return acc;
+  }, {});
+}
+
 function initialResultEntered(initial?: AttendanceManagerProps["initialMatchResult"]) {
   return initial?.homeScore != null && initial?.awayScore != null;
 }
@@ -146,6 +160,9 @@ export function AttendanceManager({
   );
   const [goalsByAthlete, setGoalsByAthlete] = useState(buildInitialGoals(athletes));
   const [assistsByAthlete, setAssistsByAthlete] = useState(buildInitialAssists(athletes));
+  const [goalsConcededByAthlete, setGoalsConcededByAthlete] = useState(
+    buildInitialGoalsConceded(athletes),
+  );
   const [clubScore, setClubScore] = useState(
     initialMatchResult?.isHome === false
       ? (initialMatchResult.awayScore ?? 0)
@@ -211,6 +228,7 @@ export function AttendanceManager({
     if (status !== "PRESENT") {
       setGoalsByAthlete((prev) => ({ ...prev, [athleteId]: 0 }));
       setAssistsByAthlete((prev) => ({ ...prev, [athleteId]: 0 }));
+      setGoalsConcededByAthlete((prev) => ({ ...prev, [athleteId]: null }));
     }
     setFeedback({});
   }
@@ -261,10 +279,24 @@ export function AttendanceManager({
           goals: goalsByAthlete[athlete.id] ?? 0,
           assists: assistsByAthlete[athlete.id] ?? 0,
         });
+        const isGk = isGoalkeeperRole(athlete.position);
         return {
           athleteId: athlete.id,
           status,
-          ...(matchMode ? stats : {}),
+          ...(matchMode
+            ? {
+                ...stats,
+                // Solo POR: invia sempre (anche null) per distinguere da client legacy.
+                ...(isGk
+                  ? {
+                      goalsConceded:
+                        status === "PRESENT"
+                          ? (goalsConcededByAthlete[athlete.id] ?? null)
+                          : null,
+                    }
+                  : {}),
+              }
+            : {}),
         };
       });
 
@@ -590,7 +622,7 @@ export function AttendanceManager({
                     <p className="text-xs text-zinc-500">
                       {athlete.shirtNumber != null ? `#${athlete.shirtNumber}` : "Maglia —"}
                       {" · "}
-                      {athlete.position?.trim() || "Ruolo —"}
+                      {formatAthleteRoleDisplay(athlete.position)}
                     </p>
                     {!status ? (
                       <span className="mt-1 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">
@@ -627,33 +659,88 @@ export function AttendanceManager({
                 </div>
 
                 {matchMode ? (
-                  <div className="mt-3 grid grid-cols-2 gap-3 border-t border-blue-100/80 pt-3">
-                    <div>
-                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                        Gol
-                      </p>
-                      <TouchStepper
-                        value={present ? (goalsByAthlete[athlete.id] ?? 0) : 0}
-                        disabled={!present}
-                        aria-label={`Gol ${athlete.firstName}`}
-                        onChange={(value) =>
-                          setGoalsByAthlete((prev) => ({ ...prev, [athlete.id]: value }))
-                        }
-                      />
+                  <div className="mt-3 space-y-3 border-t border-blue-100/80 pt-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                          Gol
+                        </p>
+                        <TouchStepper
+                          value={present ? (goalsByAthlete[athlete.id] ?? 0) : 0}
+                          disabled={!present}
+                          aria-label={`Gol ${athlete.firstName}`}
+                          onChange={(value) =>
+                            setGoalsByAthlete((prev) => ({ ...prev, [athlete.id]: value }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                          Assist
+                        </p>
+                        <TouchStepper
+                          value={present ? (assistsByAthlete[athlete.id] ?? 0) : 0}
+                          disabled={!present}
+                          aria-label={`Assist ${athlete.firstName}`}
+                          onChange={(value) =>
+                            setAssistsByAthlete((prev) => ({ ...prev, [athlete.id]: value }))
+                          }
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                        Assist
-                      </p>
-                      <TouchStepper
-                        value={present ? (assistsByAthlete[athlete.id] ?? 0) : 0}
-                        disabled={!present}
-                        aria-label={`Assist ${athlete.firstName}`}
-                        onChange={(value) =>
-                          setAssistsByAthlete((prev) => ({ ...prev, [athlete.id]: value }))
-                        }
-                      />
-                    </div>
+
+                    {isGoalkeeperRole(athlete.position) ? (
+                      <div>
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                          Gol subiti
+                        </p>
+                        {!present ? (
+                          <p className="text-sm text-zinc-400">—</p>
+                        ) : goalsConcededByAthlete[athlete.id] == null ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                              Da inserire
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setGoalsConcededByAthlete((prev) => ({
+                                  ...prev,
+                                  [athlete.id]: 0,
+                                }))
+                              }
+                              className="min-h-11 rounded-xl border border-blue-300 bg-white px-4 text-xs font-bold uppercase tracking-wide text-blue-900 hover:bg-sky-50"
+                            >
+                              Conferma 0
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setGoalsConcededByAthlete((prev) => ({
+                                  ...prev,
+                                  [athlete.id]: 1,
+                                }))
+                              }
+                              className="min-h-11 min-w-11 rounded-xl border border-zinc-300 bg-white text-sm font-bold text-zinc-800 hover:bg-zinc-50"
+                              aria-label={`Imposta 1 gol subito ${athlete.firstName}`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <TouchStepper
+                            value={goalsConcededByAthlete[athlete.id] ?? 0}
+                            aria-label={`Gol subiti ${athlete.firstName}`}
+                            onChange={(value) =>
+                              setGoalsConcededByAthlete((prev) => ({
+                                ...prev,
+                                [athlete.id]: value,
+                              }))
+                            }
+                          />
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </li>

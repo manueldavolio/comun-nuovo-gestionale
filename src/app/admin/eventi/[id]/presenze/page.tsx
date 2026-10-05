@@ -67,7 +67,7 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
               },
               matchStats: {
                 where: { eventId: id },
-                select: { goals: true, assists: true },
+                select: { goals: true, assists: true, goalsConceded: true },
                 take: 1,
               },
             },
@@ -93,6 +93,7 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
         status: athlete.attendances[0]?.status ?? null,
         goals: athlete.matchStats[0]?.goals ?? 0,
         assists: athlete.matchStats[0]?.assists ?? 0,
+        goalsConceded: athlete.matchStats[0]?.goalsConceded ?? null,
       }))
     : [];
 

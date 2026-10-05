@@ -7,6 +7,8 @@ const attendanceEntrySchema = z.object({
   status: z.nativeEnum(AttendanceStatus, { error: "Stato presenza non valido." }),
   goals: z.number().int().min(0).max(99).optional(),
   assists: z.number().int().min(0).max(99).optional(),
+  /** null = non inserito; 0 = zero confermato; omitted = client legacy */
+  goalsConceded: z.number().int().min(0).max(99).optional().nullable(),
 });
 
 const matchResultSchema = z
@@ -74,6 +76,13 @@ export const updateAttendanceSchema = z
             code: z.ZodIssueCode.custom,
             message: "Gol e assist solo per atleti presenti.",
             path: ["entries", index, "goals"],
+          });
+        }
+        if (entry.goalsConceded != null) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Gol subiti solo per portieri presenti.",
+            path: ["entries", index, "goalsConceded"],
           });
         }
       }
