@@ -111,6 +111,12 @@ enum ParentAthleteLinkRequestStatus {
   REJECTED
 }
 
+enum PredictionChoice {
+  HOME
+  DRAW
+  AWAY
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -132,6 +138,7 @@ model User {
   accountingEntries AccountingEntry[]
   reviewedParentAthleteLinkRequests ParentAthleteLinkRequest[] @relation("ParentAthleteLinkRequestReviewedBy")
   athleteCoachNotes AthleteCoachNote[]
+  createdPredictionSlips PredictionSlip[]
 
   @@index([role])
   @@index([isActive])
@@ -181,6 +188,7 @@ model ParentProfile {
   athletes               Athlete[]
   additionalAthleteLinks AthleteParent[]
   athleteLinkRequests    ParentAthleteLinkRequest[]
+  predictionEntries      PredictionEntry[]
 
   @@index([lastName, firstName])
 }
@@ -406,6 +414,7 @@ model Event {
   convocation Convocation?
   matchStats  MatchPlayerStat[]
   periodScores MatchPeriodScore[]
+  predictionSlipEvents PredictionSlipEvent[]
 
   @@index([categoryId])
   @@index([createdById])
@@ -824,4 +833,78 @@ model AccountingEntry {
   @@index([category])
   @@index([isForecast])
   @@index([createdById])
+}
+
+/// Schedina Comun Nuovo (gioco gratuito 1-X-2 settimanale).
+model PredictionSlip {
+  id          String    @id @default(cuid())
+  title       String
+  prizeText   String
+  /// Chiusura scelta manualmente dall'admin.
+  closesAt    DateTime
+  /// Chiusura effettiva congelata al publish: min(closesAt, primo kickoff). Mai ricalcolata dagli Event.
+  effectiveClosesAt DateTime?
+  /// Materializzazione lazy dello stato LOCKED (now >= effectiveClosesAt).
+  lockedAt    DateTime?
+  isPublished Boolean   @default(false)
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  events    PredictionSlipEvent[]
+  entries   PredictionEntry[]
+
+  @@index([isPublished, closesAt])
+  @@index([createdById])
+  @@index([lockedAt])
+  @@index([effectiveClosesAt])
+}
+
+model PredictionSlipEvent {
+  id        String @id @default(cuid())
+  slipId    String
+  eventId   String
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slip  PredictionSlip   @relation(fields: [slipId], references: [id], onDelete: Cascade)
+  event Event            @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  picks PredictionPick[]
+
+  @@unique([slipId, eventId])
+  @@index([slipId, sortOrder])
+  @@index([eventId])
+}
+
+model PredictionEntry {
+  id          String   @id @default(cuid())
+  slipId      String
+  parentId    String
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  slip   PredictionSlip  @relation(fields: [slipId], references: [id], onDelete: Cascade)
+  parent ParentProfile   @relation(fields: [parentId], references: [id], onDelete: Restrict)
+  picks  PredictionPick[]
+
+  @@unique([slipId, parentId])
+  @@index([parentId])
+  @@index([slipId])
+}
+
+model PredictionPick {
+  id          String           @id @default(cuid())
+  entryId     String
+  slipEventId String
+  choice      PredictionChoice
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  entry     PredictionEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  slipEvent PredictionSlipEvent @relation(fields: [slipEventId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, slipEventId])
+  @@index([slipEventId])
 }

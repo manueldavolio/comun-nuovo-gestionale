@@ -17,6 +17,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin/categorie", label: "Categorie" },
   { href: "/admin/staff", label: "Staff" },
   { href: "/admin/finanze", label: "Finanze" },
+  { href: "/admin/schedina", label: "Schedina", adminOnly: true },
   { href: "/admin/comunicazioni", label: "Comunicazioni" },
   { href: "/admin/documenti", label: "Documenti" },
   { href: "/admin/media", label: "Media" },

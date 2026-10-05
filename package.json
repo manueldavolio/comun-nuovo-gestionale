@@ -20,6 +20,7 @@
     "test:match-day": "tsx --test src/lib/match-day.test.ts",
     "test:calendar-range": "tsx --test src/lib/calendar-range.test.ts",
     "test:enrollment-fees": "tsx --test src/lib/enrollment-fees.test.ts",
+    "test:prediction-slip": "tsx --test src/lib/prediction-slip.test.ts",
     "test:admin-athlete-delete": "tsx --test src/lib/admin-athlete-delete.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

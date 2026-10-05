@@ -22,6 +22,7 @@ import { AthleteWeekSection } from "@/components/parent-dashboard/athlete-week-s
 import { MatchDayCard } from "@/components/parent-dashboard/match-day-card";
 import { ParentAdminPanel } from "@/components/parent-dashboard/parent-admin-panel";
 import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
+import { PredictionSlipDashboardCard } from "@/components/parent-dashboard/prediction-slip-dashboard-card";
 import { getAuthSession } from "@/lib/auth";
 import {
   formatConvocationWallClockDate,
@@ -54,6 +55,11 @@ import {
   resolveCategoryEnrollmentFees,
 } from "@/lib/enrollment-fees";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
+import {
+  evaluatePredictionEntry,
+  resolveSlipLockState,
+} from "@/lib/prediction-slip";
+import { selectDashboardPredictionSlip } from "@/lib/prediction-slip-server";
 import {
   computeSeasonAthleteStats,
   currentSeasonRange,
@@ -158,6 +164,98 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     redirect("/unauthorized");
   }
 
+  const publishedSlips = await prisma.predictionSlip.findMany({
+    where: { isPublished: true, effectiveClosesAt: { not: null } },
+    orderBy: [{ closesAt: "desc" }],
+    take: 12,
+    select: {
+      id: true,
+      title: true,
+      prizeText: true,
+      closesAt: true,
+      effectiveClosesAt: true,
+      lockedAt: true,
+      isPublished: true,
+      events: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          event: {
+            select: {
+              homeScore: true,
+              awayScore: true,
+            },
+          },
+        },
+      },
+      entries: {
+        where: { parentId: parentProfile.id },
+        take: 1,
+        select: {
+          id: true,
+          picks: {
+            select: {
+              slipEventId: true,
+              choice: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const dashboardSlipCandidate = selectDashboardPredictionSlip(
+    publishedSlips.map((slip) => ({
+      id: slip.id,
+      title: slip.title,
+      prizeText: slip.prizeText,
+      closesAt: slip.closesAt,
+      effectiveClosesAt: slip.effectiveClosesAt,
+      lockedAt: slip.lockedAt,
+      isPublished: slip.isPublished,
+      hasOwnEntry: slip.entries.length > 0,
+    })),
+    nowAsEuropeRomeWallClockUtc(),
+  );
+
+  const dashboardSlip = dashboardSlipCandidate
+    ? publishedSlips.find((slip) => slip.id === dashboardSlipCandidate.id) ?? null
+    : null;
+
+  const wallNowForSlip = nowAsEuropeRomeWallClockUtc();
+  const dashboardSlipLock =
+    dashboardSlip && dashboardSlip.effectiveClosesAt
+      ? resolveSlipLockState({
+          lockedAt: dashboardSlip.lockedAt,
+          effectiveClosesAt: dashboardSlip.effectiveClosesAt,
+          now: wallNowForSlip,
+        })
+      : null;
+  const dashboardSlipEvaluation =
+    dashboardSlip && dashboardSlip.entries[0]
+      ? evaluatePredictionEntry({
+          slipEventCount: dashboardSlip.events.length,
+          picks: dashboardSlip.entries[0].picks.map((pick) => {
+            const slipEvent = dashboardSlip.events.find((row) => row.id === pick.slipEventId);
+            return {
+              choice: pick.choice,
+              homeScore: slipEvent?.event.homeScore,
+              awayScore: slipEvent?.event.awayScore,
+            };
+          }),
+        })
+      : null;
+  const dashboardSlipClosesLabel = dashboardSlipLock
+    ? new Intl.DateTimeFormat("it-IT", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "UTC",
+      }).format(dashboardSlipLock.effectiveClosesAt)
+    : "";
+
   const associatedAthletes = await prisma.athlete.findMany({
     where: athletesAssociatedToParentWhere(parentProfile.id),
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -227,6 +325,18 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             subtitle="Dashboard famiglia ASD Comun Nuovo"
             userName={session.user.name ?? "Genitore"}
           />
+          {dashboardSlip && dashboardSlipLock ? (
+            <PredictionSlipDashboardCard
+              slipId={dashboardSlip.id}
+              title={dashboardSlip.title}
+              prizeText={dashboardSlip.prizeText}
+              eventsCount={dashboardSlip.events.length}
+              lockState={dashboardSlipLock.state}
+              effectiveClosesAtLabel={dashboardSlipClosesLabel}
+              hasEntry={dashboardSlip.entries.length > 0}
+              evaluation={dashboardSlipEvaluation}
+            />
+          ) : null}
           <section className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-zinc-900">Nessun figlio collegato</h2>
             <p className="mt-2 text-sm text-zinc-600">
@@ -707,6 +817,19 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
             Iscrizione inviata correttamente. Le scadenze economiche sono state generate.
           </p>
+        ) : null}
+
+        {dashboardSlip && dashboardSlipLock ? (
+          <PredictionSlipDashboardCard
+            slipId={dashboardSlip.id}
+            title={dashboardSlip.title}
+            prizeText={dashboardSlip.prizeText}
+            eventsCount={dashboardSlip.events.length}
+            lockState={dashboardSlipLock.state}
+            effectiveClosesAtLabel={dashboardSlipClosesLabel}
+            hasEntry={dashboardSlip.entries.length > 0}
+            evaluation={dashboardSlipEvaluation}
+          />
         ) : null}
 
         <ParentChildSwitcher
