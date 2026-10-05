@@ -40,6 +40,8 @@ type MatchDayCardProps = {
   awayScore: number | null;
   playerGoals: number;
   playerAssists: number;
+  /** Se noto: presenza reale Match Center. */
+  playerPresent?: boolean | null;
   /** Dettaglio tempi Pulcini/Esordienti, es. "1-0 · 1-0 · 1-0 · 0-10". */
   periodScoresDetail?: string | null;
 };
@@ -59,6 +61,7 @@ export function MatchDayCard({
   awayScore,
   playerGoals,
   playerAssists,
+  playerPresent = null,
   periodScoresDetail = null,
 }: MatchDayCardProps) {
   const resolvedOpponent = resolveMatchDayOpponentName({ opponentName, title });
@@ -219,14 +222,19 @@ export function MatchDayCard({
         ) : null}
 
         <div className="relative mt-2.5 flex flex-wrap items-center gap-2">
-          {phase === "FULL_TIME" && (playerGoals > 0 || playerAssists > 0) ? (
-            <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-sky-300/30 bg-sky-500/15 px-2.5 py-1 text-xs font-semibold">
+          {phase === "FULL_TIME" && hasResult ? (
+            <div className="inline-flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-sky-300/30 bg-sky-500/15 px-2.5 py-1.5 text-xs font-semibold">
               <span className="text-[10px] font-bold uppercase tracking-wide text-sky-100">
                 La tua partita
               </span>
-              {playerGoals > 0 ? <span>⚽ {playerGoals} GOL</span> : null}
-              {playerAssists > 0 ? <span>🎯 {playerAssists} ASSIST</span> : null}
-            </span>
+              {playerPresent === true ? (
+                <span className="text-emerald-100">✓ Presente</span>
+              ) : playerPresent === false ? (
+                <span className="text-sky-100/80">— Assente</span>
+              ) : null}
+              {playerGoals > 0 ? <span>⚽ {playerGoals} gol</span> : null}
+              {playerAssists > 0 ? <span>👟 {playerAssists} assist</span> : null}
+            </div>
           ) : null}
 
           {mapsUrl ? (

@@ -1,25 +1,24 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  Award,
   CalendarDays,
   Camera,
   ClipboardList,
   FileText,
-  Goal,
-  Handshake,
   HeartPulse,
-  MapPin,
-  MessageSquareQuote,
-  Percent,
-  Shirt,
-  StickyNote,
   Wallet,
 } from "lucide-react";
 import { AreaHeader } from "@/components/layout/area-header";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { PaymentActions } from "@/components/payments/payment-actions";
 import { AthleteHeroCard } from "@/components/parent-dashboard/athlete-hero-card";
+import { AthleteSeasonCard } from "@/components/parent-dashboard/athlete-season-card";
+import {
+  AthleteAchievementsSection,
+  AthleteRecentMatchesStrip,
+  CoachNoteCard,
+} from "@/components/parent-dashboard/athlete-story-cards";
+import { AthleteWeekSection } from "@/components/parent-dashboard/athlete-week-section";
 import { MatchDayCard } from "@/components/parent-dashboard/match-day-card";
 import { ParentAdminPanel } from "@/components/parent-dashboard/parent-admin-panel";
 import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
@@ -33,22 +32,31 @@ import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
 import { COACH_VISIBLE_EVENT_TYPES, EVENT_TYPE_LABEL } from "@/lib/events";
 import { computeExpiryBadgeStatus, computeMedicalVisitStatus } from "@/lib/expiry-status";
+import { formatPeriodScoresDetail } from "@/lib/four-period-scoring";
 import {
   resolveMatchDayPhase,
   resolveConvocationNote,
   selectTodaysMatchDayEvent,
   wallClockDayBounds,
 } from "@/lib/match-day";
-import { formatPeriodScoresDetail } from "@/lib/four-period-scoring";
+import {
+  buildRecentMatchChips,
+  computeMyComunAchievements,
+} from "@/lib/my-comun-nuovo/achievements";
+import {
+  buildAthleteWeekRows,
+  myComunWeekBounds,
+  summarizeWeekTrainings,
+} from "@/lib/my-comun-nuovo/week";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import {
   computeSeasonAthleteStats,
-  computeSeasonBadges,
   currentSeasonRange,
   isMatchEventType,
   MATCH_EVENT_TYPES,
 } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
+import { isGoalkeeperRole } from "@/lib/athlete-roles";
 
 type ParentDashboardPageProps = {
   searchParams: Promise<{ enrolled?: string; athleteId?: string; stripe?: string }>;
@@ -108,16 +116,6 @@ const MONTH_LABELS = [
   "Dicembre",
 ];
 
-const WEEKDAY_LABELS = [
-  "Domenica",
-  "Lunedì",
-  "Martedì",
-  "Mercoledì",
-  "Giovedì",
-  "Venerdì",
-  "Sabato",
-];
-
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
   month: "2-digit",
@@ -135,19 +133,6 @@ function statusClass(
 
 function isOpenPaymentStatus(status: string | null | undefined) {
   return ["PENDING", "OVERDUE", "CANCELLED", "FAILED", "EXPIRED"].includes(status ?? "");
-}
-
-function matchOutcome(input: {
-  homeScore: number;
-  awayScore: number;
-  isHome: boolean | null;
-}): "VITTORIA" | "PAREGGIO" | "SCONFITTA" {
-  const clubIsHome = input.isHome !== false;
-  const clubScore = clubIsHome ? input.homeScore : input.awayScore;
-  const opponentScore = clubIsHome ? input.awayScore : input.homeScore;
-  if (clubScore > opponentScore) return "VITTORIA";
-  if (clubScore < opponentScore) return "SCONFITTA";
-  return "PAREGGIO";
 }
 
 export default async function ParentDashboardPage({ searchParams }: ParentDashboardPageProps) {
@@ -267,6 +252,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const wallNow = nowAsEuropeRomeWallClockUtc(now);
   const season = currentSeasonRange(wallNow);
   const todayBounds = wallClockDayBounds(wallNow);
+  const weekBounds = myComunWeekBounds(wallNow);
   const latestEnrollment = selectedAthlete.enrollments[0];
   const portraitDocumentId =
     selectedAthlete.enrollments.find((enrollment) => enrollment.documents[0])?.documents[0]?.id ??
@@ -282,8 +268,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     attendances,
     matchStats,
     todaysMatchCandidates,
+    weekEventCandidates,
     nextEventCandidates,
-    recentResults,
+    recentMatches,
     latestNote,
     recentMedia,
     pendingConvocationsCount,
@@ -298,8 +285,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       },
       select: {
         status: true,
-        event: { select: { type: true } },
+        event: { select: { type: true, startAt: true } },
       },
+      orderBy: { event: { startAt: "asc" } },
     }),
     prisma.matchPlayerStat.findMany({
       where: {
@@ -309,7 +297,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           type: { in: MATCH_EVENT_TYPES },
         },
       },
-      select: { goals: true, assists: true },
+      select: { goals: true, assists: true, goalsConceded: true },
     }),
     prisma.event.findMany({
       where: {
@@ -340,6 +328,11 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             },
           },
         },
+        attendances: {
+          where: { athleteId: selectedAthlete.id },
+          select: { status: true },
+          take: 1,
+        },
         matchStats: {
           where: { athleteId: selectedAthlete.id },
           select: { goals: true, assists: true },
@@ -348,6 +341,37 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         periodScores: {
           select: { periodNumber: true, homeScore: true, awayScore: true },
           orderBy: { periodNumber: "asc" },
+        },
+      },
+    }),
+    prisma.event.findMany({
+      where: {
+        categoryId: selectedAthlete.category.id,
+        type: { in: COACH_VISIBLE_EVENT_TYPES },
+        startAt: { gte: weekBounds.start, lte: weekBounds.end },
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        startAt: true,
+        opponentName: true,
+        isHome: true,
+        attendances: {
+          where: { athleteId: selectedAthlete.id },
+          select: { status: true },
+          take: 1,
+        },
+        convocation: {
+          select: {
+            meetingAt: true,
+            athletes: {
+              where: { athleteId: selectedAthlete.id },
+              select: { responseStatus: true },
+              take: 1,
+            },
+          },
         },
       },
     }),
@@ -387,8 +411,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         categoryId: selectedAthlete.category.id,
         type: { in: MATCH_EVENT_TYPES },
         startAt: { gte: season.start, lte: season.end, lt: wallNow },
-        homeScore: { not: null },
-        awayScore: { not: null },
+        OR: [
+          { homeScore: { not: null }, awayScore: { not: null } },
+          { attendances: { some: { athleteId: selectedAthlete.id } } },
+        ],
       },
       orderBy: { startAt: "desc" },
       take: 5,
@@ -400,6 +426,16 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         awayScore: true,
         isHome: true,
         startAt: true,
+        attendances: {
+          where: { athleteId: selectedAthlete.id },
+          select: { status: true },
+          take: 1,
+        },
+        matchStats: {
+          where: { athleteId: selectedAthlete.id },
+          select: { goals: true, assists: true },
+          take: 1,
+        },
         periodScores: {
           select: { periodNumber: true, homeScore: true, awayScore: true },
           orderBy: { periodNumber: "asc" },
@@ -407,8 +443,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       },
     }),
     prisma.athleteCoachNote.findFirst({
-      where: { athleteId: selectedAthlete.id },
-      orderBy: [{ year: "desc" }, { month: "desc" }, { updatedAt: "desc" }],
+      where: {
+        athleteId: selectedAthlete.id,
+        year: wallNow.getUTCFullYear(),
+        month: wallNow.getUTCMonth() + 1,
+      },
+      orderBy: [{ updatedAt: "desc" }],
       select: {
         content: true,
         year: true,
@@ -463,8 +503,29 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       ? resolveMeetingAt(matchDayEvent.convocation.meetingAt, matchDayEvent.startAt)
       : null;
   const matchDayPlayerStat = matchDayEvent?.matchStats[0] ?? null;
+  const matchDayAttendanceStatus = matchDayEvent?.attendances[0]?.status ?? null;
 
-  // Match Day owns today's match UI: Prossimo impegno must skip that same event.
+  const weekRows = buildAthleteWeekRows({
+    events: weekEventCandidates.map((event) => ({
+      id: event.id,
+      type: event.type,
+      title: event.title,
+      startAt: event.startAt,
+      opponentName: event.opponentName,
+      isHome: event.isHome,
+      attendanceStatus: event.attendances[0]?.status ?? null,
+      isConvoked: Boolean(event.convocation?.athletes[0]),
+      convocationResponse: event.convocation?.athletes[0]?.responseStatus ?? null,
+      meetingAt:
+        event.convocation?.meetingAt != null
+          ? resolveMeetingAt(event.convocation.meetingAt, event.startAt)
+          : null,
+    })),
+    wallNow,
+    excludeEventId: matchDayEvent?.id ?? null,
+  });
+  const weekTrainingSummary = summarizeWeekTrainings(weekRows);
+
   const nextEvent =
     nextEventCandidates.find((event) => event.id !== matchDayEvent?.id) ?? null;
   const seasonStats = computeSeasonAthleteStats({
@@ -474,9 +535,30 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     })),
     matchStats,
   });
-  const badges = computeSeasonBadges(seasonStats);
-  const recentResultsForList = recentResults.filter(
-    (event) => event.id !== matchDayEvent?.id,
+  const trainingStatusesChronological = attendances
+    .filter((row) => row.event.type === "TRAINING")
+    .map((row) => row.status);
+  const cleanSheetCount = isGoalkeeperRole(selectedAthlete.position)
+    ? matchStats.filter((row) => row.goalsConceded != null && row.goalsConceded === 0).length
+    : 0;
+  const badges = computeMyComunAchievements({
+    stats: seasonStats,
+    position: selectedAthlete.position,
+    trainingStatusesChronological,
+    cleanSheetCount,
+  });
+  const recentMatchChips = buildRecentMatchChips(
+    recentMatches.map((event) => ({
+      id: event.id,
+      startAt: event.startAt,
+      opponentName: event.opponentName,
+      title: event.title,
+      homeScore: event.homeScore,
+      awayScore: event.awayScore,
+      attendanceStatus: event.attendances[0]?.status ?? null,
+      goals: event.matchStats[0]?.goals ?? 0,
+      assists: event.matchStats[0]?.assists ?? 0,
+    })),
   );
 
   const nextEventConvocation = nextEvent?.convocation?.athletes[0] ?? null;
@@ -485,11 +567,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       ? resolveMeetingAt(nextEvent.convocation.meetingAt, nextEvent.startAt)
       : null;
   const nextEventNote = resolveConvocationNote(nextEvent?.convocation?.notes);
-  const nextWeekday = nextEvent ? WEEKDAY_LABELS[nextEvent.startAt.getUTCDay()] : null;
-  const nextDay = nextEvent ? String(nextEvent.startAt.getUTCDate()).padStart(2, "0") : null;
-  const nextMonth = nextEvent
-    ? String(nextEvent.startAt.getUTCMonth() + 1).padStart(2, "0")
-    : null;
+  const weekHasNext = nextEvent ? weekRows.some((row) => row.id === nextEvent.id) : false;
+  const showNextEventCard = Boolean(nextEvent && !weekHasNext && !matchDayEvent);
 
   const responseStatus = nextEventConvocation?.responseStatus ?? null;
   const convocationTone =
@@ -523,42 +602,6 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     adminSummaryParts.length > 0
       ? adminSummaryParts.join(" · ")
       : "Tutto in ordine. Tocca per dettagli.";
-
-  const kpiItems = [
-    {
-      label: "Presenze",
-      value: String(seasonStats.matchPresences),
-      icon: Shirt,
-      tone: "border-blue-200 bg-blue-50",
-      iconTone: "bg-blue-700 text-white",
-      valueTone: "text-blue-800",
-    },
-    {
-      label: "Gol",
-      value: String(seasonStats.goals),
-      icon: Goal,
-      tone: "border-sky-200 bg-sky-50",
-      iconTone: "bg-sky-600 text-white",
-      valueTone: "text-sky-900",
-    },
-    {
-      label: "Assist",
-      value: String(seasonStats.assists),
-      icon: Handshake,
-      tone: "border-slate-200 bg-slate-50",
-      iconTone: "bg-slate-700 text-white",
-      valueTone: "text-slate-900",
-    },
-    {
-      label: "Allenamenti %",
-      value:
-        seasonStats.trainingPercent == null ? "—" : `${seasonStats.trainingPercent}%`,
-      icon: Percent,
-      tone: "border-emerald-200 bg-emerald-50",
-      iconTone: "bg-emerald-700 text-white",
-      valueTone: "text-emerald-900",
-    },
-  ];
 
   const quickActions = [
     {
@@ -668,6 +711,11 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             awayScore={matchDayEvent.awayScore}
             playerGoals={matchDayPlayerStat?.goals ?? 0}
             playerAssists={matchDayPlayerStat?.assists ?? 0}
+            playerPresent={
+              matchDayAttendanceStatus == null
+                ? null
+                : matchDayAttendanceStatus === "PRESENT"
+            }
             periodScoresDetail={formatPeriodScoresDetail(
               matchDayEvent.periodScores ?? [],
               matchDayEvent.isHome,
@@ -675,228 +723,66 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           />
         ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-5 lg:gap-5">
-          <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm lg:col-span-3">
+        <AthleteWeekSection
+          athleteFirstName={selectedAthlete.firstName}
+          rows={weekRows}
+          trainingSummary={weekTrainingSummary}
+        />
+
+        {showNextEventCard && nextEvent ? (
+          <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 bg-blue-800 px-4 py-3 text-white">
               <p className="text-xs font-semibold uppercase tracking-[0.14em]">Prossimo impegno</p>
-              {nextEvent ? (
-                <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold uppercase">
-                  {EVENT_TYPE_LABEL[nextEvent.type]}
+              <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold uppercase">
+                {EVENT_TYPE_LABEL[nextEvent.type]}
+              </span>
+            </div>
+            <div className="space-y-2 p-4">
+              <h3 className="text-lg font-bold text-zinc-900">
+                {nextEvent.opponentName?.trim() && isMatchEventType(nextEvent.type)
+                  ? `vs ${nextEvent.opponentName}`
+                  : nextEvent.title}
+              </h3>
+              <p className="text-sm text-zinc-600">
+                {formatConvocationWallClockDate(nextEvent.startAt)} ·{" "}
+                {formatConvocationWallClockTime(nextEvent.startAt)}
+              </p>
+              {nextEvent.location ? (
+                <p className="text-sm text-zinc-600">{nextEvent.location}</p>
+              ) : null}
+              {nextEventMeetingAt ? (
+                <p className="text-sm text-zinc-600">
+                  Convocazione {formatConvocationWallClockTime(nextEventMeetingAt)}
+                </p>
+              ) : null}
+              {nextEventConvocation ? (
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase ${convocationTone}`}
+                >
+                  {RESPONSE_LABEL[nextEventConvocation.responseStatus] ?? "Convocato"}
                 </span>
               ) : null}
-            </div>
-
-            {nextEvent ? (
-              <div className="grid gap-4 p-4 sm:grid-cols-[auto_1fr] sm:items-start">
-                <div className="flex w-full flex-row items-center gap-3 rounded-2xl bg-sky-50 px-4 py-3 sm:w-28 sm:flex-col sm:justify-center sm:px-3 sm:py-4">
-                  <p className="text-xs font-semibold uppercase text-blue-700">{nextWeekday}</p>
-                  <p className="text-4xl font-black leading-none text-blue-800">{nextDay}</p>
-                  <p className="text-sm font-semibold text-blue-700">/{nextMonth}</p>
-                </div>
-
-                <div className="min-w-0 space-y-3">
-                  <div>
-                    <h3 className="text-xl font-bold leading-tight text-zinc-900 sm:text-2xl">
-                      {nextEvent.opponentName?.trim()
-                        ? isMatchEventType(nextEvent.type)
-                          ? `vs ${nextEvent.opponentName}`
-                          : nextEvent.opponentName
-                        : nextEvent.title}
-                    </h3>
-                    {!nextEvent.opponentName?.trim() ? null : (
-                      <p className="mt-1 text-sm text-zinc-500">{nextEvent.title}</p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-zinc-700">
-                    <span className="inline-flex items-center gap-1.5 font-medium">
-                      <CalendarDays className="h-4 w-4 text-blue-700" aria-hidden />
-                      {formatConvocationWallClockDate(nextEvent.startAt)} ·{" "}
-                      {formatConvocationWallClockTime(nextEvent.startAt)}
-                    </span>
-                    {nextEvent.location ? (
-                      <span className="inline-flex items-center gap-1.5 font-medium">
-                        <MapPin className="h-4 w-4 text-blue-700" aria-hidden />
-                        {nextEvent.location}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {nextEventConvocation ? (
-                    <div className={`rounded-xl border px-3 py-2.5 text-sm ${convocationTone}`}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isMatchEventType(nextEvent.type) ? (
-                          <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold uppercase">
-                            Convocato
-                          </span>
-                        ) : null}
-                        <span className="font-semibold">
-                          {RESPONSE_LABEL[nextEventConvocation.responseStatus] ?? "—"}
-                        </span>
-                      </div>
-                      {nextEventMeetingAt ? (
-                        <p className="mt-1.5">
-                          Convocazione alle{" "}
-                          <strong>{formatConvocationWallClockTime(nextEventMeetingAt)}</strong>
-                          {" · "}
-                          Partita alle{" "}
-                          <strong>{formatConvocationWallClockTime(nextEvent.startAt)}</strong>
-                        </p>
-                      ) : null}
-                      {nextEventNote ? (
-                        <p className="mt-2 flex items-start gap-1.5 text-sm leading-snug">
-                          <StickyNote className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                          <span className="whitespace-pre-wrap break-words">{nextEventNote}</span>
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <p className="px-4 py-5 text-sm text-zinc-600">Nessun impegno in programma.</p>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm lg:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-800">
-              La sua stagione
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              {kpiItems.map((kpi) => {
-                const Icon = kpi.icon;
-                return (
-                  <div
-                    key={kpi.label}
-                    className={`rounded-2xl border px-3 py-3 ${kpi.tone}`}
-                  >
-                    <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${kpi.iconTone}`}
-                    >
-                      <Icon className="h-4 w-4" aria-hidden />
-                    </span>
-                    <p className={`mt-2 text-3xl font-black tracking-tight ${kpi.valueTone}`}>
-                      {kpi.value}
-                    </p>
-                    <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
-                      {kpi.label}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-
-        {badges.length > 0 ? (
-          <section className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800">
-              Traguardi
-            </p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {badges.map((badge) => (
-                <div
-                  key={badge.id}
-                  className="flex items-center gap-3 rounded-2xl border border-amber-200/80 bg-white px-3 py-2.5 shadow-sm"
-                >
-                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                    <Award className="h-4 w-4" aria-hidden />
-                  </span>
-                  <p className="text-sm font-semibold text-zinc-900">{badge.label}</p>
-                </div>
-              ))}
+              {nextEventNote ? (
+                <p className="text-sm text-zinc-700">{nextEventNote}</p>
+              ) : null}
             </div>
           </section>
         ) : null}
 
-        {recentResultsForList.length > 0 ? (
-          <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-800">
-              Ultimi risultati
-            </p>
-            <ul className="mt-3 grid gap-2.5 sm:grid-cols-2">
-              {recentResultsForList.map((event) => {
-                const homeScore = event.homeScore ?? 0;
-                const awayScore = event.awayScore ?? 0;
-                const clubIsHome = event.isHome !== false;
-                const leftName = clubIsHome
-                  ? "Comun Nuovo"
-                  : event.opponentName?.trim() || "Avversario";
-                const rightName = clubIsHome
-                  ? event.opponentName?.trim() || "Avversario"
-                  : "Comun Nuovo";
-                const outcome = matchOutcome({
-                  homeScore,
-                  awayScore,
-                  isHome: event.isHome,
-                });
-                const outcomeClass =
-                  outcome === "VITTORIA"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : outcome === "SCONFITTA"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-slate-100 text-slate-700";
-                const periodsDetail = formatPeriodScoresDetail(
-                  event.periodScores ?? [],
-                  event.isHome,
-                );
+        <AthleteSeasonCard stats={seasonStats} />
 
-                return (
-                  <li
-                    key={event.id}
-                    className="rounded-2xl border border-sky-100 bg-sky-50/70 px-3 py-3"
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500">
-                      <span>{formatConvocationWallClockDate(event.startAt)}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${outcomeClass}`}
-                      >
-                        {outcome}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                      <p className="truncate text-right text-sm font-bold uppercase text-zinc-900">
-                        {leftName}
-                      </p>
-                      <p className="rounded-lg bg-blue-800 px-2.5 py-1 text-center text-sm font-black text-white">
-                        {homeScore} - {awayScore}
-                      </p>
-                      <p className="truncate text-left text-sm font-bold uppercase text-zinc-900">
-                        {rightName}
-                      </p>
-                    </div>
-                    {periodsDetail ? (
-                      <p className="mt-1.5 text-center text-[11px] font-medium text-zinc-500">
-                        Tempi: {periodsDetail}
-                      </p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ) : null}
+        <AthleteAchievementsSection badges={badges} />
+
+        <AthleteRecentMatchesStrip chips={recentMatchChips} />
 
         {latestNote ? (
-          <section className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-800 text-white">
-                <MessageSquareQuote className="h-5 w-5" aria-hidden />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-800">
-                  Messaggio del mister
-                </p>
-                <p className="mt-1 text-xs font-medium text-blue-700">
-                  {MONTH_LABELS[latestNote.month] ?? latestNote.month} {latestNote.year}
-                  {latestNote.author.name ? ` · ${latestNote.author.name}` : ""}
-                </p>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800">
-                  {latestNote.content}
-                </p>
-              </div>
-            </div>
-          </section>
+          <CoachNoteCard
+            content={latestNote.content}
+            year={latestNote.year}
+            month={latestNote.month}
+            monthLabel={MONTH_LABELS[latestNote.month] ?? String(latestNote.month)}
+            authorName={latestNote.author.name}
+          />
         ) : null}
 
         {recentMedia.length > 0 ? (

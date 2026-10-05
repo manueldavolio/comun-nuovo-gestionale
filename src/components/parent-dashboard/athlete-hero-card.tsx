@@ -55,9 +55,12 @@ export function AthleteHeroCard({
               alt=""
               className="h-8 w-8 rounded-full bg-white/95 object-contain p-0.5 shadow-sm sm:h-9 sm:w-9"
             />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-200">
-              ASD Comun Nuovo
-            </p>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-200">
+                My Comun Nuovo
+              </p>
+              <p className="text-[10px] font-medium text-sky-200/80">ASD Comun Nuovo</p>
+            </div>
           </div>
 
           <h2 className="mt-2 text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
