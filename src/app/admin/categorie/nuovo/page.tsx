@@ -38,6 +38,7 @@ export default async function AdminCategoryNewPage() {
             name: "",
             birthYearsLabel: "",
             isActive: true,
+            playersPerSide: 11,
           }}
         />
       </div>

@@ -182,6 +182,22 @@ describe("mister todos", () => {
           pendingRsvpCount: 0,
         },
       ],
+      futureTrainings: [
+        {
+          id: "train-soon",
+          title: "Allenamento U15",
+          type: "TRAINING",
+          startAt: new Date(Date.UTC(2026, 9, 7, 17, 0, 0)),
+          hasTrainingSession: false,
+        },
+        {
+          id: "train-ready",
+          title: "Allenamento pronto",
+          type: "TRAINING",
+          startAt: new Date(Date.UTC(2026, 9, 8, 17, 0, 0)),
+          hasTrainingSession: true,
+        },
+      ],
       athletes: [
         { athleteId: "a1", hasCurrentMonthNote: false, activeGoalCount: 0 },
         { athleteId: "a2", hasCurrentMonthNote: true, activeGoalCount: 1 },
@@ -197,7 +213,16 @@ describe("mister todos", () => {
     assert.ok(kinds.includes("PENDING_RSVP"));
     assert.ok(kinds.includes("MISSING_COACH_NOTES"));
     assert.ok(kinds.includes("SUGGEST_GOALS"));
+    assert.ok(kinds.includes("PREPARE_TRAINING_SESSION"));
     assert.equal(kinds.includes("PREPARE_CONVOCATION") && todos.some((t) => t.eventId === "future-far"), false);
+
+    const prepareSession = todos.find((todo) => todo.kind === "PREPARE_TRAINING_SESSION");
+    assert.equal(prepareSession?.href, "/mister/eventi/train-soon/allenamento");
+    assert.equal(prepareSession?.priority, "soft");
+    assert.equal(
+      todos.some((t) => t.kind === "PREPARE_TRAINING_SESSION" && t.eventId === "train-ready"),
+      false,
+    );
 
     const softStats = todos.find((todo) => todo.kind === "SOFT_STATS");
     assert.equal(softStats?.href, "/mister/eventi/m2/presenze");

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { PLAYERS_PER_SIDE_OPTIONS, type PlayersPerSide } from "@/lib/category-format";
 import { upsertCategorySchema, type UpsertCategoryInput } from "@/lib/validation/categories";
 
 type CategoryFormProps = {
@@ -11,6 +12,7 @@ type CategoryFormProps = {
     name: string;
     birthYearsLabel: string;
     isActive: boolean;
+    playersPerSide: PlayersPerSide;
   };
 };
 
@@ -79,7 +81,7 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
           {mode === "create" ? "Nuova categoria" : "Modifica categoria"}
         </h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Gestisci nome, annata/descrizione e stato operativo della categoria.
+          Gestisci nome, annata/descrizione, formato partita e stato operativo.
         </p>
 
         <div className="mt-4 grid gap-4">
@@ -103,11 +105,40 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
             <input
               id="birthYearsLabel"
               value={formData.birthYearsLabel}
-              onChange={(event) => setFormData((prev) => ({ ...prev, birthYearsLabel: event.target.value }))}
+              onChange={(event) =>
+                setFormData((prev) => ({ ...prev, birthYearsLabel: event.target.value }))
+              }
               placeholder="es. 2016-2017"
               className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.birthYearsLabel} />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-zinc-700" htmlFor="playersPerSide">
+              Formato partita
+            </label>
+            <select
+              id="playersPerSide"
+              value={formData.playersPerSide}
+              onChange={(event) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  playersPerSide: Number(event.target.value) as PlayersPerSide,
+                }))
+              }
+              className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            >
+              {PLAYERS_PER_SIDE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-zinc-500">
+              Primi Calci 5 · Pulcini 7 · Esordienti 9 · altre 11
+            </p>
+            <FieldError message={fieldErrors.playersPerSide} />
           </div>
 
           <label className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
@@ -123,7 +154,9 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
         </div>
 
         {error ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
         ) : null}
 
         <button

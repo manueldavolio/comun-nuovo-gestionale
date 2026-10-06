@@ -20,7 +20,8 @@ export type MisterTodoKind =
   | "PREPARE_CONVOCATION"
   | "PENDING_RSVP"
   | "MISSING_COACH_NOTES"
-  | "SUGGEST_GOALS";
+  | "SUGGEST_GOALS"
+  | "PREPARE_TRAINING_SESSION";
 
 export type MisterTodoPriority = "high" | "medium" | "soft" | "suggestion";
 
@@ -49,6 +50,15 @@ export type MisterTodoFutureMatch = {
   categoryName?: string | null;
   hasConvocation: boolean;
   pendingRsvpCount: number;
+};
+
+export type MisterTodoFutureTraining = {
+  id: string;
+  title: string;
+  type: string;
+  startAt: Date;
+  categoryName?: string | null;
+  hasTrainingSession: boolean;
 };
 
 export type MisterTodoAthleteGrowth = {
@@ -80,6 +90,7 @@ export function buildMisterTodos(input: {
   wallNow: Date;
   pastEvents: MisterTodoPastEvent[];
   futureMatches: MisterTodoFutureMatch[];
+  futureTrainings?: MisterTodoFutureTraining[];
   athletes: MisterTodoAthleteGrowth[];
   allowedCategoryIds: string[];
   lookbackDays?: number;
@@ -224,6 +235,22 @@ export function buildMisterTodos(input: {
         count: match.pendingRsvpCount,
       });
     }
+  }
+
+  for (const training of input.futureTrainings ?? []) {
+    if (training.type !== "TRAINING") continue;
+    if (training.startAt.getTime() < input.wallNow.getTime()) continue;
+    if (training.startAt.getTime() > convocationHorizon) continue;
+    if (training.hasTrainingSession) continue;
+    soft.push({
+      id: `training-session-${training.id}`,
+      kind: "PREPARE_TRAINING_SESSION",
+      priority: "soft",
+      title: "Prepara seduta",
+      subtitle: training.title,
+      href: `/mister/eventi/${training.id}/allenamento`,
+      eventId: training.id,
+    });
   }
 
   if (input.athletes.length > 0) {

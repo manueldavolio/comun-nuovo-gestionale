@@ -133,6 +133,12 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           <p className="mt-1 text-sm text-sky-100">
             {selectedCategory?.name ?? "Categoria"} · disponibilità, obiettivi e messaggio
           </p>
+          <Link
+            href="/mister/libreria-esercizi"
+            className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-white/30 bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/15"
+          >
+            Libreria esercizi
+          </Link>
         </header>
 
         {categories.length > 1 ? (

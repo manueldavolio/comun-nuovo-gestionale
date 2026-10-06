@@ -95,6 +95,8 @@ export default async function CoachDashboardPage() {
                 athletes: { select: { responseStatus: true } },
               },
             },
+            trainingSession: { select: { id: true } },
+            matchFormation: { select: { id: true } },
           },
         }),
     coachCategoryIds.length === 0
@@ -190,6 +192,8 @@ export default async function CoachDashboardPage() {
         isToday: isSameWallClockDay(focusEvent.startAt, wallNow),
         hasConvocation: Boolean(focusEvent.convocation),
         convocationNotes: focusEvent.convocation?.notes ?? null,
+        hasTrainingSession: Boolean(focusEvent.trainingSession),
+        hasFormation: Boolean(focusEvent.matchFormation),
       }
     : null;
 
@@ -234,6 +238,16 @@ export default async function CoachDashboardPage() {
         pendingRsvpCount:
           event.convocation?.athletes.filter((row) => row.responseStatus === "PENDING")
             .length ?? 0,
+      })),
+    futureTrainings: upcomingEvents
+      .filter((event) => event.type === "TRAINING")
+      .map((event) => ({
+        id: event.id,
+        title: event.title,
+        type: event.type,
+        startAt: event.startAt,
+        categoryName: event.category?.name ?? null,
+        hasTrainingSession: Boolean(event.trainingSession),
       })),
     athletes: rosterAthletes.map((athlete) => ({
       athleteId: athlete.id,

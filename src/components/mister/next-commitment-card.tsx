@@ -30,6 +30,8 @@ export type NextCommitmentData = {
   isToday: boolean;
   hasConvocation: boolean;
   convocationNotes: string | null;
+  hasTrainingSession?: boolean;
+  hasFormation?: boolean;
 };
 
 function phaseLabel(phase: MatchDayPhase) {
@@ -135,6 +137,22 @@ export function NextCommitmentCard({
             >
               <ClipboardList className="mr-2 h-4 w-4" />
               Convocazione
+            </Link>
+          ) : null}
+          {!match && event.type === "TRAINING" ? (
+            <Link
+              href={`/mister/eventi/${event.id}/allenamento`}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 text-sm font-semibold text-white hover:bg-white/15"
+            >
+              {event.hasTrainingSession ? "Modifica seduta" : "Prepara seduta"}
+            </Link>
+          ) : null}
+          {match ? (
+            <Link
+              href={`/mister/eventi/${event.id}/formazione`}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-5 text-sm font-semibold text-white hover:bg-white/15"
+            >
+              Formazione
             </Link>
           ) : null}
         </div>

@@ -52,6 +52,8 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
         select: { periodNumber: true, homeScore: true, awayScore: true },
         orderBy: { periodNumber: "asc" },
       },
+      trainingSession: { select: { id: true } },
+      matchFormation: { select: { id: true } },
       category: {
         select: {
           name: true,
@@ -85,6 +87,7 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
   }
 
   const matchMode = isMatchEventType(event.type);
+  const trainingMode = event.type === "TRAINING";
 
   const athletes = event.category.athletes.map((athlete) => ({
     id: athlete.id,
@@ -101,6 +104,9 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
   const backHref =
     session.user.role === "ADMIN" || session.user.role === "YOUTH_DIRECTOR" ? "/admin" : "/mister";
 
+  const hasTrainingSession = Boolean(event.trainingSession);
+  const hasFormation = Boolean(event.matchFormation);
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-blue-50 p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
@@ -110,6 +116,27 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
         >
           ← Torna alla dashboard
         </Link>
+
+        {trainingMode || matchMode ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {trainingMode ? (
+              <Link
+                href={`/mister/eventi/${event.id}/allenamento`}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-blue-800 px-5 text-sm font-bold uppercase tracking-wide text-white hover:bg-blue-900"
+              >
+                {hasTrainingSession ? "Vedi / modifica seduta" : "Prepara allenamento"}
+              </Link>
+            ) : null}
+            {matchMode ? (
+              <Link
+                href={`/mister/eventi/${event.id}/formazione`}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-blue-300 bg-white px-5 text-sm font-bold uppercase tracking-wide text-blue-900 hover:bg-sky-50"
+              >
+                {hasFormation ? "Formazione" : "Formazione"}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
 
         <AttendanceManager
           eventId={event.id}

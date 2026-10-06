@@ -21,7 +21,11 @@ const NAV_ITEMS = [
 ] as const;
 
 function isMatchCenterPath(pathname: string) {
-  return /\/mister\/eventi\/[^/]+\/presenze\/?$/.test(pathname);
+  return (
+    /\/mister\/eventi\/[^/]+\/presenze\/?$/.test(pathname) ||
+    /\/mister\/eventi\/[^/]+\/formazione\/?$/.test(pathname) ||
+    /\/mister\/eventi\/[^/]+\/allenamento\/?$/.test(pathname)
+  );
 }
 
 export function MisterNav() {

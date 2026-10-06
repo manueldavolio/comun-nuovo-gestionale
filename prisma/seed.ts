@@ -79,6 +79,7 @@ async function upsertCategory(params: {
   annualFee: string;
   depositFee: string;
   balanceFee: string;
+  playersPerSide: 5 | 7 | 9 | 11;
 }) {
   return prisma.category.upsert({
     where: {
@@ -92,6 +93,7 @@ async function upsertCategory(params: {
       annualFee: params.annualFee,
       depositFee: params.depositFee,
       balanceFee: params.balanceFee,
+      playersPerSide: params.playersPerSide,
       isActive: true,
     },
     create: {
@@ -101,6 +103,7 @@ async function upsertCategory(params: {
       annualFee: params.annualFee,
       depositFee: params.depositFee,
       balanceFee: params.balanceFee,
+      playersPerSide: params.playersPerSide,
       isActive: true,
     },
   });
@@ -265,6 +268,7 @@ async function main() {
     annualFee: "420.00",
     depositFee: "120.00",
     balanceFee: "300.00",
+    playersPerSide: 5,
   });
 
   const pulciniCategory = await upsertCategory({
@@ -274,6 +278,7 @@ async function main() {
     annualFee: "520.00",
     depositFee: "170.00",
     balanceFee: "350.00",
+    playersPerSide: 7,
   });
 
   await upsertCategory({
@@ -283,6 +288,7 @@ async function main() {
     annualFee: "620.00",
     depositFee: "220.00",
     balanceFee: "400.00",
+    playersPerSide: 9,
   });
 
   await prisma.coachCategoryAssignment.upsert({
