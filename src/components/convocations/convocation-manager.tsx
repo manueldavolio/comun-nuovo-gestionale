@@ -4,6 +4,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConvocationResponseStatus } from "@prisma/client";
 import {
+  isUnavailableOperationalStatus,
+  OPERATIONAL_STATUS_LABEL,
+  operationalStatusPillClass,
+  type OperationalStatusType,
+} from "@/lib/athlete-operational-status";
+import {
   CONVOCATION_RESPONSE_BADGE_CLASS,
   CONVOCATION_RESPONSE_LABEL,
 } from "@/lib/convocation-status";
@@ -14,6 +20,7 @@ type AthleteRow = {
   lastName: string;
   isSelected: boolean;
   responseStatus: ConvocationResponseStatus;
+  operationalStatus: OperationalStatusType;
 };
 
 type ConvocationManagerProps = {
@@ -305,6 +312,7 @@ export function ConvocationManager({
         {athletes.map((athlete) => {
           const selected = selectedByAthlete[athlete.id] ?? false;
           const status = responseByAthlete[athlete.id] ?? "PENDING";
+          const operational = athlete.operationalStatus;
           return (
             <li key={athlete.id} className="rounded-lg border border-blue-100 p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -312,22 +320,47 @@ export function ConvocationManager({
                   <input
                     type="checkbox"
                     checked={selected}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const nextChecked = event.target.checked;
+                      if (
+                        nextChecked &&
+                        !selected &&
+                        isUnavailableOperationalStatus(operational)
+                      ) {
+                        const ok = window.confirm(
+                          `${athlete.firstName} ${athlete.lastName} risulta attualmente ${OPERATIONAL_STATUS_LABEL[operational]}. Vuoi convocarlo comunque?`,
+                        );
+                        if (!ok) return;
+                      }
                       setSelectedByAthlete((prev) => ({
                         ...prev,
-                        [athlete.id]: event.target.checked,
-                      }))
-                    }
+                        [athlete.id]: nextChecked,
+                      }));
+                    }}
                     className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
                   />
-                  {athlete.firstName} {athlete.lastName}
+                  <span>
+                    {athlete.firstName} {athlete.lastName}
+                  </span>
                 </label>
-                <span
-                  className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[status]}`}
-                >
-                  {CONVOCATION_RESPONSE_LABEL[status]}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${operationalStatusPillClass(operational)}`}
+                  >
+                    {OPERATIONAL_STATUS_LABEL[operational]}
+                  </span>
+                  <span
+                    className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[status]}`}
+                  >
+                    {CONVOCATION_RESPONSE_LABEL[status]}
+                  </span>
+                </div>
               </div>
+              {operational === "TO_CHECK" ? (
+                <p className="mt-2 text-xs font-semibold text-amber-800">
+                  Da verificare prima della partita.
+                </p>
+              ) : null}
             </li>
           );
         })}

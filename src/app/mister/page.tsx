@@ -1,25 +1,29 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Camera, ClipboardList } from "lucide-react";
-import { IncompleteMatchesPanel } from "@/components/mister/incomplete-matches-panel";
+import { MisterAvailabilitySummaryCard } from "@/components/mister/mister-availability-summary-card";
 import { MisterHero } from "@/components/mister/mister-hero";
+import { MisterTodoPanel } from "@/components/mister/mister-todo-panel";
 import { NextCommitmentCard } from "@/components/mister/next-commitment-card";
 import { WeekTimeline } from "@/components/mister/week-timeline";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import {
+  resolveOperationalStatus,
+  summarizeAvailability,
+} from "@/lib/athlete-operational-status";
+import { ACTIVE_PERSONAL_GOAL_STATUSES } from "@/lib/athlete-personal-goals";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
+import { computeFourPeriodBreakdown } from "@/lib/four-period-scoring";
 import {
   isSameWallClockDay,
   selectTodaysMatchDayEvent,
   wallClockDayBounds,
 } from "@/lib/match-day";
-import {
-  INCOMPLETE_MATCH_LOOKBACK_DAYS,
-  selectIncompleteMatches,
-} from "@/lib/mister-incomplete";
+import { INCOMPLETE_MATCH_LOOKBACK_DAYS } from "@/lib/mister-incomplete";
+import { buildMisterTodos, MISTER_TODO_TRAINING_LOOKBACK_DAYS } from "@/lib/mister-todo";
 import { buildMisterWeekTimeline, wallClockWeekBounds } from "@/lib/mister-week";
-import { computeFourPeriodBreakdown } from "@/lib/four-period-scoring";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
@@ -37,11 +41,26 @@ export default async function CoachDashboardPage() {
   const wallNow = nowAsEuropeRomeWallClockUtc();
   const week = wallClockWeekBounds(wallNow);
   const todayBounds = wallClockDayBounds(wallNow);
+  const noteYear = wallNow.getUTCFullYear();
+  const noteMonth = wallNow.getUTCMonth() + 1;
   const lookbackStart = new Date(
     wallNow.getTime() - INCOMPLETE_MATCH_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
   );
+  const trainingLookbackStart = new Date(
+    wallNow.getTime() - MISTER_TODO_TRAINING_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const pastEventsStart =
+    trainingLookbackStart.getTime() < lookbackStart.getTime()
+      ? trainingLookbackStart
+      : lookbackStart;
 
-  const [categories, upcomingEvents, recentMatches, weekEvents] = await Promise.all([
+  const [
+    categories,
+    upcomingEvents,
+    pastEvents,
+    weekEvents,
+    rosterAthletes,
+  ] = await Promise.all([
     coachCategoryIds.length === 0
       ? Promise.resolve([])
       : prisma.category.findMany({
@@ -69,7 +88,13 @@ export default async function CoachDashboardPage() {
             opponentName: true,
             isHome: true,
             category: { select: { name: true } },
-            convocation: { select: { id: true, notes: true } },
+            convocation: {
+              select: {
+                id: true,
+                notes: true,
+                athletes: { select: { responseStatus: true } },
+              },
+            },
           },
         }),
     coachCategoryIds.length === 0
@@ -77,11 +102,11 @@ export default async function CoachDashboardPage() {
       : prisma.event.findMany({
           where: {
             categoryId: { in: coachCategoryIds },
-            type: { in: ["LEAGUE_MATCH", "FRIENDLY", "TOURNAMENT"] },
-            startAt: { gte: lookbackStart, lte: wallNow },
+            type: { in: [...COACH_VISIBLE_EVENT_TYPES] },
+            startAt: { gte: pastEventsStart, lte: wallNow },
           },
           orderBy: [{ startAt: "desc" }],
-          take: 40,
+          take: 80,
           select: {
             id: true,
             title: true,
@@ -120,6 +145,26 @@ export default async function CoachDashboardPage() {
             isHome: true,
           },
         }),
+    coachCategoryIds.length === 0
+      ? Promise.resolve([])
+      : prisma.athlete.findMany({
+          where: { categoryId: { in: coachCategoryIds } },
+          select: {
+            id: true,
+            coachNotes: {
+              where: { year: noteYear, month: noteMonth },
+              select: { id: true },
+              take: 1,
+            },
+            personalGoals: {
+              where: { status: { in: [...ACTIVE_PERSONAL_GOAL_STATUSES] } },
+              select: { id: true },
+            },
+            operationalStatus: {
+              select: { status: true, note: true, validUntil: true },
+            },
+          },
+        }),
   ]);
 
   const todaysMatch = selectTodaysMatchDayEvent(upcomingEvents, wallNow);
@@ -148,8 +193,10 @@ export default async function CoachDashboardPage() {
       }
     : null;
 
-  const incomplete = selectIncompleteMatches(
-    recentMatches.map((event) => {
+  const todos = buildMisterTodos({
+    wallNow,
+    allowedCategoryIds: coachCategoryIds,
+    pastEvents: pastEvents.map((event) => {
       const periodScores = event.periodScores.map((row) => ({
         periodNumber: row.periodNumber,
         homeScore: row.homeScore,
@@ -174,7 +221,37 @@ export default async function CoachDashboardPage() {
         realClubGoalsFromPeriods: breakdown.complete ? breakdown.realClubGoals : null,
       };
     }),
-    { allowedCategoryIds: coachCategoryIds, wallNow },
+    futureMatches: upcomingEvents
+      .filter((event) => isMatchEventType(event.type))
+      .map((event) => ({
+        id: event.id,
+        title: event.title,
+        type: event.type,
+        startAt: event.startAt,
+        opponentName: event.opponentName,
+        categoryName: event.category?.name ?? null,
+        hasConvocation: Boolean(event.convocation),
+        pendingRsvpCount:
+          event.convocation?.athletes.filter((row) => row.responseStatus === "PENDING")
+            .length ?? 0,
+      })),
+    athletes: rosterAthletes.map((athlete) => ({
+      athleteId: athlete.id,
+      hasCurrentMonthNote: athlete.coachNotes.length > 0,
+      activeGoalCount: athlete.personalGoals.length,
+    })),
+  });
+
+  const actionableTodos = todos.filter((todo) => todo.priority !== "suggestion");
+  const suggestionTodos = todos.filter((todo) => todo.priority === "suggestion");
+
+  const availabilitySummary = summarizeAvailability(
+    rosterAthletes.map((athlete) => ({
+      status: resolveOperationalStatus({
+        record: athlete.operationalStatus,
+        wallNow,
+      }).status,
+    })),
   );
 
   const weekDays = buildMisterWeekTimeline(weekEvents, wallNow);
@@ -189,7 +266,11 @@ export default async function CoachDashboardPage() {
 
         <NextCommitmentCard event={nextCommitment} wallNow={wallNow} />
 
-        <IncompleteMatchesPanel matches={incomplete} />
+        <MisterTodoPanel todos={actionableTodos} suggestions={suggestionTodos} />
+
+        {rosterAthletes.length > 0 ? (
+          <MisterAvailabilitySummaryCard summary={availabilitySummary} />
+        ) : null}
 
         <WeekTimeline days={weekDays} />
 
@@ -199,7 +280,9 @@ export default async function CoachDashboardPage() {
             className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
             <p className="text-sm font-bold text-blue-900">La mia squadra</p>
-            <p className="mt-1 text-xs text-zinc-600">Rosa, ruoli, maglie e note mensili</p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Disponibilità, obiettivi e messaggi
+            </p>
           </Link>
           <Link
             href="/mister/calendario"

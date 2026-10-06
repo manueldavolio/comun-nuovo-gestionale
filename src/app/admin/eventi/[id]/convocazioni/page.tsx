@@ -4,6 +4,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { ConvocationManager } from "@/components/convocations/convocation-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import { resolveOperationalStatus } from "@/lib/athlete-operational-status";
 import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
@@ -12,7 +13,7 @@ import {
   defaultMeetingAtFromMatchStart,
   formatConvocationWallClockDateTime,
 } from "@/lib/convocation-times";
-import { toDateTimeLocalValueUTC } from "@/lib/date-input";
+import { nowAsEuropeRomeWallClockUtc, toDateTimeLocalValueUTC } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
 
@@ -42,6 +43,8 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
     redirect("/unauthorized");
   }
 
+  const wallNow = nowAsEuropeRomeWallClockUtc();
+
   const event = await prisma.event.findUnique({
     where: { id },
     select: {
@@ -58,6 +61,9 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
               id: true,
               firstName: true,
               lastName: true,
+              operationalStatus: {
+                select: { status: true, note: true, validUntil: true },
+              },
             },
           },
         },
@@ -104,13 +110,20 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
   const responseByAthleteId = new Map(
     convocation?.athletes.map((entry) => [entry.athleteId, entry.responseStatus]) ?? [],
   );
-  const athletes = event.category.athletes.map((athlete) => ({
-    id: athlete.id,
-    firstName: athlete.firstName,
-    lastName: athlete.lastName,
-    isSelected: selectedByAthleteId.has(athlete.id),
-    responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
-  }));
+  const athletes = event.category.athletes.map((athlete) => {
+    const resolved = resolveOperationalStatus({
+      record: athlete.operationalStatus,
+      wallNow,
+    });
+    return {
+      id: athlete.id,
+      firstName: athlete.firstName,
+      lastName: athlete.lastName,
+      isSelected: selectedByAthleteId.has(athlete.id),
+      responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
+      operationalStatus: resolved.status,
+    };
+  });
 
   const initialMeetingAt = toDateTimeLocalValueUTC(
     convocation?.meetingAt ?? defaultMeetingAtFromMatchStart(event.startAt),

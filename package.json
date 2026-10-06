@@ -22,6 +22,7 @@
     "test:enrollment-fees": "tsx --test src/lib/enrollment-fees.test.ts",
     "test:prediction-slip": "tsx --test src/lib/prediction-slip.test.ts",
     "test:athlete-personal-goals": "tsx --test src/lib/athlete-personal-goals.test.ts",
+    "test:athlete-operational-status": "tsx --test src/lib/athlete-operational-status.test.ts",
     "test:admin-athlete-delete": "tsx --test src/lib/admin-athlete-delete.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

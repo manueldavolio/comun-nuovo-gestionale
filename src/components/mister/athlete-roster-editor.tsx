@@ -15,6 +15,7 @@ import {
   personalGoalStatusLabel,
   type PersonalGoalStatus,
 } from "@/lib/athlete-personal-goals";
+import type { OperationalStatusType } from "@/lib/athlete-operational-status";
 import {
   MAX_POSITIVE_COACH_TAGS,
   POSITIVE_COACH_TAG_LABEL,
@@ -22,6 +23,7 @@ import {
   type PositiveCoachTagCode,
 } from "@/lib/coach-note-tags";
 import { athleteInitials } from "@/lib/parent-season";
+import { OperationalStatusEditor } from "@/components/mister/operational-status-editor";
 
 type GoalRow = {
   id: string;
@@ -39,6 +41,9 @@ type AthleteRosterEditorProps = {
     noteContent: string | null;
     positiveTags: PositiveCoachTagCode[];
     goals: GoalRow[];
+    operationalStatus: OperationalStatusType;
+    operationalNote: string | null;
+    operationalValidUntilDate: string | null;
   }>;
   noteYear: number;
   noteMonth: number;
@@ -351,6 +356,33 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                       Messaggio da compilare
                     </span>
                   )}
+                  <div
+                    className="mt-2"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <OperationalStatusEditor
+                      athleteId={athlete.id}
+                      athleteName={`${athlete.firstName} ${athlete.lastName}`}
+                      initialStatus={athlete.operationalStatus}
+                      initialNote={athlete.operationalNote}
+                      initialValidUntil={athlete.operationalValidUntilDate}
+                      onSaved={(next) => {
+                        setRows((prev) =>
+                          prev.map((row) =>
+                            row.id === athlete.id
+                              ? {
+                                  ...row,
+                                  operationalStatus: next.status,
+                                  operationalNote: next.note,
+                                  operationalValidUntilDate: next.validUntilDate,
+                                }
+                              : row,
+                          ),
+                        );
+                      }}
+                    />
+                  </div>
                 </div>
                 <span className="text-xs font-semibold text-blue-700">{open ? "Chiudi" : "Modifica"}</span>
               </button>
@@ -360,6 +392,7 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                   <p className="text-sm font-bold uppercase tracking-wide text-blue-900">
                     {athlete.firstName} {athlete.lastName}
                   </p>
+
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
                       <p className="text-xs font-medium text-zinc-700">Ruolo</p>

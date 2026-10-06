@@ -12,8 +12,9 @@ import {
   defaultMeetingAtFromMatchStart,
   formatConvocationWallClockDateTime,
 } from "@/lib/convocation-times";
-import { toDateTimeLocalValueUTC } from "@/lib/date-input";
+import { toDateTimeLocalValueUTC, nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
+import { resolveOperationalStatus } from "@/lib/athlete-operational-status";
 import { prisma } from "@/lib/prisma";
 
 type MisterConvocationPageProps = {
@@ -58,6 +59,11 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
             id: string;
             firstName: string;
             lastName: string;
+            operationalStatus?: {
+              status: string;
+              note: string | null;
+              validUntil: Date | null;
+            } | null;
           }>;
         } | null;
         convocation: {
@@ -89,6 +95,9 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
                 id: true,
                 firstName: true,
                 lastName: true,
+                operationalStatus: {
+                  select: { status: true, note: true, validUntil: true },
+                },
               },
             },
           },
@@ -147,17 +156,29 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
     redirect("/unauthorized");
   }
 
+  const wallNow = nowAsEuropeRomeWallClockUtc();
   const selectedByAthleteId = new Set(event.convocation?.athletes.map((entry) => entry.athleteId) ?? []);
   const responseByAthleteId = new Map(
     event.convocation?.athletes.map((entry) => [entry.athleteId, entry.responseStatus]) ?? [],
   );
-  const athletes = event.category.athletes.map((athlete) => ({
-    id: athlete.id,
-    firstName: athlete.firstName,
-    lastName: athlete.lastName,
-    isSelected: selectedByAthleteId.has(athlete.id),
-    responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
-  }));
+  const athletes = event.category.athletes.map((athlete) => {
+    const resolved = resolveOperationalStatus({
+      record:
+        "operationalStatus" in athlete
+          ? (athlete as { operationalStatus?: { status: string; note: string | null; validUntil: Date | null } | null })
+              .operationalStatus
+          : null,
+      wallNow,
+    });
+    return {
+      id: athlete.id,
+      firstName: athlete.firstName,
+      lastName: athlete.lastName,
+      isSelected: selectedByAthleteId.has(athlete.id),
+      responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
+      operationalStatus: resolved.status,
+    };
+  });
 
   const backHref =
     session.user.role === "ADMIN" || session.user.role === "YOUTH_DIRECTOR" ? "/admin" : "/mister";

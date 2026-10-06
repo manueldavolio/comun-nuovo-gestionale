@@ -4,6 +4,10 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { AthleteRosterEditor } from "@/components/mister/athlete-roster-editor";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import {
+  resolveOperationalStatus,
+  validUntilDateInputValue,
+} from "@/lib/athlete-operational-status";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { prisma } from "@/lib/prisma";
 
@@ -48,7 +52,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
           <AreaHeader
             title="La mia squadra"
-            subtitle="Rosa e note mensili"
+            subtitle="Rosa, disponibilità e messaggi"
             userName={session.user.name ?? "Mister"}
           />
           <p className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
@@ -81,24 +85,42 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           status: true,
         },
       },
+      operationalStatus: {
+        select: {
+          status: true,
+          note: true,
+          validUntil: true,
+        },
+      },
     },
   });
 
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
-  const rosterAthletes = athletes.map((athlete) => ({
-    id: athlete.id,
-    firstName: athlete.firstName,
-    lastName: athlete.lastName,
-    position: athlete.position,
-    shirtNumber: athlete.shirtNumber,
-    noteContent: athlete.coachNotes[0]?.content ?? null,
-    positiveTags: athlete.coachNotes[0]?.positiveTags ?? [],
-    goals: athlete.personalGoals.map((goal) => ({
-      id: goal.id,
-      text: goal.text,
-      status: goal.status,
-    })),
-  }));
+  const rosterAthletes = athletes.map((athlete) => {
+    const resolved = resolveOperationalStatus({
+      record: athlete.operationalStatus,
+      wallNow,
+    });
+    return {
+      id: athlete.id,
+      firstName: athlete.firstName,
+      lastName: athlete.lastName,
+      position: athlete.position,
+      shirtNumber: athlete.shirtNumber,
+      noteContent: athlete.coachNotes[0]?.content ?? null,
+      positiveTags: athlete.coachNotes[0]?.positiveTags ?? [],
+      goals: athlete.personalGoals.map((goal) => ({
+        id: goal.id,
+        text: goal.text,
+        status: goal.status,
+      })),
+      operationalStatus: resolved.status,
+      operationalNote: resolved.note,
+      operationalValidUntilDate: resolved.validUntil
+        ? validUntilDateInputValue(resolved.validUntil)
+        : null,
+    };
+  });
 
   return (
     <main className="p-4 md:p-8">
@@ -109,7 +131,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           </p>
           <h1 className="mt-1 text-2xl font-black tracking-tight">La mia squadra</h1>
           <p className="mt-1 text-sm text-sky-100">
-            {selectedCategory?.name ?? "Categoria"} · ruoli, obiettivi e messaggio mensile
+            {selectedCategory?.name ?? "Categoria"} · disponibilità, obiettivi e messaggio
           </p>
         </header>
 

@@ -133,6 +133,15 @@ enum PositiveCoachTag {
   ASCOLTO
 }
 
+/// Stato operativo sportivo (NON sanitario). Nessuna riga = AVAILABLE.
+enum AthleteOperationalStatusType {
+  AVAILABLE
+  TO_CHECK
+  INJURED
+  ILL
+  ABSENT
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -155,6 +164,7 @@ model User {
   reviewedParentAthleteLinkRequests ParentAthleteLinkRequest[] @relation("ParentAthleteLinkRequestReviewedBy")
   athleteCoachNotes AthleteCoachNote[]
   athletePersonalGoals AthletePersonalGoal[]
+  athleteOperationalStatusesSet AthleteOperationalStatus[] @relation("AthleteOperationalStatusSetBy")
   createdPredictionSlips PredictionSlip[]
 
   @@index([role])
@@ -278,6 +288,7 @@ model Athlete {
   matchStats           MatchPlayerStat[]
   coachNotes           AthleteCoachNote[]
   personalGoals        AthletePersonalGoal[]
+  operationalStatus    AthleteOperationalStatus?
 
   @@index([lastName, firstName])
   @@index([parentId])
@@ -583,6 +594,28 @@ model AthletePersonalGoal {
   @@index([athleteId, periodYear, periodMonth])
   @@index([authorId])
   @@index([status])
+}
+
+/// Disponibilità operativa sportiva corrente (NON sanitaria).
+/// Nessuna riga oppure scaduta = AVAILABLE.
+model AthleteOperationalStatus {
+  id         String                       @id @default(cuid())
+  athleteId  String                       @unique
+  status     AthleteOperationalStatusType
+  /// Nota organizzativa breve — mai informazioni mediche.
+  note       String?
+  setById    String
+  /// Fine validità (fine giornata Europe/Rome wall-clock). null = senza scadenza.
+  validUntil DateTime?
+  createdAt  DateTime                     @default(now())
+  updatedAt  DateTime                     @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  setBy   User    @relation("AthleteOperationalStatusSetBy", fields: [setById], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([validUntil])
+  @@index([setById])
 }
 
 model MedicalVisit {
