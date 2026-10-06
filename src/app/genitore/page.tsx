@@ -14,16 +14,18 @@ import { PaymentActions } from "@/components/payments/payment-actions";
 import { AthleteHeroCard } from "@/components/parent-dashboard/athlete-hero-card";
 import { AthleteSeasonCard } from "@/components/parent-dashboard/athlete-season-card";
 import {
-  AthleteAchievementsSection,
   AthleteRecentMatchesStrip,
   CoachNoteCard,
 } from "@/components/parent-dashboard/athlete-story-cards";
+import { AthleteGrowthPathSection } from "@/components/parent-dashboard/athlete-growth-path-section";
 import { AthleteWeekSection } from "@/components/parent-dashboard/athlete-week-section";
 import { MatchDayCard } from "@/components/parent-dashboard/match-day-card";
 import { ParentAdminPanel } from "@/components/parent-dashboard/parent-admin-panel";
 import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
+import { ParentGoalsCard } from "@/components/parent-dashboard/parent-goals-card";
 import { PredictionSlipDashboardCard } from "@/components/parent-dashboard/prediction-slip-dashboard-card";
 import { getAuthSession } from "@/lib/auth";
+import { formatCoachNoteAuthorLabel } from "@/lib/coach-note-tags";
 import {
   formatConvocationWallClockDate,
   formatConvocationWallClockTime,
@@ -41,12 +43,13 @@ import {
   wallClockDayBounds,
 } from "@/lib/match-day";
 import {
+  buildAthleteGrowthPath,
   buildRecentMatchChips,
-  computeMyComunAchievements,
 } from "@/lib/my-comun-nuovo/achievements";
 import {
   buildAthleteWeekRows,
   myComunWeekBounds,
+  resolveAthleteWeekCompleted,
   summarizeWeekTrainings,
 } from "@/lib/my-comun-nuovo/week";
 import {
@@ -422,6 +425,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     latestNote,
     recentMedia,
     pendingConvocationsCount,
+    personalGoals,
   ] = await Promise.all([
     prisma.attendance.findMany({
       where: {
@@ -601,8 +605,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         content: true,
         year: true,
         month: true,
+        positiveTags: true,
         updatedAt: true,
-        author: { select: { name: true } },
+        author: { select: { name: true, role: true } },
       },
     }),
     prisma.mediaItem.findMany({
@@ -633,6 +638,15 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             ],
           },
         },
+      },
+    }),
+    prisma.athletePersonalGoal.findMany({
+      where: { athleteId: selectedAthlete.id },
+      orderBy: [{ updatedAt: "desc" }],
+      select: {
+        id: true,
+        text: true,
+        status: true,
       },
     }),
   ]);
@@ -673,6 +687,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     excludeEventId: matchDayEvent?.id ?? null,
   });
   const weekTrainingSummary = summarizeWeekTrainings(weekRows);
+  const weekCompleted = resolveAthleteWeekCompleted(weekRows);
 
   const nextEvent =
     nextEventCandidates.find((event) => event.id !== matchDayEvent?.id) ?? null;
@@ -689,7 +704,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   const cleanSheetCount = isGoalkeeperRole(selectedAthlete.position)
     ? matchStats.filter((row) => row.goalsConceded != null && row.goalsConceded === 0).length
     : 0;
-  const badges = computeMyComunAchievements({
+  const growthPath = buildAthleteGrowthPath({
     stats: seasonStats,
     position: selectedAthlete.position,
     trainingStatusesChronological,
@@ -819,19 +834,6 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </p>
         ) : null}
 
-        {dashboardSlip && dashboardSlipLock ? (
-          <PredictionSlipDashboardCard
-            slipId={dashboardSlip.id}
-            title={dashboardSlip.title}
-            prizeText={dashboardSlip.prizeText}
-            eventsCount={dashboardSlip.events.length}
-            lockState={dashboardSlipLock.state}
-            effectiveClosesAtLabel={dashboardSlipClosesLabel}
-            hasEntry={dashboardSlip.entries.length > 0}
-            evaluation={dashboardSlipEvaluation}
-          />
-        ) : null}
-
         <ParentChildSwitcher
           childrenOptions={associatedAthletes.map((athlete) => ({
             id: athlete.id,
@@ -882,10 +884,24 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           />
         ) : null}
 
+        {dashboardSlip && dashboardSlipLock ? (
+          <PredictionSlipDashboardCard
+            slipId={dashboardSlip.id}
+            title={dashboardSlip.title}
+            prizeText={dashboardSlip.prizeText}
+            eventsCount={dashboardSlip.events.length}
+            lockState={dashboardSlipLock.state}
+            effectiveClosesAtLabel={dashboardSlipClosesLabel}
+            hasEntry={dashboardSlip.entries.length > 0}
+            evaluation={dashboardSlipEvaluation}
+          />
+        ) : null}
+
         <AthleteWeekSection
           athleteFirstName={selectedAthlete.firstName}
           rows={weekRows}
           trainingSummary={weekTrainingSummary}
+          weekCompleted={weekCompleted}
         />
 
         {showNextEventCard && nextEvent ? (
@@ -930,9 +946,9 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
         <AthleteSeasonCard stats={seasonStats} />
 
-        <AthleteAchievementsSection badges={badges} />
+        <ParentGoalsCard goals={personalGoals} />
 
-        <AthleteRecentMatchesStrip chips={recentMatchChips} />
+        <AthleteGrowthPathSection reached={growthPath.reached} next={growthPath.next} />
 
         {latestNote ? (
           <CoachNoteCard
@@ -940,9 +956,17 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             year={latestNote.year}
             month={latestNote.month}
             monthLabel={MONTH_LABELS[latestNote.month] ?? String(latestNote.month)}
-            authorName={latestNote.author.name}
+            authorLabel={
+              formatCoachNoteAuthorLabel({
+                name: latestNote.author.name,
+                role: latestNote.author.role,
+              }).fullLabel
+            }
+            positiveTags={latestNote.positiveTags}
           />
         ) : null}
+
+        <AthleteRecentMatchesStrip chips={recentMatchChips} />
 
         {recentMedia.length > 0 ? (
           <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">

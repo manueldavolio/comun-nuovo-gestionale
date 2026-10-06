@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Award } from "lucide-react";
 import type { SeasonBadge } from "@/lib/parent-season";
+import {
+  POSITIVE_COACH_TAG_LABEL,
+  type PositiveCoachTagCode,
+} from "@/lib/coach-note-tags";
 
 type AthleteAchievementsSectionProps = {
   badges: SeasonBadge[];
@@ -91,17 +95,21 @@ type CoachNoteCardProps = {
   content: string;
   year: number;
   month: number;
-  authorName: string | null;
+  authorLabel: string;
   monthLabel: string;
+  positiveTags?: PositiveCoachTagCode[];
 };
 
 export function CoachNoteCard({
   content,
   year,
   monthLabel,
-  authorName,
+  authorLabel,
+  positiveTags = [],
 }: CoachNoteCardProps) {
-  const initials = (authorName ?? "M")
+  const initials = authorLabel
+    .replace(/^Mister\s+/i, "")
+    .replace(/^Staff\s*·\s*/i, "")
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -111,22 +119,32 @@ export function CoachNoteCard({
   return (
     <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-800">
-        Dal tuo mister
+        Un messaggio dal tuo mister
       </p>
       <div className="mt-3 flex items-start gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-800 text-sm font-bold text-white">
           {initials}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="whitespace-pre-wrap text-base font-medium leading-relaxed text-zinc-900">
+          <p className="text-xs font-semibold text-blue-900">
+            {authorLabel} · {monthLabel} {year}
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-base font-medium leading-relaxed text-zinc-900">
             “{content.trim()}”
           </p>
-          <p className="mt-3 text-xs font-semibold text-blue-800">
-            Mister {authorName?.trim() || "squadra"}
-          </p>
-          <p className="text-xs text-zinc-500">
-            {monthLabel} {year} · solo per te e la famiglia
-          </p>
+          {positiveTags.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {positiveTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-800"
+                >
+                  {POSITIVE_COACH_TAG_LABEL[tag] ?? tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <p className="mt-3 text-xs text-zinc-500">Solo per te e la famiglia</p>
         </div>
       </div>
     </section>

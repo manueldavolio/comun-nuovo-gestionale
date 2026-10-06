@@ -127,3 +127,25 @@ export function summarizeWeekTrainings(rows: WeekEventRow[]): WeekTrainingSummar
     label: `${completed}/${totalPastMarked} allenamenti completati`,
   };
 }
+
+const SPORTS_EVENT_TYPES = new Set([
+  "TRAINING",
+  "LEAGUE_MATCH",
+  "FRIENDLY",
+  "TOURNAMENT",
+]);
+
+/**
+ * Settimana completata: solo con dati completi e tutti PRESENT.
+ * Attendance mancante ≠ assenza: in quel caso weekCompleted = false senza penalizzazione.
+ * Eventi futuri ignorati. Nessun evento passato → false.
+ */
+export function resolveAthleteWeekCompleted(rows: WeekEventRow[]): boolean {
+  const pastSports = rows.filter(
+    (row) => row.isPast && SPORTS_EVENT_TYPES.has(row.type),
+  );
+  if (pastSports.length === 0) {
+    return false;
+  }
+  return pastSports.every((row) => row.attendanceStatus === "PRESENT");
+}

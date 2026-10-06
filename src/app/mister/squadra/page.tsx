@@ -70,8 +70,16 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
       shirtNumber: true,
       coachNotes: {
         where: { year: noteYear, month: noteMonth },
-        select: { content: true },
+        select: { content: true, positiveTags: true },
         take: 1,
+      },
+      personalGoals: {
+        orderBy: [{ updatedAt: "desc" }],
+        select: {
+          id: true,
+          text: true,
+          status: true,
+        },
       },
     },
   });
@@ -84,6 +92,12 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
     position: athlete.position,
     shirtNumber: athlete.shirtNumber,
     noteContent: athlete.coachNotes[0]?.content ?? null,
+    positiveTags: athlete.coachNotes[0]?.positiveTags ?? [],
+    goals: athlete.personalGoals.map((goal) => ({
+      id: goal.id,
+      text: goal.text,
+      status: goal.status,
+    })),
   }));
 
   return (
@@ -95,7 +109,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           </p>
           <h1 className="mt-1 text-2xl font-black tracking-tight">La mia squadra</h1>
           <p className="mt-1 text-sm text-sky-100">
-            {selectedCategory?.name ?? "Categoria"} · ruoli, maglie e note mensili
+            {selectedCategory?.name ?? "Categoria"} · ruoli, obiettivi e messaggio mensile
           </p>
         </header>
 

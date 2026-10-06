@@ -16,12 +16,14 @@ type AthleteWeekSectionProps = {
   athleteFirstName: string;
   rows: WeekEventRow[];
   trainingSummary: WeekTrainingSummary;
+  weekCompleted?: boolean;
 };
 
 export function AthleteWeekSection({
   athleteFirstName,
   rows,
   trainingSummary,
+  weekCompleted = false,
 }: AthleteWeekSectionProps) {
   return (
     <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -32,11 +34,18 @@ export function AthleteWeekSection({
           </p>
           <p className="mt-1 text-sm text-zinc-600">Lunedì → domenica · Comun Nuovo</p>
         </div>
-        {trainingSummary.label ? (
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900">
-            {trainingSummary.label}
-          </span>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {weekCompleted ? (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-950">
+              Settimana completata
+            </span>
+          ) : null}
+          {trainingSummary.label ? (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900">
+              {trainingSummary.label}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {rows.length === 0 ? (

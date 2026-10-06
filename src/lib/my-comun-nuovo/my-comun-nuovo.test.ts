@@ -9,8 +9,10 @@ import {
   buildAthleteWeekRows,
   formatWeekEventDateLabel,
   myComunWeekBounds,
+  resolveAthleteWeekCompleted,
   summarizeWeekTrainings,
 } from "./week";
+import { buildAthleteGrowthPath } from "./achievements";
 import { computeSeasonAthleteStats } from "@/lib/parent-season";
 import { athleteInitials } from "@/lib/parent-season";
 
@@ -133,6 +135,95 @@ describe("my-comun-nuovo week (Europe/Rome wall-clock)", () => {
     assert.equal(summary.totalPastMarked, 2);
     assert.equal(summary.label, "1/2 allenamenti completati");
   });
+
+  it("marks week completed only when all past sports events are PRESENT", () => {
+    const wallNow = new Date(Date.UTC(2025, 9, 8, 12, 0, 0));
+    const completed = buildAthleteWeekRows({
+      wallNow,
+      events: [
+        {
+          id: "t1",
+          type: "TRAINING",
+          title: "A",
+          startAt: new Date(Date.UTC(2025, 9, 6, 18, 0)),
+          attendanceStatus: "PRESENT",
+        },
+        {
+          id: "m1",
+          type: "LEAGUE_MATCH",
+          title: "vs X",
+          startAt: new Date(Date.UTC(2025, 9, 7, 15, 0)),
+          attendanceStatus: "PRESENT",
+        },
+        {
+          id: "future",
+          type: "TRAINING",
+          title: "C",
+          startAt: new Date(Date.UTC(2025, 9, 9, 18, 0)),
+          attendanceStatus: null,
+        },
+      ],
+    });
+    assert.equal(resolveAthleteWeekCompleted(completed), true);
+
+    const missingAttendance = buildAthleteWeekRows({
+      wallNow,
+      events: [
+        {
+          id: "t1",
+          type: "TRAINING",
+          title: "A",
+          startAt: new Date(Date.UTC(2025, 9, 6, 18, 0)),
+          attendanceStatus: "PRESENT",
+        },
+        {
+          id: "t2",
+          type: "TRAINING",
+          title: "B",
+          startAt: new Date(Date.UTC(2025, 9, 7, 18, 0)),
+          attendanceStatus: null,
+        },
+      ],
+    });
+    assert.equal(resolveAthleteWeekCompleted(missingAttendance), false);
+
+    const withAbsent = buildAthleteWeekRows({
+      wallNow,
+      events: [
+        {
+          id: "t1",
+          type: "TRAINING",
+          title: "A",
+          startAt: new Date(Date.UTC(2025, 9, 6, 18, 0)),
+          attendanceStatus: "PRESENT",
+        },
+        {
+          id: "t2",
+          type: "TRAINING",
+          title: "B",
+          startAt: new Date(Date.UTC(2025, 9, 7, 18, 0)),
+          attendanceStatus: "ABSENT",
+        },
+      ],
+    });
+    assert.equal(resolveAthleteWeekCompleted(withAbsent), false);
+
+    const onlyFuture = buildAthleteWeekRows({
+      wallNow,
+      events: [
+        {
+          id: "t1",
+          type: "TRAINING",
+          title: "A",
+          startAt: new Date(Date.UTC(2025, 9, 9, 18, 0)),
+          attendanceStatus: "PRESENT",
+        },
+      ],
+    });
+    assert.equal(resolveAthleteWeekCompleted(onlyFuture), false);
+
+    assert.equal(resolveAthleteWeekCompleted([]), false);
+  });
 });
 
 describe("my-comun-nuovo season + chips", () => {
@@ -248,6 +339,55 @@ describe("my-comun-nuovo achievements", () => {
     });
     assert.ok(asPor.some((b) => b.id === "clean-sheet"));
     assert.equal(asAtt.some((b) => b.id === "clean-sheet"), false);
+  });
+
+  it("adds 25 trainings and growth path personal progress without rankings", () => {
+    const attendances: Array<{ status: "PRESENT"; eventType: "TRAINING" | "LEAGUE_MATCH" }> = [
+      ...Array.from({ length: 25 }, () => ({
+        status: "PRESENT" as const,
+        eventType: "TRAINING" as const,
+      })),
+      ...Array.from({ length: 10 }, () => ({
+        status: "PRESENT" as const,
+        eventType: "LEAGUE_MATCH" as const,
+      })),
+    ];
+    const stats = computeSeasonAthleteStats({
+      attendances,
+      matchStats: [{ goals: 1, assists: 1 }],
+    });
+    const badges = computeMyComunAchievements({
+      stats,
+      position: "ATT",
+      trainingStatusesChronological: Array.from({ length: 25 }, () => "PRESENT" as const),
+    });
+    const ids = badges.map((b) => b.id);
+    assert.ok(ids.includes("trainings-25"));
+    assert.ok(ids.includes("matches-10"));
+    assert.ok(ids.includes("first-goal"));
+    assert.ok(ids.includes("first-assist"));
+    assert.equal(ids.some((id) => /rank|best|top|percent/i.test(id)), false);
+
+    const path = buildAthleteGrowthPath({
+      stats: {
+        matchPresences: 8,
+        goals: 0,
+        assists: 0,
+        trainingMarked: 8,
+        trainingPresent: 8,
+        trainingPercent: 100,
+      },
+      position: "ATT",
+      nextLimit: 3,
+    });
+    assert.ok(path.reached.some((item) => item.id === "trainings-5"));
+    const nextTrainings = path.next.find((item) => item.id === "trainings-10");
+    assert.equal(nextTrainings?.progressLabel, "8/10");
+    assert.equal(
+      JSON.stringify(path).toLowerCase().includes("rank") ||
+        JSON.stringify(path).toLowerCase().includes("classifica"),
+      false,
+    );
   });
 
   it("computes longest present streak interrupting on absence", () => {

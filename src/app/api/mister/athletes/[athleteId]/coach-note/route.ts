@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { canManageAthleteCategory, getAthleteCategoryId } from "@/lib/athlete-access";
+import { normalizePositiveCoachTags } from "@/lib/coach-note-tags";
 import { prisma } from "@/lib/prisma";
 import { upsertAthleteCoachNoteSchema } from "@/lib/validation/athlete-profile";
 
@@ -43,6 +44,11 @@ export async function PUT(request: Request, context: RouteContext) {
     );
   }
 
+  const tagsNormalized = normalizePositiveCoachTags(parsed.data.positiveTags ?? []);
+  if (!tagsNormalized.ok) {
+    return NextResponse.json({ error: tagsNormalized.error }, { status: 400 });
+  }
+
   const now = new Date();
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth() + 1;
@@ -79,6 +85,7 @@ export async function PUT(request: Request, context: RouteContext) {
     update: {
       content: parsed.data.content,
       authorId: session.user.id,
+      positiveTags: tagsNormalized.tags,
     },
     create: {
       athleteId,
@@ -86,12 +93,14 @@ export async function PUT(request: Request, context: RouteContext) {
       year: parsed.data.year,
       month: parsed.data.month,
       content: parsed.data.content,
+      positiveTags: tagsNormalized.tags,
     },
     select: {
       id: true,
       year: true,
       month: true,
       content: true,
+      positiveTags: true,
       updatedAt: true,
     },
   });

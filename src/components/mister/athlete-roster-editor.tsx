@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Shirt } from "lucide-react";
+import { CheckCircle2, Shirt, Target, Trash2 } from "lucide-react";
 import {
   ATHLETE_ROLE_CHOICES,
   formatAthleteRoleDisplay,
@@ -9,7 +9,25 @@ import {
   parseCanonicalAthleteRole,
   type AthleteRoleCode,
 } from "@/lib/athlete-roles";
+import {
+  countActivePersonalGoals,
+  MAX_ACTIVE_PERSONAL_GOALS,
+  personalGoalStatusLabel,
+  type PersonalGoalStatus,
+} from "@/lib/athlete-personal-goals";
+import {
+  MAX_POSITIVE_COACH_TAGS,
+  POSITIVE_COACH_TAG_LABEL,
+  POSITIVE_COACH_TAGS,
+  type PositiveCoachTagCode,
+} from "@/lib/coach-note-tags";
 import { athleteInitials } from "@/lib/parent-season";
+
+type GoalRow = {
+  id: string;
+  text: string;
+  status: PersonalGoalStatus;
+};
 
 type AthleteRosterEditorProps = {
   athletes: Array<{
@@ -19,6 +37,8 @@ type AthleteRosterEditorProps = {
     position: string | null;
     shirtNumber: number | null;
     noteContent: string | null;
+    positiveTags: PositiveCoachTagCode[];
+    goals: GoalRow[];
   }>;
   noteYear: number;
   noteMonth: number;
@@ -40,11 +60,18 @@ const MONTH_LABELS = [
   "Dicembre",
 ];
 
+function statusToneClass(status: PersonalGoalStatus): string {
+  if (status === "ACHIEVED") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (status === "CONTINUE") return "border-amber-200 bg-amber-50 text-amber-950";
+  return "border-sky-200 bg-sky-50 text-sky-950";
+}
+
 export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRosterEditorProps) {
   const [rows, setRows] = useState(athletes);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [draftGoal, setDraftGoal] = useState<Record<string, string>>({});
 
   const monthLabel = MONTH_LABELS[noteMonth] ?? String(noteMonth);
   const missingRoleCount = useMemo(
@@ -57,6 +84,20 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
       prev.map((row) => (row.id === athleteId ? { ...row, position: role } : row)),
     );
     setFeedback((prev) => ({ ...prev, [athleteId]: "" }));
+  }
+
+  function toggleTag(athleteId: string, tag: PositiveCoachTagCode) {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== athleteId) return row;
+        const has = row.positiveTags.includes(tag);
+        if (has) {
+          return { ...row, positiveTags: row.positiveTags.filter((item) => item !== tag) };
+        }
+        if (row.positiveTags.length >= MAX_POSITIVE_COACH_TAGS) return row;
+        return { ...row, positiveTags: [...row.positiveTags, tag] };
+      }),
+    );
   }
 
   async function saveProfile(athleteId: string) {
@@ -106,17 +147,125 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
           year: noteYear,
           month: noteMonth,
           content: (row.noteContent ?? "").trim(),
+          positiveTags: row.positiveTags,
         }),
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         setFeedback((prev) => ({
           ...prev,
-          [athleteId]: data?.error ?? "Salvataggio nota non riuscito.",
+          [athleteId]: data?.error ?? "Salvataggio messaggio non riuscito.",
         }));
         return;
       }
-      setFeedback((prev) => ({ ...prev, [athleteId]: "Nota salvata." }));
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Messaggio salvato." }));
+    } catch {
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Errore imprevisto." }));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function addGoal(athleteId: string) {
+    const text = (draftGoal[athleteId] ?? "").trim();
+    if (!text) {
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Scrivi un obiettivo." }));
+      return;
+    }
+
+    setPendingId(athleteId);
+    setFeedback((prev) => ({ ...prev, [athleteId]: "" }));
+    try {
+      const response = await fetch(`/api/mister/athletes/${athleteId}/goals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, status: "IN_PROGRESS" }),
+      });
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        goal?: GoalRow;
+      } | null;
+      if (!response.ok || !data?.goal) {
+        setFeedback((prev) => ({
+          ...prev,
+          [athleteId]: data?.error ?? "Obiettivo non salvato.",
+        }));
+        return;
+      }
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === athleteId ? { ...row, goals: [data.goal!, ...row.goals] } : row,
+        ),
+      );
+      setDraftGoal((prev) => ({ ...prev, [athleteId]: "" }));
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Obiettivo aggiunto." }));
+    } catch {
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Errore imprevisto." }));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function updateGoalStatus(athleteId: string, goalId: string, status: PersonalGoalStatus) {
+    setPendingId(athleteId);
+    setFeedback((prev) => ({ ...prev, [athleteId]: "" }));
+    try {
+      const response = await fetch(`/api/mister/athletes/${athleteId}/goals/${goalId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        goal?: GoalRow;
+      } | null;
+      if (!response.ok || !data?.goal) {
+        setFeedback((prev) => ({
+          ...prev,
+          [athleteId]: data?.error ?? "Aggiornamento non riuscito.",
+        }));
+        return;
+      }
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === athleteId
+            ? {
+                ...row,
+                goals: row.goals.map((goal) => (goal.id === goalId ? data.goal! : goal)),
+              }
+            : row,
+        ),
+      );
+    } catch {
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Errore imprevisto." }));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function deleteGoal(athleteId: string, goalId: string) {
+    setPendingId(athleteId);
+    setFeedback((prev) => ({ ...prev, [athleteId]: "" }));
+    try {
+      const response = await fetch(`/api/mister/athletes/${athleteId}/goals/${goalId}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setFeedback((prev) => ({
+          ...prev,
+          [athleteId]: data?.error ?? "Eliminazione non riuscita.",
+        }));
+        return;
+      }
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === athleteId
+            ? { ...row, goals: row.goals.filter((goal) => goal.id !== goalId) }
+            : row,
+        ),
+      );
+      setFeedback((prev) => ({ ...prev, [athleteId]: "Obiettivo eliminato." }));
     } catch {
       setFeedback((prev) => ({ ...prev, [athleteId]: "Errore imprevisto." }));
     } finally {
@@ -129,7 +278,8 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
       <div>
         <h2 className="text-lg font-bold text-zinc-900">Rosa</h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Nota di {monthLabel} {noteYear} — opzionale, visibile ai genitori dell&apos;atleta.
+          Obiettivi personali e messaggio di {monthLabel} {noteYear} — solo per la famiglia
+          dell&apos;atleta.
         </p>
       </div>
 
@@ -155,6 +305,8 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
             !roleAssigned && (athlete.position ?? "").trim()
               ? (athlete.position ?? "").trim()
               : null;
+          const activeGoals = countActivePersonalGoals(athlete.goals);
+          const canAddGoal = activeGoals < MAX_ACTIVE_PERSONAL_GOALS;
 
           return (
             <li
@@ -179,6 +331,10 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                       {athlete.shirtNumber != null ? `#${athlete.shirtNumber}` : "Maglia —"}
                     </span>
                     <span>{formatAthleteRoleDisplay(athlete.position)}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Target className="h-3.5 w-3.5" />
+                      {activeGoals}/{MAX_ACTIVE_PERSONAL_GOALS} obiettivi
+                    </span>
                   </p>
                   {!roleAssigned ? (
                     <span className="mt-1 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">
@@ -188,11 +344,11 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                   {hasNote ? (
                     <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      Nota {monthLabel.toLowerCase()}
+                      Messaggio {monthLabel.toLowerCase()}
                     </span>
                   ) : (
                     <span className="mt-1 inline-flex text-[11px] font-semibold text-amber-700">
-                      Nota da compilare
+                      Messaggio da compilare
                     </span>
                   )}
                 </div>
@@ -231,11 +387,6 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                         <p className="mt-2 text-xs text-amber-800">
                           Valore precedente: {legacyLabel}. Seleziona un ruolo standard (POR / DIF /
                           CEN / ATT).
-                        </p>
-                      ) : null}
-                      {!roleAssigned && !legacyLabel ? (
-                        <p className="mt-2 text-xs font-semibold text-amber-800">
-                          Ruolo da assegnare
                         </p>
                       ) : null}
                       {canonical ? (
@@ -288,8 +439,116 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                     Salva ruolo/maglia
                   </button>
 
-                  <label className="mt-4 block text-xs font-medium text-zinc-700">
-                    Nota di {monthLabel}
+                  <div className="mt-5 rounded-2xl border border-blue-100 bg-white p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-blue-900">
+                        Obiettivi personali
+                      </p>
+                      <span className="text-xs font-semibold text-zinc-600">
+                        {activeGoals} di {MAX_ACTIVE_PERSONAL_GOALS} obiettivi attivi
+                      </span>
+                    </div>
+
+                    <ul className="mt-3 space-y-2">
+                      {athlete.goals.length === 0 ? (
+                        <li className="text-sm text-zinc-600">Nessun obiettivo ancora.</li>
+                      ) : (
+                        athlete.goals.map((goal) => (
+                          <li
+                            key={goal.id}
+                            className={`rounded-xl border px-3 py-3 ${statusToneClass(goal.status)}`}
+                          >
+                            <p className="text-sm font-semibold text-zinc-900">{goal.text}</p>
+                            <p className="mt-1 text-xs font-bold uppercase tracking-wide">
+                              {personalGoalStatusLabel(goal.status)}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {goal.status !== "ACHIEVED" ? (
+                                <button
+                                  type="button"
+                                  disabled={pendingId === athlete.id}
+                                  onClick={() =>
+                                    updateGoalStatus(athlete.id, goal.id, "ACHIEVED")
+                                  }
+                                  className="min-h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-bold text-emerald-900"
+                                >
+                                  Raggiunto
+                                </button>
+                              ) : null}
+                              {goal.status !== "CONTINUE" ? (
+                                <button
+                                  type="button"
+                                  disabled={pendingId === athlete.id}
+                                  onClick={() =>
+                                    updateGoalStatus(athlete.id, goal.id, "CONTINUE")
+                                  }
+                                  className="min-h-11 rounded-xl border border-amber-300 bg-amber-50 px-3 text-xs font-bold text-amber-950"
+                                >
+                                  Continua
+                                </button>
+                              ) : null}
+                              {goal.status !== "IN_PROGRESS" ? (
+                                <button
+                                  type="button"
+                                  disabled={pendingId === athlete.id}
+                                  onClick={() =>
+                                    updateGoalStatus(athlete.id, goal.id, "IN_PROGRESS")
+                                  }
+                                  className="min-h-11 rounded-xl border border-sky-300 bg-sky-50 px-3 text-xs font-bold text-sky-950"
+                                >
+                                  In corso
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                disabled={pendingId === athlete.id}
+                                onClick={() => deleteGoal(athlete.id, goal.id)}
+                                className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-bold text-zinc-600"
+                                aria-label="Elimina obiettivo"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Elimina
+                              </button>
+                            </div>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+
+                    {canAddGoal ? (
+                      <div className="mt-3 space-y-2">
+                        <input
+                          type="text"
+                          value={draftGoal[athlete.id] ?? ""}
+                          onChange={(event) =>
+                            setDraftGoal((prev) => ({
+                              ...prev,
+                              [athlete.id]: event.target.value,
+                            }))
+                          }
+                          maxLength={200}
+                          placeholder="Es. Usa maggiormente il piede debole"
+                          className="block min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+                        />
+                        <button
+                          type="button"
+                          disabled={pendingId === athlete.id}
+                          onClick={() => addGoal(athlete.id)}
+                          className="min-h-11 rounded-xl bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-60"
+                        >
+                          Aggiungi obiettivo
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs font-semibold text-amber-800">
+                        Hai raggiunto il massimo di 3 obiettivi attivi. Segna come Raggiunto per
+                        liberare uno spazio.
+                      </p>
+                    )}
+                  </div>
+
+                  <label className="mt-5 block text-xs font-medium text-zinc-700">
+                    Messaggio di {monthLabel}
                     <textarea
                       value={athlete.noteContent ?? ""}
                       onChange={(event) =>
@@ -303,16 +562,42 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                       }
                       rows={3}
                       className="mt-1 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                      placeholder="Nota privata sul mese in corso..."
+                      placeholder="Un messaggio personale per il ragazzo e la famiglia..."
                     />
                   </label>
+
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-zinc-700">
+                      Tag positivi (max {MAX_POSITIVE_COACH_TAGS}, non sono voti)
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {POSITIVE_COACH_TAGS.map((tag) => {
+                        const active = athlete.positiveTags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleTag(athlete.id, tag)}
+                            className={`min-h-11 rounded-xl border px-3 text-xs font-bold uppercase tracking-wide ${
+                              active
+                                ? "border-blue-700 bg-blue-800 text-white"
+                                : "border-zinc-200 bg-white text-zinc-700"
+                            }`}
+                          >
+                            {POSITIVE_COACH_TAG_LABEL[tag]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     disabled={pendingId === athlete.id || !(athlete.noteContent ?? "").trim()}
                     onClick={() => saveNote(athlete.id)}
                     className="mt-3 min-h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
                   >
-                    Salva nota
+                    Salva messaggio
                   </button>
                   {feedback[athlete.id] ? (
                     <p className="mt-2 text-xs font-semibold text-zinc-600">{feedback[athlete.id]}</p>

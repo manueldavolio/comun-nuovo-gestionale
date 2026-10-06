@@ -117,6 +117,22 @@ enum PredictionChoice {
   AWAY
 }
 
+enum AthletePersonalGoalStatus {
+  IN_PROGRESS
+  ACHIEVED
+  CONTINUE
+}
+
+/// Tag positivi sul messaggio mensile del mister (non sono voti).
+enum PositiveCoachTag {
+  IMPEGNO
+  CRESCITA
+  SPIRITO_DI_SQUADRA
+  COSTANZA
+  CORAGGIO
+  ASCOLTO
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -138,6 +154,7 @@ model User {
   accountingEntries AccountingEntry[]
   reviewedParentAthleteLinkRequests ParentAthleteLinkRequest[] @relation("ParentAthleteLinkRequestReviewedBy")
   athleteCoachNotes AthleteCoachNote[]
+  athletePersonalGoals AthletePersonalGoal[]
   createdPredictionSlips PredictionSlip[]
 
   @@index([role])
@@ -260,6 +277,7 @@ model Athlete {
   parentLinkRequests   ParentAthleteLinkRequest[]
   matchStats           MatchPlayerStat[]
   coachNotes           AthleteCoachNote[]
+  personalGoals        AthletePersonalGoal[]
 
   @@index([lastName, firstName])
   @@index([parentId])
@@ -526,14 +544,16 @@ model MatchPlayerStat {
 
 /// Nota privata mensile del mister sull'atleta (visibile a mister categoria, genitori associati, admin).
 model AthleteCoachNote {
-  id          String   @id @default(cuid())
-  athleteId   String
-  authorId    String
-  year        Int
-  month       Int
-  content     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String             @id @default(cuid())
+  athleteId    String
+  authorId     String
+  year         Int
+  month        Int
+  content      String
+  /// Tag positivi opzionali (0–3). Non sono voti né classifiche.
+  positiveTags PositiveCoachTag[] @default([])
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   author  User    @relation(fields: [authorId], references: [id], onDelete: Restrict)
@@ -541,6 +561,28 @@ model AthleteCoachNote {
   @@unique([athleteId, year, month])
   @@index([athleteId, year, month])
   @@index([authorId])
+}
+
+/// Obiettivo personale assegnato dal mister (crescita, non competizione).
+model AthletePersonalGoal {
+  id          String                    @id @default(cuid())
+  athleteId   String
+  authorId    String
+  text        String
+  periodMonth Int?
+  periodYear  Int?
+  status      AthletePersonalGoalStatus @default(IN_PROGRESS)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([athleteId])
+  @@index([athleteId, status])
+  @@index([athleteId, periodYear, periodMonth])
+  @@index([authorId])
+  @@index([status])
 }
 
 model MedicalVisit {
