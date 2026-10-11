@@ -1,17 +1,32 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
-import { DashboardCard } from "@/components/layout/dashboard-card";
+import {
+  CalendarDays,
+  ClipboardList,
+  FileWarning,
+  HeartPulse,
+  Users,
+  UserRound,
+  Wallet,
+  Megaphone,
+  Images,
+  Link2,
+  LayoutGrid,
+  Trophy,
+  Dumbbell,
+} from "lucide-react";
+import { AdminDashboardHero } from "@/components/admin/admin-dashboard-hero";
 import { AdminEventForms } from "@/components/events/admin-event-forms";
 import { EventList } from "@/components/events/event-list";
+import { AdminMedicalVisitRemindersActions } from "@/components/medical-visits/admin-medical-visit-reminders-actions";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
-import { AdminMedicalVisitRemindersActions } from "@/components/medical-visits/admin-medical-visit-reminders-actions";
 import { getMedicalVisitReminderTargets } from "@/lib/medical-visits/reminders/search";
 import { ANNOUNCEMENT_AUDIENCE_LABEL } from "@/lib/announcements";
 import { euroFormatter } from "@/lib/finance";
+import { currentSeasonRange, isMatchEventType } from "@/lib/parent-season";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -38,6 +53,12 @@ function toAmountNumber(value: DecimalLike | null | undefined) {
   return Number(value.toString());
 }
 
+function seasonLabelFromConfig(now: Date) {
+  const season = currentSeasonRange(now);
+  const startYear = season.start.getUTCFullYear();
+  return `${startYear}/${startYear + 1}`;
+}
+
 export default async function AdminDashboardPage() {
   const session = await getAuthSession();
   if (!session?.user) {
@@ -50,117 +71,136 @@ export default async function AdminDashboardPage() {
 
   const now = new Date();
   const canViewFinance = session.user.role === "ADMIN";
-  const [totalUsers, totalCategories, activeCategories, activeStaff, categories, upcomingEvents, reminderTargets, recentEnrollments, recentAnnouncements, pendingPaymentsAggregate] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.category.count(),
-      prisma.category.count({ where: { isActive: true } }),
-      prisma.user.count({
-        where: {
-          role: {
-            in: ["ADMIN", "YOUTH_DIRECTOR", "COACH"],
+  const isAdmin = session.user.role === "ADMIN";
+  const seasonLabel = seasonLabelFromConfig(now);
+
+  const [
+    activeAthletes,
+    withdrawnAthletes,
+    activeCategories,
+    activeStaff,
+    categories,
+    upcomingEvents,
+    reminderTargets,
+    recentEnrollments,
+    recentAnnouncements,
+    pendingPaymentsAggregate,
+  ] = await Promise.all([
+    prisma.athlete.count({ where: { rosterStatus: "ACTIVE" } }),
+    prisma.athlete.count({ where: { rosterStatus: "WITHDRAWN" } }),
+    prisma.category.count({ where: { isActive: true } }),
+    prisma.user.count({
+      where: {
+        role: {
+          in: ["ADMIN", "YOUTH_DIRECTOR", "COACH"],
+        },
+      },
+    }),
+    prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        birthYearsLabel: true,
+      },
+    }),
+    prisma.event.findMany({
+      where: {
+        startAt: {
+          gte: now,
+        },
+        type: {
+          in: COACH_VISIBLE_EVENT_TYPES,
+        },
+      },
+      orderBy: [{ startAt: "asc" }],
+      take: 80,
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        startAt: true,
+        location: true,
+        description: true,
+        category: {
+          select: {
+            name: true,
           },
         },
-      }),
-      prisma.category.findMany({
-        where: { isActive: true },
-        orderBy: [{ name: "asc" }],
-        select: {
-          id: true,
-          name: true,
-          birthYearsLabel: true,
+      },
+    }),
+    getMedicalVisitReminderTargets({ now }),
+    prisma.enrollment.findMany({
+      where: {
+        status: {
+          in: ["SUBMITTED", "APPROVED"],
         },
-      }),
-      prisma.event.findMany({
-        where: {
-          startAt: {
-            gte: now,
-          },
-          type: {
-            in: COACH_VISIBLE_EVENT_TYPES,
-          },
-        },
-        orderBy: [{ startAt: "asc" }],
-        take: 80,
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          startAt: true,
-          location: true,
-          description: true,
-          category: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      }),
-      getMedicalVisitReminderTargets({ now }),
-      prisma.enrollment.findMany({
-        where: {
-          status: {
-            in: ["SUBMITTED", "APPROVED"],
-          },
-        },
-        orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
-        take: 5,
-        select: {
-          id: true,
-          status: true,
-          submittedAt: true,
-          createdAt: true,
-          athlete: {
-            select: {
-              firstName: true,
-              lastName: true,
-              category: {
-                select: {
-                  name: true,
-                },
+      },
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+      take: 5,
+      select: {
+        id: true,
+        status: true,
+        submittedAt: true,
+        createdAt: true,
+        athlete: {
+          select: {
+            firstName: true,
+            lastName: true,
+            category: {
+              select: {
+                name: true,
               },
             },
           },
         },
-      }),
-      prisma.announcement.findMany({
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: 5,
-        select: {
-          id: true,
-          title: true,
-          audience: true,
-          publishedAt: true,
-          category: {
-            select: {
-              name: true,
-            },
+      },
+    }),
+    prisma.announcement.findMany({
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        audience: true,
+        publishedAt: true,
+        category: {
+          select: {
+            name: true,
           },
         },
-      }),
-      canViewFinance
-        ? prisma.payment.aggregate({
-            where: {
-              status: {
-                in: ["PENDING", "OVERDUE"],
-              },
+      },
+    }),
+    canViewFinance
+      ? prisma.payment.aggregate({
+          where: {
+            status: {
+              in: ["PENDING", "OVERDUE"],
             },
-            _count: {
-              id: true,
-            },
-            _sum: {
-              amount: true,
-            },
-          })
-        : Promise.resolve({
-            _count: { id: 0 },
-            _sum: { amount: null },
-          }),
-    ]);
+          },
+          _count: {
+            id: true,
+          },
+          _sum: {
+            amount: true,
+          },
+        })
+      : Promise.resolve({
+          _count: { id: 0 },
+          _sum: { amount: null },
+        }),
+  ]);
 
   const nextAttendanceEvent = upcomingEvents.find((event) => Boolean(event.category));
   const nextConvocationEvent = upcomingEvents.find((event) => Boolean(event.category));
   const upcomingPreviewEvents = upcomingEvents.slice(0, 5);
+  const upcomingMatches = upcomingEvents
+    .filter((event) => isMatchEventType(event.type))
+    .slice(0, 4);
+  const upcomingTrainings = upcomingEvents
+    .filter((event) => event.type === "TRAINING")
+    .slice(0, 4);
   const upcomingEventsWithDelete = upcomingEvents.map((event) => ({
     ...event,
     canDelete: true,
@@ -170,81 +210,213 @@ export default async function AdminDashboardPage() {
   const pendingPaymentsAmount = canViewFinance
     ? toAmountNumber(pendingPaymentsAggregate._sum.amount)
     : null;
-  const summaryCards = [
+  const medicalAlertCount =
+    reminderTargets.expiring.length + reminderTargets.expired.length;
+
+  const kpiCards = [
     {
-      title: "Utenti totali",
-      value: totalUsers,
-      description: "Anagrafiche presenti a sistema",
-      href: "/admin/utenti",
+      title: "Atleti attivi",
+      value: activeAthletes,
+      description: "In rosa operativa",
+      href: "/admin/atleti",
+      tone: "border-blue-200 bg-white",
+      valueTone: "text-blue-900",
     },
     {
-      title: "Categorie totali",
-      value: totalCategories,
-      description: "Fasce/squadre censite",
-      href: "/admin/categorie",
+      title: "Atleti ritirati",
+      value: withdrawnAthletes,
+      description: "Fuori rosa, storico conservato",
+      href: "/admin/atleti?status=withdrawn",
+      tone: "border-slate-200 bg-white",
+      valueTone: "text-slate-800",
     },
     {
       title: "Categorie attive",
       value: activeCategories,
-      description: "Categorie operative in stagione",
+      description: "Squadre operative in stagione",
       href: "/admin/categorie?filter=active",
+      tone: "border-sky-200 bg-white",
+      valueTone: "text-sky-900",
     },
     {
       title: "Staff tecnico",
       value: activeStaff,
-      description: "Admin, direzione tecnica e mister registrati",
+      description: "Admin, direzione e mister",
       href: "/admin/staff",
+      tone: "border-indigo-200 bg-white",
+      valueTone: "text-indigo-900",
     },
+    ...(canViewFinance
+      ? [
+          {
+            title: "Pagamenti da verificare",
+            value: pendingPaymentsCount ?? 0,
+            description:
+              pendingPaymentsAmount != null
+                ? `In sospeso ${euroFormatter.format(pendingPaymentsAmount)}`
+                : "Pending e overdue",
+            href: "/admin/finanze",
+            tone: "border-amber-200 bg-white",
+            valueTone: "text-amber-900",
+          },
+        ]
+      : []),
+  ];
+
+  const quickLinks = [
+    {
+      href: "/admin/calendario",
+      label: "Calendario",
+      description: "Vista mensile eventi",
+      icon: CalendarDays,
+    },
+    {
+      href: "/admin/atleti",
+      label: "Atleti",
+      description: "Rose e anagrafiche",
+      icon: Users,
+    },
+    {
+      href: "/admin/categorie",
+      label: "Categorie",
+      description: "Fasce e moduli",
+      icon: LayoutGrid,
+    },
+    {
+      href: "/admin/staff",
+      label: "Staff",
+      description: "Ruoli tecnici",
+      icon: UserRound,
+    },
+    ...(canViewFinance
+      ? [
+          {
+            href: "/admin/finanze",
+            label: "Finanze",
+            description: "Pagamenti e ricevute",
+            icon: Wallet,
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            href: "/admin/schedina",
+            label: "Schedina",
+            description: "Pronostici 1X2",
+            icon: Trophy,
+          },
+        ]
+      : []),
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-        <AreaHeader
-          title="Dashboard Admin"
-          subtitle="Gestione società sportiva"
+    <main className="min-h-screen bg-gradient-to-b from-sky-100 via-sky-50 to-blue-50 p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 md:gap-5">
+        <AdminDashboardHero
           userName={session.user.name ?? "Amministratore"}
+          seasonLabel={seasonLabel}
         />
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((card) => (
-            <Link key={card.title} href={card.href} className="block rounded-xl">
-              <DashboardCard
-                title={card.title}
-                value={card.value}
-                description={card.description}
-                className="cursor-pointer transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
-              />
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {kpiCards.map((card) => (
+            <Link
+              key={card.title}
+              href={card.href}
+              className={`rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone}`}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                {card.title}
+              </p>
+              <p className={`mt-2 text-3xl font-black tracking-tight ${card.valueTone}`}>
+                {card.value}
+              </p>
+              <p className="mt-1 text-xs text-zinc-600">{card.description}</p>
             </Link>
           ))}
         </section>
 
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Alert operativi</h2>
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            <article className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-900">Visite mediche in scadenza</h3>
-                  <p className="mt-1 text-xs text-zinc-600">Controllo entro 30 giorni e scadute.</p>
+        <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-blue-950 px-4 py-3 text-white">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-[0.14em]">Da gestire</h2>
+              <p className="mt-0.5 text-xs text-sky-200">Priorità operative della società</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 p-4 lg:grid-cols-2 xl:grid-cols-4">
+            <article className="flex flex-col rounded-xl border border-amber-200 bg-amber-50/70 p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white">
+                    <Wallet className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900">Pagamenti aperti</h3>
+                    <p className="text-[11px] text-zinc-600">Pending e overdue</p>
+                  </div>
                 </div>
                 <Link
-                  href="/admin/visite-mediche"
-                  className="inline-flex rounded-md border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                  href="/admin/finanze"
+                  className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
                 >
                   Apri
                 </Link>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900">
-                  <p className="text-[11px] uppercase tracking-wide">In scadenza</p>
-                  <p className="mt-1 text-lg font-semibold">{reminderTargets.expiring.length}</p>
+              {canViewFinance ? (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-2xl font-black text-amber-950">{pendingPaymentsCount}</p>
+                  <p className="text-xs font-medium text-amber-900">
+                    Totale {euroFormatter.format(pendingPaymentsAmount ?? 0)}
+                  </p>
                 </div>
-                <div className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-red-800">
-                  <p className="text-[11px] uppercase tracking-wide">Scadute</p>
-                  <p className="mt-1 text-lg font-semibold">{reminderTargets.expired.length}</p>
+              ) : (
+                <p className="mt-3 text-sm text-zinc-600">
+                  Dati economici disponibili solo per admin.
+                </p>
+              )}
+            </article>
+
+            <article className="flex flex-col rounded-xl border border-rose-200 bg-rose-50/70 p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-600 text-white">
+                    <HeartPulse className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900">Certificati medici</h3>
+                    <p className="text-[11px] text-zinc-600">Scaduti o in scadenza</p>
+                  </div>
+                </div>
+                <Link
+                  href="/admin/visite-mediche"
+                  className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                >
+                  Apri
+                </Link>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-amber-200 bg-white px-2 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                    In scadenza
+                  </p>
+                  <p className="mt-0.5 text-xl font-black text-amber-900">
+                    {reminderTargets.expiring.length}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-red-200 bg-white px-2 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                    Scadute
+                  </p>
+                  <p className="mt-0.5 text-xl font-black text-red-800">
+                    {reminderTargets.expired.length}
+                  </p>
                 </div>
               </div>
-              {session.user.role === "ADMIN" ? (
+              <p className="mt-2 text-[11px] text-zinc-500">
+                Totale alert: {medicalAlertCount}
+              </p>
+              {isAdmin ? (
                 <div className="mt-3">
                   <AdminMedicalVisitRemindersActions
                     expiringCount={reminderTargets.expiring.length}
@@ -252,125 +424,223 @@ export default async function AdminDashboardPage() {
                   />
                 </div>
               ) : (
-                <p className="mt-3 text-xs text-zinc-500">Invio promemoria disponibile solo per admin.</p>
-              )}
-            </article>
-
-            <article className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-900">Pagamenti da verificare</h3>
-                  <p className="mt-1 text-xs text-zinc-600">Stati non completati (pending e overdue).</p>
-                </div>
-                <Link
-                  href="/admin/finanze"
-                  className="inline-flex rounded-md border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-                >
-                  Apri
-                </Link>
-              </div>
-              {canViewFinance ? (
-                <div className="mt-3 space-y-2">
-                  <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-amber-900">Pagamenti aperti</p>
-                    <p className="mt-1 text-lg font-semibold text-amber-900">{pendingPaymentsCount}</p>
-                  </div>
-                  <div className="rounded-md border border-blue-200 bg-white px-2 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-blue-900">Totale in sospeso</p>
-                    <p className="mt-1 text-base font-semibold text-blue-900">
-                      {euroFormatter.format(pendingPaymentsAmount ?? 0)}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700">
-                  Dati economici disponibili solo per admin.
+                <p className="mt-3 text-xs text-zinc-500">
+                  Invio promemoria disponibile solo per admin.
                 </p>
               )}
             </article>
 
-            <article className="rounded-lg border border-blue-100 bg-slate-50 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-900">Convocazioni</h3>
-                  <p className="mt-1 text-xs text-zinc-600">Crea convocazioni e monitora le risposte famiglie.</p>
+            <article className="flex flex-col rounded-xl border border-blue-200 bg-blue-50/70 p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-white">
+                    <FileWarning className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900">Nuove iscrizioni</h3>
+                    <p className="text-[11px] text-zinc-600">Ultime pratiche ricevute</p>
+                  </div>
                 </div>
                 <Link
-                  href={nextConvocationEvent ? `/admin/eventi/${nextConvocationEvent.id}/convocazioni` : "/admin"}
-                  className="inline-flex rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                  href="/admin/atleti"
+                  className="rounded-md border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+                >
+                  Apri
+                </Link>
+              </div>
+              {recentEnrollments.length === 0 ? (
+                <p className="mt-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+                  Nessuna nuova iscrizione.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-1.5">
+                  {recentEnrollments.slice(0, 3).map((enrollment) => (
+                    <li
+                      key={enrollment.id}
+                      className="rounded-lg border border-blue-100 bg-white px-2.5 py-1.5"
+                    >
+                      <p className="truncate text-sm font-semibold text-zinc-900">
+                        {`${enrollment.athlete.firstName} ${enrollment.athlete.lastName}`.trim()}
+                      </p>
+                      <p className="truncate text-[11px] text-zinc-500">
+                        {enrollment.athlete.category.name} ·{" "}
+                        {dateFormatter.format(
+                          new Date(enrollment.submittedAt ?? enrollment.createdAt),
+                        )}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link
+                href="/admin/atleti"
+                className="mt-auto pt-3 text-xs font-semibold text-blue-700 hover:underline"
+              >
+                Vai ad atleti/iscrizioni
+              </Link>
+            </article>
+
+            <article className="flex flex-col rounded-xl border border-violet-200 bg-violet-50/70 p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
+                    <ClipboardList className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900">Convocazioni</h3>
+                    <p className="text-[11px] text-zinc-600">Risposte famiglie</p>
+                  </div>
+                </div>
+                <Link
+                  href={
+                    nextConvocationEvent
+                      ? `/admin/eventi/${nextConvocationEvent.id}/convocazioni`
+                      : "/admin"
+                  }
+                  className="rounded-md border border-violet-300 bg-white px-2 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-100"
                 >
                   Apri
                 </Link>
               </div>
               {nextConvocationEvent ? (
-                <div className="mt-3 rounded-md border border-violet-200 bg-white px-3 py-3 text-sm text-zinc-700">
-                  Prossima gestione convocazioni su: <strong>{nextConvocationEvent.title}</strong>.
+                <div className="mt-3 rounded-lg border border-violet-100 bg-white px-3 py-2.5 text-sm text-zinc-700">
+                  Prossima gestione su{" "}
+                  <strong className="text-zinc-900">{nextConvocationEvent.title}</strong>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    {dateTimeFormatter.format(new Date(nextConvocationEvent.startAt))}
+                  </p>
                 </div>
               ) : (
-                <div className="mt-3 rounded-md border border-zinc-200 bg-white px-3 py-3 text-sm text-zinc-700">
+                <p className="mt-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
                   Nessun evento categoria disponibile per convocazioni.
-                </div>
+                </p>
               )}
             </article>
           </div>
         </section>
 
-        <section className="grid gap-3 xl:grid-cols-3">
-          <article className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900">Nuove iscrizioni</h2>
-              <p className="mt-1 text-sm text-zinc-600">Ultime iscrizioni ricevute da gestione genitori.</p>
+        <section className="grid gap-4 xl:grid-cols-3">
+          <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-blue-800" />
+              <h2 className="text-base font-bold text-zinc-900">Prossimi eventi</h2>
             </div>
-            {recentEnrollments.length === 0 ? (
-              <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                Nessuna nuova iscrizione.
+            <p className="mt-1 text-xs text-zinc-600">Appuntamenti sportivi in arrivo</p>
+            {upcomingPreviewEvents.length === 0 ? (
+              <p className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
+                Nessun evento imminente.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">
-                {recentEnrollments.map((enrollment) => (
-                  <li key={enrollment.id} className="rounded-lg border border-blue-100 bg-slate-50 p-2.5">
-                    <p className="text-sm font-semibold text-zinc-900">
-                      {`${enrollment.athlete.firstName} ${enrollment.athlete.lastName}`.trim()}
-                    </p>
+                {upcomingPreviewEvents.map((event) => (
+                  <li
+                    key={event.id}
+                    className="rounded-xl border border-blue-100 bg-slate-50 px-3 py-2.5"
+                  >
+                    <p className="text-sm font-semibold text-zinc-900">{event.title}</p>
                     <p className="text-xs text-zinc-600">
-                      Categoria: {enrollment.athlete.category.name}
+                      {formatEventType(event.type)} · {event.category?.name ?? "Senza categoria"}
                     </p>
                     <p className="text-xs text-zinc-500">
-                      Data iscrizione:{" "}
-                      {dateFormatter.format(new Date(enrollment.submittedAt ?? enrollment.createdAt))}
+                      {dateTimeFormatter.format(new Date(event.startAt))}
                     </p>
                   </li>
                 ))}
               </ul>
             )}
-            <Link
-              href="/admin/atleti"
-              className="mt-3 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-            >
-              Vai ad atleti/iscrizioni
-            </Link>
           </article>
 
-          <article className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900">Comunicazioni recenti</h2>
-              <p className="mt-1 text-sm text-zinc-600">Ultimi avvisi pubblicati in bacheca.</p>
+          <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-blue-800" />
+              <h2 className="text-base font-bold text-zinc-900">Partite e allenamenti</h2>
             </div>
+            <p className="mt-1 text-xs text-zinc-600">Prossimi impegni suddivisi per tipo</p>
+            <div className="mt-3 grid gap-3">
+              <div>
+                <p className="mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-blue-800">
+                  <Trophy className="h-3.5 w-3.5" />
+                  Partite
+                </p>
+                {upcomingMatches.length === 0 ? (
+                  <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                    Nessuna partita imminente.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {upcomingMatches.map((event) => (
+                      <li
+                        key={event.id}
+                        className="rounded-lg border border-blue-100 bg-slate-50 px-2.5 py-2"
+                      >
+                        <p className="truncate text-sm font-semibold text-zinc-900">
+                          {event.title}
+                        </p>
+                        <p className="text-[11px] text-zinc-500">
+                          {event.category?.name ?? "—"} ·{" "}
+                          {dateTimeFormatter.format(new Date(event.startAt))}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-sky-800">
+                  <Dumbbell className="h-3.5 w-3.5" />
+                  Allenamenti
+                </p>
+                {upcomingTrainings.length === 0 ? (
+                  <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                    Nessun allenamento imminente.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {upcomingTrainings.map((event) => (
+                      <li
+                        key={event.id}
+                        className="rounded-lg border border-sky-100 bg-sky-50/60 px-2.5 py-2"
+                      >
+                        <p className="truncate text-sm font-semibold text-zinc-900">
+                          {event.title}
+                        </p>
+                        <p className="text-[11px] text-zinc-500">
+                          {event.category?.name ?? "—"} ·{" "}
+                          {dateTimeFormatter.format(new Date(event.startAt))}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-blue-800" />
+              <h2 className="text-base font-bold text-zinc-900">Comunicazioni recenti</h2>
+            </div>
+            <p className="mt-1 text-xs text-zinc-600">Ultimi avvisi in bacheca</p>
             {recentAnnouncements.length === 0 ? (
-              <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              <p className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
                 Nessuna comunicazione recente.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">
                 {recentAnnouncements.map((announcement) => (
-                  <li key={announcement.id} className="rounded-lg border border-blue-100 bg-slate-50 p-2.5">
+                  <li
+                    key={announcement.id}
+                    className="rounded-xl border border-blue-100 bg-slate-50 px-3 py-2.5"
+                  >
                     <p className="text-sm font-semibold text-zinc-900">{announcement.title}</p>
                     <p className="text-xs text-zinc-600">
-                      Audience: {ANNOUNCEMENT_AUDIENCE_LABEL[announcement.audience]}
-                      {announcement.category?.name ? ` - ${announcement.category.name}` : " - Generale"}
+                      {ANNOUNCEMENT_AUDIENCE_LABEL[announcement.audience]}
+                      {announcement.category?.name
+                        ? ` · ${announcement.category.name}`
+                        : " · Generale"}
                     </p>
                     <p className="text-xs text-zinc-500">
-                      Data:{" "}
                       {announcement.publishedAt
                         ? dateFormatter.format(new Date(announcement.publishedAt))
                         : "Non pubblicata"}
@@ -386,85 +656,106 @@ export default async function AdminDashboardPage() {
               Vai alle comunicazioni
             </Link>
           </article>
-
-          <article className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900">Eventi imminenti</h2>
-              <p className="mt-1 text-sm text-zinc-600">Prossimi appuntamenti sportivi in calendario.</p>
-            </div>
-            {upcomingPreviewEvents.length === 0 ? (
-              <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-                Nessun evento imminente.
-              </p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {upcomingPreviewEvents.map((event) => (
-                  <li key={event.id} className="rounded-lg border border-blue-100 bg-slate-50 p-2.5">
-                    <p className="text-sm font-semibold text-zinc-900">{event.title}</p>
-                    <p className="text-xs text-zinc-600">
-                      {formatEventType(event.type)} - {event.category?.name ?? "Senza categoria"}
-                    </p>
-                    <p className="text-xs text-zinc-500">Data: {dateTimeFormatter.format(new Date(event.startAt))}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </article>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <section>
+          <div className="mb-3">
+            <h2 className="text-base font-bold text-zinc-900">Accessi rapidi</h2>
+            <p className="text-xs text-zinc-600">Collegamenti alle aree operative principali</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {quickLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md"
+                >
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-900 text-white">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-bold text-blue-950">{item.label}</span>
+                    <span className="mt-0.5 block text-xs text-zinc-600">{item.description}</span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/admin/associazioni-genitori"
-            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            <h2 className="text-base font-semibold text-zinc-900">Associazioni genitore-atleta</h2>
-            <p className="mt-1 text-sm text-zinc-600">
+            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
+              <Link2 className="h-4 w-4" />
+              Associazioni genitore-atleta
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
               Richieste di secondo genitore da approvare o rifiutare.
             </p>
           </Link>
           <Link
-            href="/admin/calendario"
-            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+            href="/admin/utenti"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            <h2 className="text-base font-semibold text-zinc-900">Calendario eventi</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Vista mensile grafica con filtri per categoria e tipo evento.
+            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
+              <UserRound className="h-4 w-4" />
+              Utenti
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Anagrafiche account e reset password.
             </p>
           </Link>
           <Link
             href="/admin/comunicazioni"
-            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            <h2 className="text-base font-semibold text-zinc-900">Bacheca comunicazioni</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Crea avvisi per tutti, genitori, mister o categoria specifica.
+            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
+              <Megaphone className="h-4 w-4" />
+              Bacheca comunicazioni
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Avvisi per tutti, genitori, mister o categoria.
             </p>
           </Link>
           <Link
             href="/admin/media"
-            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            <h2 className="text-base font-semibold text-zinc-900">Media per categoria</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Pubblica e consulta foto/video per tutte le squadre.
+            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
+              <Images className="h-4 w-4" />
+              Media per categoria
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Pubblica e consulta foto/video per le squadre.
             </p>
           </Link>
           <Link
             href="/admin/visite-mediche"
-            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-200"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
           >
-            <h2 className="text-base font-semibold text-zinc-900">Scadenze sanitarie</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Controlla rapidamente scadenze e promemoria visite mediche.
+            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
+              <HeartPulse className="h-4 w-4" />
+              Scadenze sanitarie
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Controlla scadenze e promemoria visite mediche.
             </p>
           </Link>
         </section>
 
         {nextAttendanceEvent ? (
-          <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-900">Presenze evento</h2>
+          <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <h2 className="text-base font-bold text-slate-900">Presenze evento</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Apri rapidamente l&apos;evento piu vicino per verificare o aggiornare l&apos;appello.
+              Apri rapidamente l&apos;evento più vicino per verificare o aggiornare l&apos;appello.
+            </p>
+            <p className="mt-2 text-sm font-medium text-zinc-800">
+              {nextAttendanceEvent.title}
             </p>
             <Link
               href={`/admin/eventi/${nextAttendanceEvent.id}/presenze`}
