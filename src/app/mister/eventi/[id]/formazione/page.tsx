@@ -88,12 +88,31 @@ export default async function MisterFormationPage({ params }: PageProps) {
   );
   const hasConvocation = Boolean(event.convocation);
 
+  const formationAthleteIds = new Set(
+    event.matchFormation?.slots
+      .map((slot) => slot.athleteId)
+      .filter((id): id is string => Boolean(id)) ?? [],
+  );
+
   const [poolAthletes, rosterAthletes] = await Promise.all([
     prisma.athlete.findMany({
       where:
         hasConvocation && convocatedIds.size > 0
-          ? { id: { in: [...convocatedIds] }, categoryId: event.categoryId }
-          : { categoryId: event.categoryId },
+          ? {
+              categoryId: event.categoryId,
+              id: { in: [...convocatedIds] },
+              OR: [
+                { rosterStatus: "ACTIVE" },
+                { id: { in: [...formationAthleteIds] } },
+              ],
+            }
+          : {
+              categoryId: event.categoryId,
+              OR: [
+                { rosterStatus: "ACTIVE" },
+                { id: { in: [...formationAthleteIds] } },
+              ],
+            },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,
@@ -107,7 +126,13 @@ export default async function MisterFormationPage({ params }: PageProps) {
       },
     }),
     prisma.athlete.findMany({
-      where: { categoryId: event.categoryId },
+      where: {
+        categoryId: event.categoryId,
+        OR: [
+          { rosterStatus: "ACTIVE" },
+          { id: { in: [...formationAthleteIds] } },
+        ],
+      },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,

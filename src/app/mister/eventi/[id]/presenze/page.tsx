@@ -58,6 +58,12 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
         select: {
           name: true,
           athletes: {
+            where: {
+              OR: [
+                { rosterStatus: "ACTIVE" },
+                { attendances: { some: { eventId: id } } },
+              ],
+            },
             orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
             select: {
               id: true,

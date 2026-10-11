@@ -150,7 +150,7 @@ export default async function CoachDashboardPage() {
     coachCategoryIds.length === 0
       ? Promise.resolve([])
       : prisma.athlete.findMany({
-          where: { categoryId: { in: coachCategoryIds } },
+          where: { categoryId: { in: coachCategoryIds }, rosterStatus: "ACTIVE" },
           select: {
             id: true,
             coachNotes: {

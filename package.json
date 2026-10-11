@@ -35,6 +35,7 @@
     "test:four-period": "tsx --test src/lib/four-period-scoring.test.ts",
     "test:attendance": "tsx --test src/lib/validation/attendance.test.ts src/lib/athlete-roles.test.ts",
     "test:athlete-roles": "tsx --test src/lib/athlete-roles.test.ts",
+    "test:athlete-roster-status": "tsx --test src/lib/athlete-roster-status.test.ts",
     "test:training-session": "tsx --test src/lib/training-session.test.ts",
     "test:match-formation": "tsx --test src/lib/match-formation.test.ts src/lib/category-format.test.ts",
     "test:session-tools-privacy": "tsx --test src/lib/session-tools-privacy.test.ts"

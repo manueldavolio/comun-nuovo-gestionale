@@ -94,15 +94,19 @@ export async function GET(_request: Request, context: RouteContext) {
   );
   const hasConvocation = Boolean(event.convocation);
 
-  const rosterWhere = hasConvocation
-    ? { id: { in: [...convocatedIds] }, categoryId: event.categoryId }
-    : { categoryId: event.categoryId };
+  const rosterWhere =
+    hasConvocation && convocatedIds.size > 0
+      ? {
+          categoryId: event.categoryId,
+          id: { in: [...convocatedIds] },
+          rosterStatus: "ACTIVE" as const,
+        }
+      : { categoryId: event.categoryId, rosterStatus: "ACTIVE" as const };
 
-  // Prefer convocati; se convocazione vuota/assente usa rosa categoria.
-  // Se c'è convocazione mostriamo anche rosa per warning su fuori-lista.
+  // Prefer convocati attivi; rosa attiva per warning. Ritirati esclusi dalle nuove scelte.
   const [poolAthletes, rosterAthletes] = await Promise.all([
     prisma.athlete.findMany({
-      where: hasConvocation && convocatedIds.size > 0 ? rosterWhere : { categoryId: event.categoryId },
+      where: rosterWhere,
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,
@@ -116,7 +120,7 @@ export async function GET(_request: Request, context: RouteContext) {
       },
     }),
     prisma.athlete.findMany({
-      where: { categoryId: event.categoryId },
+      where: { categoryId: event.categoryId, rosterStatus: "ACTIVE" },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,
@@ -239,7 +243,17 @@ export async function PUT(request: Request, context: RouteContext) {
   const playersPerSide = resolvePlayersPerSide(event.category);
 
   const roster = await prisma.athlete.findMany({
-    where: { categoryId: event.categoryId },
+    where: {
+      categoryId: event.categoryId,
+      OR: [
+        { rosterStatus: "ACTIVE" },
+        {
+          formationSlots: {
+            some: { formation: { eventId } },
+          },
+        },
+      ],
+    },
     select: { id: true },
   });
   const allowedAthleteIds = new Set(roster.map((a) => a.id));

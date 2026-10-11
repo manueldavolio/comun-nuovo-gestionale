@@ -84,7 +84,7 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
 
   const [athletes, pastEvents, upcomingWithoutAttendance] = await Promise.all([
     prisma.athlete.findMany({
-      where: { categoryId: selectedCategoryId },
+      where: { categoryId: selectedCategoryId, rosterStatus: "ACTIVE" },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,

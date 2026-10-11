@@ -7,7 +7,14 @@ import { getAuthSession } from "@/lib/auth";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { AthleteDeleteButton } from "@/components/admin/athlete-delete-button";
 import { AthleteEnrollmentDocuments } from "@/components/admin/athlete-enrollment-documents";
+import { AthleteReactivateButton } from "@/components/admin/athlete-reactivate-button";
+import { AthleteWithdrawButton } from "@/components/admin/athlete-withdraw-button";
 import { ChangeAthleteCategoryInline } from "@/components/admin/change-athlete-category-inline";
+import { assessAthleteFinancialDeletability } from "@/lib/admin-athlete-delete";
+import {
+  ATHLETE_ROSTER_STATUS_LABEL,
+  isAthleteActive,
+} from "@/lib/athlete-roster-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -51,6 +58,9 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
       province: true,
       clothingSize: true,
       medicalNotes: true,
+      rosterStatus: true,
+      withdrawnAt: true,
+      withdrawReason: true,
       parent: {
         select: {
           id: true,
@@ -97,13 +107,21 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
       },
       enrollments: {
         orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
-        take: 1,
         select: {
           documents: {
             select: {
               id: true,
               type: true,
               fileName: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              status: true,
+              paidAt: true,
+              receipt: { select: { id: true } },
+              accountingEntry: { select: { id: true } },
             },
           },
         },
@@ -138,6 +156,10 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
 
   const now = new Date();
   const latestEnrollmentDocuments = athlete.enrollments[0]?.documents ?? [];
+  const payments = athlete.enrollments.flatMap((enrollment) => enrollment.payments);
+  const financialAssessment = assessAthleteFinancialDeletability(payments);
+  const hasPaidEvidence = !financialAssessment.ok;
+  const isActive = isAthleteActive(athlete.rosterStatus);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -155,7 +177,33 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
           >
             Torna alla lista
           </Link>
+          <span
+            className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+              isActive
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+          >
+            {ATHLETE_ROSTER_STATUS_LABEL[athlete.rosterStatus]}
+          </span>
         </div>
+
+        {!isActive ? (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
+            <p className="font-bold">Atleta ritirato dalla rosa attiva</p>
+            {athlete.withdrawnAt ? (
+              <p className="mt-1">
+                Data ritiro: {dateFormatter.format(new Date(athlete.withdrawnAt))}
+              </p>
+            ) : null}
+            {athlete.withdrawReason ? (
+              <p className="mt-1">Motivo: {athlete.withdrawReason}</p>
+            ) : null}
+            <p className="mt-1 text-amber-800">
+              Storico pagamenti, ricevute e documenti resta accessibile.
+            </p>
+          </section>
+        ) : null}
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">Dati anagrafici</h2>
@@ -361,6 +409,33 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
             </div>
           )}
         </section>
+
+        {canManageAthleteCategory ? (
+          <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-semibold text-zinc-900">Stato rosa</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Il ritiro esclude l&apos;atleta dalle rose operative senza cancellare lo storico
+              economico. L&apos;eliminazione definitiva resta bloccata se ci sono pagamenti o
+              movimenti contabili.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              {isActive ? (
+                <AthleteWithdrawButton
+                  athleteId={athlete.id}
+                  firstName={athlete.firstName}
+                  lastName={athlete.lastName}
+                  hasPaidEvidence={hasPaidEvidence}
+                />
+              ) : (
+                <AthleteReactivateButton
+                  athleteId={athlete.id}
+                  firstName={athlete.firstName}
+                  lastName={athlete.lastName}
+                />
+              )}
+            </div>
+          </section>
+        ) : null}
 
         {canManageAthleteCategory ? (
           <section className="rounded-xl border border-red-200 bg-red-50/60 p-4 shadow-sm">

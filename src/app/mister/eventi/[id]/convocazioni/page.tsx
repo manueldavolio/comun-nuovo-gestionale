@@ -90,6 +90,16 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
           select: {
             name: true,
             athletes: {
+              where: {
+                OR: [
+                  { rosterStatus: "ACTIVE" },
+                  {
+                    convocationEntries: {
+                      some: { convocation: { eventId: id } },
+                    },
+                  },
+                ],
+              },
               orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
               select: {
                 id: true,
@@ -129,6 +139,16 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
             select: {
               name: true,
               athletes: {
+                where: {
+                  OR: [
+                    { rosterStatus: "ACTIVE" },
+                    {
+                      convocationEntries: {
+                        some: { convocation: { eventId: id } },
+                      },
+                    },
+                  ],
+                },
                 orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
                 select: {
                   id: true,

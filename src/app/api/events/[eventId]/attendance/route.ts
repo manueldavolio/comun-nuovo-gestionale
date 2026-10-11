@@ -120,6 +120,14 @@ export async function PUT(
   const athletes = await prisma.athlete.findMany({
     where: {
       categoryId: event.categoryId,
+      OR: [
+        { rosterStatus: "ACTIVE" },
+        {
+          id: {
+            in: parsed.data.entries.map((entry) => entry.athleteId),
+          },
+        },
+      ],
     },
     select: { id: true, position: true },
   });

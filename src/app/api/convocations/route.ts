@@ -108,10 +108,19 @@ export async function POST(request: Request) {
   }
 
   const categoryAthletes = await prisma.athlete.findMany({
-    where: { categoryId: eventCategoryId },
+    where: { categoryId: eventCategoryId, rosterStatus: "ACTIVE" },
     select: { id: true },
   });
   const categoryAthleteIds = new Set(categoryAthletes.map((athlete) => athlete.id));
+
+  // Consenti anche atleti già presenti nella convocazione (anche se ritirati dopo).
+  const existingConvocation = await prisma.convocation.findUnique({
+    where: { eventId: event.id },
+    select: { athletes: { select: { athleteId: true } } },
+  });
+  for (const row of existingConvocation?.athletes ?? []) {
+    categoryAthleteIds.add(row.athleteId);
+  }
 
   const hasInvalidAthlete = parsed.data.athleteIds.some((athleteId) => !categoryAthleteIds.has(athleteId));
   if (hasInvalidAthlete) {

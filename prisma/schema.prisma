@@ -105,6 +105,12 @@ enum AthleteGender {
   OTHER
 }
 
+/// Stato anagrafico operativo in rosa (distinto da AthleteOperationalStatus = disponibilità sportiva).
+enum AthleteRosterStatus {
+  ACTIVE
+  WITHDRAWN
+}
+
 enum ParentAthleteLinkRequestStatus {
   PENDING
   APPROVED
@@ -276,6 +282,12 @@ model Athlete {
   position     String?
   /// Numero maglia opzionale.
   shirtNumber  Int?
+  /// Rosa attiva vs ritirato (NON cancella storico economico).
+  rosterStatus AthleteRosterStatus @default(ACTIVE)
+  /// Momento del ritiro (Europe/Rome wall-clock salvato come DateTime).
+  withdrawnAt  DateTime?
+  /// Motivo organizzativo breve — mai dati sanitari.
+  withdrawReason String?
   parentId     String
   categoryId   String
   createdAt    DateTime     @default(now())
@@ -300,6 +312,7 @@ model Athlete {
   @@index([lastName, firstName])
   @@index([parentId])
   @@index([categoryId])
+  @@index([rosterStatus])
 }
 
 /// Genitori aggiuntivi (oltre ad Athlete.parentId = genitore principale/legacy).

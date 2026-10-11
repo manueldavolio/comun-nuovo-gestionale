@@ -64,7 +64,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
   }
 
   const athletes = await prisma.athlete.findMany({
-    where: { categoryId: selectedCategoryId },
+    where: { categoryId: selectedCategoryId, rosterStatus: "ACTIVE" },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: {
       id: true,
