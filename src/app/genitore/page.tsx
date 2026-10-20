@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   HeartPulse,
+  Trophy,
   Wallet,
 } from "lucide-react";
 import { AreaHeader } from "@/components/layout/area-header";
@@ -829,6 +830,14 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       tone: "border-amber-200 bg-amber-50 text-amber-950",
       iconWrap: "bg-amber-500 text-white",
       badge: pendingConvocationsCount > 0 ? pendingConvocationsCount : null,
+    },
+    {
+      href: "/genitore/partite",
+      label: "Partite",
+      icon: Trophy,
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
+      iconWrap: "bg-emerald-700 text-white",
+      badge: null,
     },
     {
       href: "/genitore/calendario",

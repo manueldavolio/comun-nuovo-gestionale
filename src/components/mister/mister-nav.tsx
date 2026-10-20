@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Users } from "lucide-react";
+import { CalendarDays, Home, Trophy, Users } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/mister", label: "Home", icon: Home, match: (path: string) => path === "/mister" },
@@ -11,6 +11,12 @@ const NAV_ITEMS = [
     label: "Calendario",
     icon: CalendarDays,
     match: (path: string) => path.startsWith("/mister/calendario"),
+  },
+  {
+    href: "/mister/partite",
+    label: "Partite",
+    icon: Trophy,
+    match: (path: string) => path.startsWith("/mister/partite"),
   },
   {
     href: "/mister/squadra",
@@ -67,7 +73,7 @@ export function MisterNav() {
 
       {/* Mobile bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-blue-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-[1100px] grid-cols-3">
+        <div className="mx-auto grid max-w-[1100px] grid-cols-4">
           {NAV_ITEMS.map((item) => {
             const active = item.match(pathname);
             const Icon = item.icon;

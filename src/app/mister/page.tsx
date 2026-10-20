@@ -288,7 +288,7 @@ export default async function CoachDashboardPage() {
 
         <WeekTimeline days={weekDays} />
 
-        <section className="grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/mister/squadra"
             className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
@@ -297,6 +297,13 @@ export default async function CoachDashboardPage() {
             <p className="mt-1 text-xs text-zinc-600">
               Disponibilità, obiettivi e messaggi
             </p>
+          </Link>
+          <Link
+            href="/mister/partite"
+            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
+          >
+            <p className="text-sm font-bold text-blue-900">Partite</p>
+            <p className="mt-1 text-xs text-zinc-600">Risultati, marcatori e valutazioni</p>
           </Link>
           <Link
             href="/mister/calendario"
