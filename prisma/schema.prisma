@@ -148,6 +148,51 @@ enum AthleteOperationalStatusType {
   ABSENT
 }
 
+/// Ambito competitivo (campionato/coppa/…). Distinto da EventType.
+enum CompetitionKind {
+  LEAGUE
+  CUP
+  TOURNAMENT
+  FRIENDLY
+  OTHER
+}
+
+enum DisciplinarySanctionType {
+  YELLOW_CARD
+  RED_CARD
+  SECOND_YELLOW_RED
+  DIRECT_SUSPENSION
+  OTHER
+}
+
+enum DisciplinaryRecordStatus {
+  ACTIVE
+  VOIDED
+}
+
+enum SuspensionServeStatus {
+  PENDING
+  SERVED
+  CANCELLED
+}
+
+enum DisciplinaryAuditEntityType {
+  INCIDENT
+  SUSPENSION
+  SERVING
+  OPENING_BALANCE
+  MATCH_RATING
+}
+
+enum DisciplinaryAuditAction {
+  CREATE
+  UPDATE
+  VOID
+  SERVE
+  UNSERVE
+  CORRECT
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -175,6 +220,16 @@ model User {
   createdTrainingExercises TrainingExercise[]
   createdTrainingSessions TrainingSession[]
   createdMatchFormations MatchFormation[]
+  disciplinaryIncidentsCreated DisciplinaryIncident[] @relation("DisciplinaryIncidentCreatedBy")
+  disciplinaryIncidentsUpdated DisciplinaryIncident[] @relation("DisciplinaryIncidentUpdatedBy")
+  disciplinarySuspensionsCreated DisciplinarySuspension[] @relation("DisciplinarySuspensionCreatedBy")
+  disciplinarySuspensionsUpdated DisciplinarySuspension[] @relation("DisciplinarySuspensionUpdatedBy")
+  disciplinaryServingsConfirmed DisciplinarySuspensionServing[] @relation("DisciplinaryServingConfirmedBy")
+  disciplinaryOpeningBalancesCreated DisciplinaryOpeningBalance[] @relation("DisciplinaryOpeningCreatedBy")
+  disciplinaryOpeningBalancesUpdated DisciplinaryOpeningBalance[] @relation("DisciplinaryOpeningUpdatedBy")
+  disciplinaryAuditLogs DisciplinaryAuditLog[]
+  matchPlayerRatingsCreated MatchPlayerRating[] @relation("MatchPlayerRatingCreatedBy")
+  matchPlayerRatingsUpdated MatchPlayerRating[] @relation("MatchPlayerRatingUpdatedBy")
 
   @@index([role])
   @@index([isActive])
@@ -203,6 +258,9 @@ model Category {
   monthlyCoachReports MonthlyCoachReport[]
   coachAssignments    CoachCategoryAssignment[]
   trainingExercises   TrainingExercise[]
+  disciplinaryIncidents DisciplinaryIncident[]
+  disciplinarySuspensions DisciplinarySuspension[]
+  disciplinaryOpeningBalances DisciplinaryOpeningBalance[]
 
   @@unique([name, seasonLabel])
   @@index([isActive])
@@ -308,6 +366,10 @@ model Athlete {
   personalGoals        AthletePersonalGoal[]
   operationalStatus    AthleteOperationalStatus?
   formationSlots       MatchFormationSlot[]
+  disciplinaryIncidents DisciplinaryIncident[]
+  disciplinarySuspensions DisciplinarySuspension[]
+  disciplinaryOpeningBalances DisciplinaryOpeningBalance[]
+  matchPlayerRatings   MatchPlayerRating[]
 
   @@index([lastName, firstName])
   @@index([parentId])
@@ -454,6 +516,12 @@ model Event {
   awayScore    Int?
   /// true = Comun Nuovo in casa; null su eventi senza risultato strutturato.
   isHome       Boolean?
+  /// Ambito competitivo (campionato/coppa/…). null su allenamenti.
+  competitionKind CompetitionKind?
+  /// Stagione etichetta (es. 2026/2027), allineata a Category.seasonLabel quando possibile.
+  seasonLabel  String?
+  /// Se false, la gara non conta per scontare squalifiche (tipico amichevoli).
+  countsForDiscipline Boolean @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -466,10 +534,15 @@ model Event {
   predictionSlipEvents PredictionSlipEvent[]
   trainingSession TrainingSession?
   matchFormation MatchFormation?
+  disciplinaryIncidents DisciplinaryIncident[]
+  disciplinaryServings DisciplinarySuspensionServing[]
+  matchPlayerRatings MatchPlayerRating[]
 
   @@index([categoryId])
   @@index([createdById])
   @@index([startAt])
+  @@index([competitionKind])
+  @@index([seasonLabel])
 }
 
 /// Gol per singolo tempo (Pulcini / Esordienti). null = tempo non inserito; 0 = 0 reale.
@@ -1098,4 +1171,163 @@ model PredictionPick {
 
   @@unique([entryId, slipEventId])
   @@index([slipEventId])
+}
+/// Cartellino / provvedimento disciplinare (non genera automaticamente squalifiche).
+model DisciplinaryIncident {
+  id              String                   @id @default(cuid())
+  athleteId       String
+  categoryId      String
+  eventId         String?
+  seasonLabel     String
+  competitionKind CompetitionKind
+  type            DisciplinarySanctionType
+  minute          Int?
+  notes           String?
+  status          DisciplinaryRecordStatus @default(ACTIVE)
+  voidedAt        DateTime?
+  voidReason      String?
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  athlete      Athlete                   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  category     Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  event        Event?                    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy    User                      @relation("DisciplinaryIncidentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy    User?                     @relation("DisciplinaryIncidentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  suspensions  DisciplinarySuspension[]
+
+  @@index([athleteId, seasonLabel, competitionKind, status])
+  @@index([eventId])
+  @@index([categoryId])
+  @@index([createdById])
+}
+
+/// Situazione disciplinare iniziale (pregresso a campionato già iniziato).
+model DisciplinaryOpeningBalance {
+  id                             String          @id @default(cuid())
+  athleteId                      String
+  categoryId                     String
+  seasonLabel                    String
+  competitionKind                CompetitionKind
+  /// Ammonizioni totali storiche pregresse (display).
+  priorYellowCards               Int             @default(0)
+  /// Ammonizioni pregresse rilevanti per accumulo (display; nessuna soglia automatica).
+  priorYellowCardsForAccumulation Int            @default(0)
+  /// Espulsioni pregresse (rosse dirette + doppia ammonizione).
+  priorRedCards                  Int             @default(0)
+  /// Giornate di squalifica ancora da scontare al momento del riferimento.
+  openSuspensionMatchdays        Int             @default(0)
+  referenceDate                  DateTime
+  notes                          String?
+  createdById                    String
+  updatedById                    String?
+  createdAt                      DateTime        @default(now())
+  updatedAt                      DateTime        @updatedAt
+
+  athlete   Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  category  Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy User     @relation("DisciplinaryOpeningCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User?    @relation("DisciplinaryOpeningUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([athleteId, seasonLabel, competitionKind])
+  @@index([categoryId, seasonLabel, competitionKind])
+  @@index([createdById])
+}
+
+/// Blocco di giornate di squalifica assegnate (dopo comunicato).
+model DisciplinarySuspension {
+  id               String                   @id @default(cuid())
+  incidentId       String?
+  athleteId        String
+  categoryId       String
+  seasonLabel      String
+  competitionKind  CompetitionKind
+  matchdaysTotal   Int
+  officialRef      String?
+  decidedAt        DateTime?
+  notes            String?
+  status           DisciplinaryRecordStatus @default(ACTIVE)
+  voidedAt         DateTime?
+  voidReason       String?
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  incident  DisciplinaryIncident?           @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  athlete   Athlete                         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  category  Category                        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy User                            @relation("DisciplinarySuspensionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User?                           @relation("DisciplinarySuspensionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  servings  DisciplinarySuspensionServing[]
+
+  @@index([athleteId, seasonLabel, competitionKind, status])
+  @@index([incidentId])
+  @@index([categoryId])
+  @@index([createdById])
+}
+
+/// Giornata di squalifica: PENDING finché non confermata SERVED dal mister.
+model DisciplinarySuspensionServing {
+  id            String                 @id @default(cuid())
+  suspensionId  String
+  eventId       String?
+  status        SuspensionServeStatus  @default(PENDING)
+  confirmedAt   DateTime?
+  confirmedById String?
+  notes         String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  suspension  DisciplinarySuspension @relation(fields: [suspensionId], references: [id], onDelete: Cascade)
+  event       Event?                 @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  confirmedBy User?                  @relation("DisciplinaryServingConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@index([suspensionId, status])
+  @@index([eventId])
+  @@index([confirmedById])
+}
+
+model DisciplinaryAuditLog {
+  id         String                      @id @default(cuid())
+  entityType DisciplinaryAuditEntityType
+  entityId   String
+  action     DisciplinaryAuditAction
+  beforeJson Json?
+  afterJson  Json?
+  userId     String
+  createdAt  DateTime                    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([userId])
+}
+
+/// Valutazione postpartita (1–10 per criterio). Riservata allo staff; mai ai genitori.
+model MatchPlayerRating {
+  id                    String   @id @default(cuid())
+  eventId               String
+  athleteId             String
+  possessionScore       Int?
+  outOfPossessionScore  Int?
+  attitudeScore         Int?
+  teamworkScore         Int?
+  notes                 String?
+  createdById           String
+  updatedById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  athlete   Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("MatchPlayerRatingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User?   @relation("MatchPlayerRatingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, athleteId])
+  @@index([athleteId])
+  @@index([eventId])
+  @@index([createdById])
 }

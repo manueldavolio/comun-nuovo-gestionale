@@ -3,6 +3,10 @@ import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { createEventSchema } from "@/lib/validation/events";
+import {
+  buildCompetitionPersistFields,
+  createEventCompatible,
+} from "@/lib/event-competition-persist";
 import { sendEventEmails } from "@/lib/mail";
 import { parentUsersLinkedToCategoryWhere } from "@/lib/parent-athletes";
 
@@ -69,7 +73,7 @@ export async function POST(request: Request) {
 
   const category = await prisma.category.findUnique({
     where: { id: parsed.data.categoryId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, seasonLabel: true },
   });
 
   if (!category) {
@@ -77,10 +81,15 @@ export async function POST(request: Request) {
   }
 
   const startAt = new Date(parsed.data.startAt);
+  const competition = buildCompetitionPersistFields({
+    type: parsed.data.type,
+    competitionKind: parsed.data.competitionKind,
+    categorySeasonLabel: category.seasonLabel,
+  });
 
   try {
-    const createdEvent = await prisma.event.create({
-      data: {
+    const createdEvent = await createEventCompatible({
+      base: {
         title: parsed.data.title,
         type: parsed.data.type,
         startAt,
@@ -89,6 +98,7 @@ export async function POST(request: Request) {
         categoryId: category.id,
         createdById: session.user.id,
       },
+      competition,
       select: { id: true, categoryId: true },
     });
 

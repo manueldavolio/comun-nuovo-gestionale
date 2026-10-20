@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import {
+  buildCompetitionPersistFields,
+  updateEventCompatible,
+} from "@/lib/event-competition-persist";
 import { updateEventSchema } from "@/lib/validation/events";
 
 type RouteContext = {
@@ -108,7 +112,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const category = await prisma.category.findUnique({
     where: { id: parsed.data.categoryId },
-    select: { id: true },
+    select: { id: true, seasonLabel: true },
   });
 
   if (!category) {
@@ -116,11 +120,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const startAt = new Date(parsed.data.startAt);
+  const competition = buildCompetitionPersistFields({
+    type: parsed.data.type,
+    competitionKind: parsed.data.competitionKind,
+    categorySeasonLabel: category.seasonLabel,
+  });
 
   try {
-    await prisma.event.update({
-      where: { id: event.id },
-      data: {
+    await updateEventCompatible({
+      eventId: event.id,
+      base: {
         title: parsed.data.title,
         type: parsed.data.type,
         startAt,
@@ -128,6 +137,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         description: parsed.data.notes || null,
         categoryId: category.id,
       },
+      competition,
     });
 
     return NextResponse.json({ success: true });

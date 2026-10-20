@@ -7,10 +7,17 @@ import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
 import {
+  computeDisciplineTotals,
+  seasonLabelFromDate,
+  totalRemainingMatchdays,
+} from "@/lib/discipline";
+import {
   buildAthleteAttendanceStats,
   countConvocationResponses,
   type RecentEventSummary,
 } from "@/lib/mister-stats";
+import { buildMisterSeasonAthleteStats } from "@/lib/mister-season-stats";
+import { currentSeasonRange } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -56,7 +63,7 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
       : await prisma.category.findMany({
           where: { id: { in: coachCategoryIds } },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, birthYearsLabel: true },
+          select: { id: true, name: true, birthYearsLabel: true, seasonLabel: true },
         });
 
   if (!selectedCategoryId) {
@@ -165,6 +172,139 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
   const athletesWithData = athleteStats.filter((row) => row.marked > 0).length;
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
 
+  const season = currentSeasonRange(now);
+  const seasonLabel = selectedCategory?.seasonLabel || seasonLabelFromDate(now);
+  let seasonRows: ReturnType<typeof buildMisterSeasonAthleteStats> = [];
+  try {
+    const athleteIds = athletes.map((athlete) => athlete.id);
+    const [seasonAttendances, seasonMatchStats, seasonRatings, openings, suspensions, incidents] =
+      await Promise.all([
+        prisma.attendance.findMany({
+          where: {
+            athleteId: { in: athleteIds },
+            event: {
+              categoryId: selectedCategoryId,
+              startAt: { gte: season.start, lte: season.end },
+            },
+          },
+          select: {
+            athleteId: true,
+            status: true,
+            event: { select: { type: true } },
+          },
+        }),
+        prisma.matchPlayerStat.findMany({
+          where: {
+            athleteId: { in: athleteIds },
+            event: {
+              categoryId: selectedCategoryId,
+              startAt: { gte: season.start, lte: season.end },
+            },
+          },
+          select: { athleteId: true, goals: true },
+        }),
+        prisma.matchPlayerRating.findMany({
+          where: {
+            athleteId: { in: athleteIds },
+            event: {
+              categoryId: selectedCategoryId,
+              startAt: { gte: season.start, lte: season.end },
+            },
+          },
+          select: {
+            athleteId: true,
+            possessionScore: true,
+            outOfPossessionScore: true,
+            attitudeScore: true,
+            teamworkScore: true,
+          },
+        }),
+        prisma.disciplinaryOpeningBalance.findMany({
+          where: {
+            athleteId: { in: athleteIds },
+            seasonLabel,
+            competitionKind: "LEAGUE",
+          },
+        }),
+        prisma.disciplinarySuspension.findMany({
+          where: {
+            athleteId: { in: athleteIds },
+            seasonLabel,
+            competitionKind: "LEAGUE",
+          },
+          include: { servings: { select: { status: true } } },
+        }),
+        prisma.disciplinaryIncident.findMany({
+          where: {
+            athleteId: { in: athleteIds },
+            seasonLabel,
+            competitionKind: "LEAGUE",
+          },
+          include: { event: { select: { startAt: true } } },
+        }),
+      ]);
+
+    const disciplineByAthlete = new Map<
+      string,
+      ReturnType<typeof computeDisciplineTotals> & { remainingSuspensions: number }
+    >();
+
+    for (const athlete of athletes) {
+      const opening = openings.find((row) => row.athleteId === athlete.id) ?? null;
+      const athleteIncidents = incidents.filter((row) => row.athleteId === athlete.id);
+      const totals = computeDisciplineTotals({
+        opening: opening
+          ? {
+              priorYellowCards: opening.priorYellowCards,
+              priorYellowCardsForAccumulation: opening.priorYellowCardsForAccumulation,
+              priorRedCards: opening.priorRedCards,
+              openSuspensionMatchdays: opening.openSuspensionMatchdays,
+              referenceDate: opening.referenceDate,
+            }
+          : null,
+        incidents: athleteIncidents.map((row) => ({
+          type: row.type,
+          status: row.status,
+          eventStartAt: row.event?.startAt ?? null,
+          createdAt: row.createdAt,
+        })),
+      });
+      const athleteSuspensions = suspensions.filter((row) => row.athleteId === athlete.id);
+      const active = athleteSuspensions.filter((row) => row.status === "ACTIVE");
+      const remaining =
+        active.length > 0
+          ? active.reduce(
+              (sum, row) =>
+                sum +
+                Math.max(
+                  0,
+                  row.matchdaysTotal -
+                    row.servings.filter((serving) => serving.status === "SERVED").length,
+                ),
+              0,
+            )
+          : totalRemainingMatchdays([], totals.openSuspensionMatchdaysFromOpening);
+      disciplineByAthlete.set(athlete.id, {
+        ...totals,
+        remainingSuspensions: remaining,
+      });
+    }
+
+    seasonRows = buildMisterSeasonAthleteStats({
+      athletes,
+      attendances: seasonAttendances.map((row) => ({
+        athleteId: row.athleteId,
+        status: row.status,
+        eventType: row.event.type,
+      })),
+      matchStats: seasonMatchStats,
+      ratings: seasonRatings,
+      disciplineByAthlete,
+    });
+  } catch {
+    seasonRows = [];
+  }
+
   return (
     <main className="p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
@@ -240,6 +380,67 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
             value={pendingResponses}
             description="Convocazioni passate senza risposta famiglia"
           />
+        </section>
+
+        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <h2 className="text-lg font-semibold text-zinc-900">Statistiche stagione</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Stagione {seasonLabel} (campionato) · dati da Attendance / MatchPlayerStat / disciplina /
+            valutazioni.
+          </p>
+          {seasonRows.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              Nessun dato stagionale disponibile (oppure migration disciplina non ancora applicata).
+            </p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full divide-y divide-blue-100 text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wide text-blue-800">
+                    <th className="px-2 py-2">Atleta</th>
+                    <th className="px-2 py-2">All.</th>
+                    <th className="px-2 py-2">Partite</th>
+                    <th className="px-2 py-2">%</th>
+                    <th className="px-2 py-2">Gol</th>
+                    <th className="px-2 py-2">Amm.</th>
+                    <th className="px-2 py-2">Esp.</th>
+                    <th className="px-2 py-2">Sq.</th>
+                    <th className="px-2 py-2">Media</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {seasonRows.map((row) => (
+                    <tr key={row.athleteId}>
+                      <td className="px-2 py-2 font-medium text-zinc-900">
+                        <Link
+                          href={`/mister/squadra/${row.athleteId}`}
+                          className="hover:underline"
+                        >
+                          {row.fullName}
+                        </Link>
+                      </td>
+                      <td className="px-2 py-2">
+                        {row.trainingPresent}/{row.trainingMarked}
+                      </td>
+                      <td className="px-2 py-2">
+                        {row.matchPresent}/{row.matchMarked}
+                      </td>
+                      <td className="px-2 py-2">
+                        {row.presencePercent != null ? `${row.presencePercent}%` : "—"}
+                      </td>
+                      <td className="px-2 py-2">{row.goals}</td>
+                      <td className="px-2 py-2">{row.yellowCards}</td>
+                      <td className="px-2 py-2">{row.redCards}</td>
+                      <td className="px-2 py-2">{row.remainingSuspensions}</td>
+                      <td className="px-2 py-2">
+                        {row.ratingOverall != null ? row.ratingOverall : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 shadow-sm">

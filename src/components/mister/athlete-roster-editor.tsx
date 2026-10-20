@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CheckCircle2, Shirt, Target, Trash2 } from "lucide-react";
 import {
@@ -44,6 +45,7 @@ type AthleteRosterEditorProps = {
     operationalStatus: OperationalStatusType;
     operationalNote: string | null;
     operationalValidUntilDate: string | null;
+    remainingSuspensions?: number;
   }>;
   noteYear: number;
   noteMonth: number;
@@ -356,6 +358,12 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                       Messaggio da compilare
                     </span>
                   )}
+                  {(athlete.remainingSuspensions ?? 0) > 0 ? (
+                    <span className="mt-1 inline-flex rounded-full border border-violet-300 bg-violet-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-violet-900">
+                      Squalificato · {athlete.remainingSuspensions} residu
+                      {(athlete.remainingSuspensions ?? 0) === 1 ? "a" : "e"}
+                    </span>
+                  ) : null}
                   <div
                     className="mt-2"
                     onClick={(event) => event.stopPropagation()}
@@ -382,6 +390,12 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                         );
                       }}
                     />
+                    <Link
+                      href={`/mister/squadra/${athlete.id}`}
+                      className="mt-2 inline-flex text-xs font-bold text-blue-800 underline"
+                    >
+                      Disciplina e cartellini
+                    </Link>
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-blue-700">{open ? "Chiudi" : "Modifica"}</span>

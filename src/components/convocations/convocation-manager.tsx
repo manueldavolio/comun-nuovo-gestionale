@@ -21,6 +21,8 @@ type AthleteRow = {
   isSelected: boolean;
   responseStatus: ConvocationResponseStatus;
   operationalStatus: OperationalStatusType;
+  /** Avviso non bloccante: giornate di squalifica residue. */
+  remainingSuspensions?: number;
 };
 
 type ConvocationManagerProps = {
@@ -359,6 +361,13 @@ export function ConvocationManager({
               {operational === "TO_CHECK" ? (
                 <p className="mt-2 text-xs font-semibold text-amber-800">
                   Da verificare prima della partita.
+                </p>
+              ) : null}
+              {(athlete.remainingSuspensions ?? 0) > 0 ? (
+                <p className="mt-2 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-900">
+                  Attenzione: {athlete.remainingSuspensions} giornata
+                  {(athlete.remainingSuspensions ?? 0) === 1 ? "" : "e"} di squalifica da
+                  scontare.
                 </p>
               ) : null}
             </li>

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AttendanceManager } from "@/components/attendance/attendance-manager";
+import { MatchPostMatchPanel } from "@/components/mister/match-post-match-panel";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import { defaultCompetitionKindFromEventType } from "@/lib/competition-kind";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
@@ -57,6 +59,7 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
       category: {
         select: {
           name: true,
+          seasonLabel: true,
           athletes: {
             where: {
               OR: [
@@ -106,6 +109,48 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
     assists: athlete.matchStats[0]?.assists ?? 0,
     goalsConceded: athlete.matchStats[0]?.goalsConceded ?? null,
   }));
+
+  const competitionKind = defaultCompetitionKindFromEventType(event.type);
+  let initialRatings: Array<{
+    athleteId: string;
+    possessionScore: number | null;
+    outOfPossessionScore: number | null;
+    attitudeScore: number | null;
+    teamworkScore: number | null;
+    notes: string | null;
+  }> = [];
+  let initialCards: Array<{
+    id: string;
+    athleteId: string;
+    type: "YELLOW_CARD" | "RED_CARD" | "SECOND_YELLOW_RED" | "DIRECT_SUSPENSION" | "OTHER";
+    status: "ACTIVE" | "VOIDED";
+  }> = [];
+  if (matchMode) {
+    try {
+      const [ratings, cards] = await Promise.all([
+        prisma.matchPlayerRating.findMany({
+          where: { eventId: event.id },
+          select: {
+            athleteId: true,
+            possessionScore: true,
+            outOfPossessionScore: true,
+            attitudeScore: true,
+            teamworkScore: true,
+            notes: true,
+          },
+        }),
+        prisma.disciplinaryIncident.findMany({
+          where: { eventId: event.id },
+          select: { id: true, athleteId: true, type: true, status: true },
+        }),
+      ]);
+      initialRatings = ratings;
+      initialCards = cards;
+    } catch {
+      initialRatings = [];
+      initialCards = [];
+    }
+  }
 
   const backHref =
     session.user.role === "ADMIN" || session.user.role === "YOUTH_DIRECTOR" ? "/admin" : "/mister";
@@ -164,6 +209,22 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
           }
           initialPeriodScores={matchMode ? event.periodScores : undefined}
         />
+
+        {matchMode ? (
+          <MatchPostMatchPanel
+            eventId={event.id}
+            competitionKind={competitionKind}
+            seasonLabel={event.category.seasonLabel}
+            athletes={athletes.map((athlete) => ({
+              id: athlete.id,
+              firstName: athlete.firstName,
+              lastName: athlete.lastName,
+              isPresent: athlete.status === "PRESENT",
+            }))}
+            initialRatings={initialRatings}
+            initialCards={initialCards}
+          />
+        ) : null}
       </div>
     </main>
   );

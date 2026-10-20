@@ -4,6 +4,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { EditEventForm } from "@/components/events/edit-event-form";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { defaultCompetitionKindFromEventType } from "@/lib/competition-kind";
 import { toDateTimeLocalValueUTC } from "@/lib/date-input";
 import { prisma } from "@/lib/prisma";
 
@@ -89,6 +90,7 @@ export default async function CoachEditEventPage({ params }: CoachEditEventPageP
             location: event.location ?? "",
             categoryId: event.categoryId,
             notes: event.description ?? "",
+            competitionKind: defaultCompetitionKindFromEventType(event.type),
           }}
         />
       </div>

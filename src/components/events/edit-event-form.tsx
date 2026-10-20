@@ -40,6 +40,7 @@ export function EditEventForm({
             location: values.location,
             categoryId: values.categoryId,
             notes: values.notes,
+            competitionKind: values.competitionKind ?? null,
           }),
         });
 

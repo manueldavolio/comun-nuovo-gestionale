@@ -15,6 +15,9 @@ import {
 import { toDateTimeLocalValueUTC, nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
 import { resolveOperationalStatus } from "@/lib/athlete-operational-status";
+import { defaultCompetitionKindFromEventType } from "@/lib/competition-kind";
+import { seasonLabelFromDate } from "@/lib/discipline";
+import { loadRemainingSuspensionsByAthleteIds } from "@/lib/discipline-queries";
 import { prisma } from "@/lib/prisma";
 
 type MisterConvocationPageProps = {
@@ -55,6 +58,7 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
         startAt: Date;
         category: {
           name: string;
+          seasonLabel?: string;
           athletes: Array<{
             id: string;
             firstName: string;
@@ -89,6 +93,7 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
         category: {
           select: {
             name: true,
+            seasonLabel: true,
             athletes: {
               where: {
                 OR: [
@@ -181,6 +186,23 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
   const responseByAthleteId = new Map(
     event.convocation?.athletes.map((entry) => [entry.athleteId, entry.responseStatus]) ?? [],
   );
+
+  const competitionKind =
+    defaultCompetitionKindFromEventType(event.type) ?? "LEAGUE";
+  const seasonLabel =
+    event.category.seasonLabel || seasonLabelFromDate(event.startAt);
+
+  let remainingByAthlete = new Map<string, number>();
+  try {
+    remainingByAthlete = await loadRemainingSuspensionsByAthleteIds({
+      athleteIds: event.category.athletes.map((athlete) => athlete.id),
+      seasonLabel,
+      competitionKind,
+    });
+  } catch {
+    remainingByAthlete = new Map();
+  }
+
   const athletes = event.category.athletes.map((athlete) => {
     const resolved = resolveOperationalStatus({
       record:
@@ -197,6 +219,7 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
       isSelected: selectedByAthleteId.has(athlete.id),
       responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
       operationalStatus: resolved.status,
+      remainingSuspensions: remainingByAthlete.get(athlete.id) ?? 0,
     };
   });
 

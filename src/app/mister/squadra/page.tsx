@@ -8,6 +8,8 @@ import {
   resolveOperationalStatus,
   validUntilDateInputValue,
 } from "@/lib/athlete-operational-status";
+import { seasonLabelFromDate } from "@/lib/discipline";
+import { loadRemainingSuspensionsByAthleteIds } from "@/lib/discipline-queries";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { prisma } from "@/lib/prisma";
 
@@ -43,7 +45,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
       : await prisma.category.findMany({
           where: { id: { in: coachCategoryIds } },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, birthYearsLabel: true },
+          select: { id: true, name: true, birthYearsLabel: true, seasonLabel: true },
         });
 
   if (!selectedCategoryId) {
@@ -96,6 +98,18 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
   });
 
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const seasonLabel = selectedCategory?.seasonLabel || seasonLabelFromDate(wallNow);
+  let remainingByAthlete = new Map<string, number>();
+  try {
+    remainingByAthlete = await loadRemainingSuspensionsByAthleteIds({
+      athleteIds: athletes.map((athlete) => athlete.id),
+      seasonLabel,
+      competitionKind: "LEAGUE",
+    });
+  } catch {
+    remainingByAthlete = new Map();
+  }
+
   const rosterAthletes = athletes.map((athlete) => {
     const resolved = resolveOperationalStatus({
       record: athlete.operationalStatus,
@@ -119,8 +133,19 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
       operationalValidUntilDate: resolved.validUntil
         ? validUntilDateInputValue(resolved.validUntil)
         : null,
+      remainingSuspensions: remainingByAthlete.get(athlete.id) ?? 0,
     };
   });
+
+  const availabilitySummary = {
+    available: rosterAthletes.filter((row) => row.operationalStatus === "AVAILABLE").length,
+    absent: rosterAthletes.filter((row) => row.operationalStatus === "ABSENT").length,
+    injured: rosterAthletes.filter(
+      (row) => row.operationalStatus === "INJURED" || row.operationalStatus === "ILL",
+    ).length,
+    toCheck: rosterAthletes.filter((row) => row.operationalStatus === "TO_CHECK").length,
+    suspended: rosterAthletes.filter((row) => (row.remainingSuspensions ?? 0) > 0).length,
+  };
 
   return (
     <main className="p-4 md:p-8">
@@ -166,6 +191,28 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           </form>
         ) : null}
 
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {[
+            { label: "Disponibile", value: availabilitySummary.available, tone: "bg-emerald-50 border-emerald-200 text-emerald-900" },
+            { label: "Assente", value: availabilitySummary.absent, tone: "bg-zinc-50 border-zinc-200 text-zinc-800" },
+            { label: "Infortunato", value: availabilitySummary.injured, tone: "bg-slate-100 border-slate-300 text-slate-800" },
+            { label: "Da verificare", value: availabilitySummary.toCheck, tone: "bg-amber-50 border-amber-200 text-amber-900" },
+            { label: "Squalificato", value: availabilitySummary.suspended, tone: "bg-violet-50 border-violet-200 text-violet-900" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className={`rounded-2xl border p-3 shadow-sm ${item.tone}`}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wide">{item.label}</p>
+              <p className="mt-1 text-2xl font-black">{item.value}</p>
+            </div>
+          ))}
+        </section>
+        <p className="text-[11px] text-zinc-500">
+          Disponibilità operativa e squalifica sono indipendenti: un atleta può risultare
+          entrambi.
+        </p>
+
         <AthleteRosterEditor
           athletes={rosterAthletes}
           noteYear={noteYear}
@@ -176,7 +223,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           href="/mister/riepilogo"
           className="text-sm font-semibold text-blue-700 hover:underline"
         >
-          Vai al riepilogo analitico (% presenza)
+          Vai al riepilogo analitico e statistiche stagione
         </Link>
       </div>
     </main>

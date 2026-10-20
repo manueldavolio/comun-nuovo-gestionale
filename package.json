@@ -38,7 +38,8 @@
     "test:athlete-roster-status": "tsx --test src/lib/athlete-roster-status.test.ts",
     "test:training-session": "tsx --test src/lib/training-session.test.ts",
     "test:match-formation": "tsx --test src/lib/match-formation.test.ts src/lib/category-format.test.ts",
-    "test:session-tools-privacy": "tsx --test src/lib/session-tools-privacy.test.ts"
+    "test:session-tools-privacy": "tsx --test src/lib/session-tools-privacy.test.ts",
+    "test:discipline": "tsx --test src/lib/discipline.test.ts src/lib/discipline-api-auth.test.ts src/lib/discipline-db.test.ts src/lib/match-player-rating.test.ts src/lib/mister-season-stats.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

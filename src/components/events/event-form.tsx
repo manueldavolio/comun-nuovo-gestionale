@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { EventType } from "@prisma/client";
+import type { CompetitionKind, EventType } from "@prisma/client";
+import {
+  COMPETITION_KIND_LABEL,
+  COMPETITION_KINDS,
+  defaultCompetitionKindFromEventType,
+  MATCH_TYPES_WITH_COMPETITION,
+} from "@/lib/competition-kind";
 import { EVENT_TYPE_CHOICES, EVENT_TYPE_LABEL } from "@/lib/events";
 import { createEventSchema, updateEventSchema } from "@/lib/validation/events";
 
@@ -19,6 +25,7 @@ export type EventFormValues = {
   categoryId: string;
   notes: string;
   sendEmail?: boolean;
+  competitionKind?: CompetitionKind | null;
 };
 
 type EventFormProps = {
@@ -114,9 +121,21 @@ export function EventForm({
           Tipo
           <select
             value={form.type}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, type: event.target.value as EventType }))
-            }
+            onChange={(event) => {
+              const nextType = event.target.value as EventType;
+              const isMatch = (MATCH_TYPES_WITH_COMPETITION as readonly string[]).includes(
+                nextType,
+              );
+              setForm((prev) => ({
+                ...prev,
+                type: nextType,
+                competitionKind: isMatch
+                  ? (prev.competitionKind ??
+                      defaultCompetitionKindFromEventType(nextType) ??
+                      "LEAGUE")
+                  : null,
+              }));
+            }}
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
           >
             {typeChoices.map((choice) => (
@@ -126,6 +145,35 @@ export function EventForm({
             ))}
           </select>
         </label>
+
+        {(MATCH_TYPES_WITH_COMPETITION as readonly string[]).includes(form.type) ? (
+          <label className="text-sm text-zinc-700">
+            Competizione
+            <select
+              value={
+                form.competitionKind ??
+                defaultCompetitionKindFromEventType(form.type) ??
+                "LEAGUE"
+              }
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  competitionKind: event.target.value as CompetitionKind,
+                }))
+              }
+              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            >
+              {COMPETITION_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {COMPETITION_KIND_LABEL[kind]}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-zinc-500">
+              Distingue campionato, coppa, torneo e amichevole per disciplina e squalifiche.
+            </span>
+          </label>
+        ) : null}
 
         <label className="text-sm text-zinc-700">
           Data e ora

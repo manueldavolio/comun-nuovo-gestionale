@@ -2,6 +2,11 @@ import { z } from "zod";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+const competitionKindSchema = z
+  .enum(["LEAGUE", "CUP", "TOURNAMENT", "FRIENDLY", "OTHER"])
+  .nullable()
+  .optional();
+
 const dateTimeLocalSchema = z
   .string()
   .trim()
@@ -22,6 +27,8 @@ export const createEventSchema = z.object({
   categoryId: z.string().trim().min(1, "Categoria obbligatoria"),
   notes: z.string().trim().max(1000, "Note troppo lunghe").optional().default(""),
   sendEmail: z.boolean().optional().default(false),
+  /** Opzionale: se assente, derivato da EventType (LEAGUE_MATCH→LEAGUE, …). */
+  competitionKind: competitionKindSchema,
 });
 
 export const updateEventSchema = z.object({
@@ -31,6 +38,8 @@ export const updateEventSchema = z.object({
   location: z.string().trim().max(120, "Luogo troppo lungo").optional().default(""),
   categoryId: z.string().trim().min(1, "Categoria obbligatoria"),
   notes: z.string().trim().max(1000, "Note troppo lunghe").optional().default(""),
+  /** Opzionale: se assente, derivato da EventType. Eventi legacy restano validi. */
+  competitionKind: competitionKindSchema,
 });
 
 export const bulkTrainingSchema = z

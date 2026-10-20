@@ -15,6 +15,23 @@ export const PARENT_FORBIDDEN_SESSION_TOOL_KEYS = [
   "TrainingSessionItem",
   "TrainingExercise",
   "sessionItems",
+  // Valutazioni e disciplina: mai esposte ai genitori.
+  "matchPlayerRating",
+  "matchPlayerRatings",
+  "MatchPlayerRating",
+  "possessionScore",
+  "outOfPossessionScore",
+  "attitudeScore",
+  "teamworkScore",
+  "disciplinaryIncident",
+  "disciplinaryIncidents",
+  "DisciplinaryIncident",
+  "disciplinarySuspension",
+  "disciplinarySuspensions",
+  "DisciplinaryOpeningBalance",
+  "remainingSuspensions",
+  "ratingOverall",
+  "ratingByCriterion",
 ] as const;
 
 const FORBIDDEN_SET = new Set<string>(PARENT_FORBIDDEN_SESSION_TOOL_KEYS);
