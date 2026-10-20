@@ -69,6 +69,11 @@ import {
   isMatchEventType,
   MATCH_EVENT_TYPES,
 } from "@/lib/parent-season";
+import {
+  buildParentSeasonRatingSummary,
+  type ParentSeasonRatingSummary,
+} from "@/lib/parent-match-ratings";
+import { isMissingDisciplineSchemaError } from "@/lib/discipline-db";
 import { prisma } from "@/lib/prisma";
 import { isGoalkeeperRole } from "@/lib/athlete-roles";
 
@@ -415,6 +420,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     ? computeMedicalVisitStatus(medicalVisit.expiryDate, now)
     : null;
 
+  const emptyParentRatings: ParentSeasonRatingSummary = {
+    mediaVoti: null,
+    ratedMatchCount: 0,
+    matches: [],
+  };
+
   const [
     attendances,
     matchStats,
@@ -426,6 +437,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     recentMedia,
     pendingConvocationsCount,
     personalGoals,
+    seasonRatings,
   ] = await Promise.all([
     prisma.attendance.findMany({
       where: {
@@ -649,6 +661,51 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         status: true,
       },
     }),
+    (async (): Promise<ParentSeasonRatingSummary> => {
+      try {
+        const rows = await prisma.matchPlayerRating.findMany({
+          where: {
+            athleteId: selectedAthlete.id,
+            event: {
+              startAt: { gte: season.start, lte: season.end },
+              type: { in: MATCH_EVENT_TYPES },
+            },
+          },
+          select: {
+            possessionScore: true,
+            outOfPossessionScore: true,
+            attitudeScore: true,
+            teamworkScore: true,
+            event: {
+              select: {
+                id: true,
+                startAt: true,
+                opponentName: true,
+                title: true,
+              },
+            },
+          },
+          orderBy: { event: { startAt: "desc" } },
+        });
+        return buildParentSeasonRatingSummary(
+          rows.map((row) => ({
+            eventId: row.event.id,
+            startAt: row.event.startAt,
+            opponentName: row.event.opponentName,
+            title: row.event.title,
+            possessionScore: row.possessionScore,
+            outOfPossessionScore: row.outOfPossessionScore,
+            attitudeScore: row.attitudeScore,
+            teamworkScore: row.teamworkScore,
+          })),
+        );
+      } catch (error) {
+        if (isMissingDisciplineSchemaError(error)) {
+          return emptyParentRatings;
+        }
+        throw error;
+      }
+    })(),
   ]);
 
   const matchDayEvent = selectTodaysMatchDayEvent(todaysMatchCandidates, wallNow);
@@ -944,7 +1001,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </section>
         ) : null}
 
-        <AthleteSeasonCard stats={seasonStats} />
+        <AthleteSeasonCard stats={seasonStats} ratings={seasonRatings} />
 
         <ParentGoalsCard goals={personalGoals} />
 

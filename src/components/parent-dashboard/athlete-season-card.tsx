@@ -1,13 +1,38 @@
-import { Goal, Handshake, Percent, Shirt } from "lucide-react";
+"use client";
+
+import { useId, useState } from "react";
+import { Goal, Percent, Shirt, Star } from "lucide-react";
 import type { SeasonAthleteStats } from "@/lib/parent-season";
+import {
+  formatParentRatingAverage,
+  type ParentSeasonRatingSummary,
+} from "@/lib/parent-match-ratings";
 
 type AthleteSeasonCardProps = {
   stats: SeasonAthleteStats;
+  ratings: ParentSeasonRatingSummary;
 };
 
-export function AthleteSeasonCard({ stats }: AthleteSeasonCardProps) {
+function formatMatchDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Europe/Rome",
+  }).format(date);
+}
+
+export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const mediaLabel = formatParentRatingAverage(ratings.mediaVoti);
+  const hasRatings = ratings.ratedMatchCount > 0 && ratings.mediaVoti != null;
+
   const items = [
     {
+      key: "presenze",
       label: "Presenze partite",
       value: String(stats.matchPresences),
       icon: Shirt,
@@ -16,6 +41,7 @@ export function AthleteSeasonCard({ stats }: AthleteSeasonCardProps) {
       valueTone: "text-blue-800",
     },
     {
+      key: "gol",
       label: "Gol",
       value: String(stats.goals),
       icon: Goal,
@@ -24,14 +50,17 @@ export function AthleteSeasonCard({ stats }: AthleteSeasonCardProps) {
       valueTone: "text-sky-900",
     },
     {
-      label: "Assist",
-      value: String(stats.assists),
-      icon: Handshake,
-      tone: "border-slate-200 bg-slate-50",
-      iconTone: "bg-slate-700 text-white",
-      valueTone: "text-slate-900",
+      key: "media",
+      label: "Media voti",
+      value: mediaLabel,
+      icon: Star,
+      tone: "border-amber-200 bg-amber-50",
+      iconTone: "bg-amber-600 text-white",
+      valueTone: "text-amber-950",
+      interactive: hasRatings,
     },
     {
+      key: "allenamenti",
       label: "Allenamenti %",
       value: stats.trainingPercent == null ? "—" : `${stats.trainingPercent}%`,
       icon: Percent,
@@ -43,7 +72,7 @@ export function AthleteSeasonCard({ stats }: AthleteSeasonCardProps) {
           ? `${stats.trainingPresent}/${stats.trainingMarked}`
           : null,
     },
-  ];
+  ] as const;
 
   return (
     <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -54,8 +83,9 @@ export function AthleteSeasonCard({ stats }: AthleteSeasonCardProps) {
       <div className="mt-3 grid grid-cols-2 gap-2.5">
         {items.map((kpi) => {
           const Icon = kpi.icon;
-          return (
-            <div key={kpi.label} className={`rounded-2xl border px-3 py-3 ${kpi.tone}`}>
+          const isMedia = kpi.key === "media";
+          const content = (
+            <>
               <span
                 className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${kpi.iconTone}`}
               >
@@ -72,10 +102,67 @@ export function AthleteSeasonCard({ stats }: AthleteSeasonCardProps) {
                   Allenamenti: {kpi.hint}
                 </p>
               ) : null}
+              {isMedia && hasRatings ? (
+                <p className="mt-1 text-[11px] font-medium text-amber-900">
+                  Tocca per il dettaglio
+                </p>
+              ) : null}
+            </>
+          );
+
+          if (isMedia && hasRatings) {
+            return (
+              <button
+                key={kpi.key}
+                type="button"
+                aria-expanded={open}
+                aria-controls={panelId}
+                onClick={() => setOpen((value) => !value)}
+                className={`rounded-2xl border px-3 py-3 text-left transition hover:brightness-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 ${kpi.tone}`}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <div key={kpi.key} className={`rounded-2xl border px-3 py-3 ${kpi.tone}`}>
+              {content}
             </div>
           );
         })}
       </div>
+
+      {open && hasRatings ? (
+        <div
+          id={panelId}
+          className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-3"
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-950">
+            Voti per partita
+          </p>
+          <ul className="mt-2 space-y-2">
+            {ratings.matches.map((match) => (
+              <li
+                key={match.eventId}
+                className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-zinc-900">
+                    {match.opponentLabel}
+                  </p>
+                  <p className="text-[11px] font-medium text-zinc-500">
+                    {formatMatchDate(match.startAt)}
+                  </p>
+                </div>
+                <p className="text-lg font-black tabular-nums text-amber-950">
+                  {match.matchAverage.toFixed(1)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

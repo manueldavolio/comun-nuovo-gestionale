@@ -1,6 +1,7 @@
 /**
  * Valutazioni postpartita (1–10). Criteri assenti = non valutati (mai 0 automatico).
- * Riservate allo staff — mai esposte ai genitori.
+ * Inserimento e note riservati allo staff. La media partita può essere mostrata
+ * ai genitori solo tramite DTO sanitizzato (`parent-match-ratings`), senza note.
  */
 
 export const MATCH_RATING_CRITERIA = [

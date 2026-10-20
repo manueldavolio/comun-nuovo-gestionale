@@ -15,7 +15,10 @@ export const PARENT_FORBIDDEN_SESSION_TOOL_KEYS = [
   "TrainingSessionItem",
   "TrainingExercise",
   "sessionItems",
-  // Valutazioni e disciplina: mai esposte ai genitori.
+  // Disciplina: mai esposta ai genitori.
+  // Valutazioni grezze (modello Prisma / criteri / note): vietate nei payload generici.
+  // La media sanitizzata per "La mia stagione" usa chiavi dedicate (mediaVoti / matches)
+  // costruite in parent-match-ratings, non questi campi.
   "matchPlayerRating",
   "matchPlayerRatings",
   "MatchPlayerRating",
