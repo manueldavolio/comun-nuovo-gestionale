@@ -38,21 +38,39 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
       return;
     }
 
+    // Dopo signIn il ruolo aggiornato è nel JWT: usa sempre la home del ruolo
+    // (evita di restare su /genitore se l'utente è stato promosso a mister).
+    const session = await getSession();
+    const role = session?.user?.role;
+    const roleHome = role ? ROLE_HOME_PATH[role] : undefined;
+
     const isGenericCallback =
-      !callbackUrl || callbackUrl === "/" || callbackUrl === "/login" || callbackUrl === "/register";
+      !callbackUrl ||
+      callbackUrl === "/" ||
+      callbackUrl === "/login" ||
+      callbackUrl === "/register";
 
-    if (isGenericCallback) {
-      const session = await getSession();
-      const role = session?.user?.role;
-      const roleHome = role ? ROLE_HOME_PATH[role] : undefined;
+    const callbackIsForeignRoleHome =
+      Boolean(roleHome) &&
+      Boolean(callbackUrl) &&
+      (callbackUrl === "/genitore" ||
+        callbackUrl.startsWith("/genitore/") ||
+        callbackUrl === "/mister" ||
+        callbackUrl.startsWith("/mister/") ||
+        callbackUrl === "/admin" ||
+        callbackUrl.startsWith("/admin/")) &&
+      !callbackUrl.startsWith(roleHome!);
 
-      console.info("[AUTH_DEBUG] login redirect logic", {
-        callbackUrl,
-        resultUrl: result.url,
-        role,
-        roleHome,
-      });
+    console.info("[AUTH_DEBUG] login redirect logic", {
+      callbackUrl,
+      resultUrl: result.url,
+      role,
+      roleHome,
+      isGenericCallback,
+      callbackIsForeignRoleHome,
+    });
 
+    if (isGenericCallback || callbackIsForeignRoleHome) {
       window.location.href = roleHome ?? result.url ?? "/login";
       return;
     }

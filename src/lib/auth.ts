@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import type { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { applyJwtRoleFromDb } from "@/lib/auth-jwt-role";
 
 const AUTH_DEBUG_PREFIX = "[AUTH_DEBUG]";
 
@@ -105,37 +106,60 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as { role: UserRole }).role;
       }
 
-      if (!token.role && (token.sub || token.email)) {
+      // Sempre riallinea il ruolo dal DB: dopo una promozione a mister
+      // (PARENT → COACH) il JWT non deve restare bloccato sul ruolo precedente.
+      // Se il DB non è raggiungibile, mantieni il ruolo già presente nel token.
+      if (token.sub || token.email) {
         const orConditions = [
           token.sub ? { id: token.sub } : null,
-          token.email ? { email: token.email } : null,
+          token.email ? { email: String(token.email) } : null,
         ].filter((value): value is { id: string } | { email: string } => Boolean(value));
 
-        const userFromDb = await prisma.user.findFirst({
-          where: {
-            OR: orConditions,
-          },
-          select: {
-            role: true,
-            id: true,
-            email: true,
-          },
-        });
+        try {
+          const userFromDb = await prisma.user.findFirst({
+            where: {
+              OR: orConditions,
+            },
+            select: {
+              role: true,
+              id: true,
+              email: true,
+              isActive: true,
+            },
+          });
 
-        if (userFromDb) {
-          token.sub = userFromDb.id;
-          token.email = userFromDb.email;
-          token.role = userFromDb.role;
-          console.info(`${AUTH_DEBUG_PREFIX} jwt: role hydrated from db`, {
+          const previousRole = token.role;
+          const next = applyJwtRoleFromDb(
+            {
+              sub: typeof token.sub === "string" ? token.sub : undefined,
+              email: typeof token.email === "string" ? token.email : undefined,
+              role: token.role as UserRole | undefined,
+            },
+            userFromDb,
+          );
+          token.sub = next.sub;
+          token.email = next.email;
+          if (next.role) {
+            token.role = next.role as UserRole;
+          } else {
+            delete token.role;
+          }
+
+          if (previousRole !== token.role) {
+            console.info(`${AUTH_DEBUG_PREFIX} jwt: role refreshed from db`, {
+              tokenSub: token.sub,
+              previousRole,
+              tokenRole: token.role,
+            });
+          }
+        } catch (error) {
+          console.error(`${AUTH_DEBUG_PREFIX} jwt: db unreachable, keeping token role`, {
             tokenSub: token.sub,
-            tokenEmail: token.email,
             tokenRole: token.role,
+            error: error instanceof Error ? error.message : "unknown",
           });
-        } else {
-          console.info(`${AUTH_DEBUG_PREFIX} jwt: no db user for token`, {
-            tokenSub: token.sub,
-            tokenEmail: token.email,
-          });
+          const kept = applyJwtRoleFromDb(token, null, { dbUnreachable: true });
+          Object.assign(token, kept);
         }
       }
 
@@ -149,7 +173,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
-        session.user.role = (token.role as UserRole | undefined) ?? "PARENT";
+        // Non fare fallback a PARENT: senza ruolo valido le pagine proteggono via redirect.
+        if (token.role) {
+          session.user.role = token.role as UserRole;
+        }
       }
 
       console.info(`${AUTH_DEBUG_PREFIX} session: outgoing`, {
