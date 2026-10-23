@@ -51,6 +51,8 @@ export function expectedHomeForRole(role: UserRole): string {
       return "/mister";
     case "PARENT":
       return "/genitore";
+    case "SOCIAL_MEDIA_MANAGER":
+      return "/social/calendario";
     default:
       return "/login";
   }

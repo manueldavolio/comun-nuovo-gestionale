@@ -278,6 +278,17 @@ export default async function CoachDashboardPage() {
           categoryNames={categories.map((category) => category.name)}
         />
 
+        {coachCategoryIds.length === 0 ? (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm">
+            <h2 className="text-sm font-bold">Nessuna squadra assegnata</h2>
+            <p className="mt-1 text-sm leading-relaxed">
+              Il tuo account mister è attivo, ma non risulta alcuna categoria collegata.
+              Contatta la direzione sportiva per l&apos;assegnazione. Finché non viene
+              completata, calendario, rosa e convocazioni resteranno vuoti.
+            </p>
+          </section>
+        ) : null}
+
         <NextCommitmentCard event={nextCommitment} wallNow={wallNow} />
 
         <MisterTodoPanel todos={actionableTodos} suggestions={suggestionTodos} />

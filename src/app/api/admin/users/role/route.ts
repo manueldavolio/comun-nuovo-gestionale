@@ -1,9 +1,8 @@
 import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
+import { ADMIN_ASSIGNABLE_ROLES } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-
-const ROLE_OPTIONS: UserRole[] = ["ADMIN", "YOUTH_DIRECTOR", "COACH", "PARENT"];
 
 type RoleUpdatePayload = {
   userId?: unknown;
@@ -11,7 +10,7 @@ type RoleUpdatePayload = {
 };
 
 function isUserRole(value: unknown): value is UserRole {
-  return typeof value === "string" && ROLE_OPTIONS.includes(value as UserRole);
+  return typeof value === "string" && ADMIN_ASSIGNABLE_ROLES.includes(value as UserRole);
 }
 
 export async function PATCH(request: Request) {

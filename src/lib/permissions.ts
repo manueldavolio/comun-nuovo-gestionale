@@ -5,6 +5,7 @@ export const ROLE_HOME_PATH: Record<UserRole, string> = {
   PARENT: "/genitore",
   COACH: "/mister",
   YOUTH_DIRECTOR: "/admin",
+  SOCIAL_MEDIA_MANAGER: "/social/calendario",
 };
 
 export const ROLE_PROTECTED_PREFIXES: Record<UserRole, string[]> = {
@@ -12,7 +13,25 @@ export const ROLE_PROTECTED_PREFIXES: Record<UserRole, string[]> = {
   PARENT: ["/genitore"],
   COACH: ["/mister"],
   YOUTH_DIRECTOR: ["/admin"],
+  SOCIAL_MEDIA_MANAGER: ["/social"],
 };
+
+export const ROLE_LABEL_IT: Record<UserRole, string> = {
+  ADMIN: "Admin",
+  PARENT: "Genitore",
+  COACH: "Mister",
+  YOUTH_DIRECTOR: "Direttore settore giovanile",
+  SOCIAL_MEDIA_MANAGER: "Social Media Manager",
+};
+
+/** Ruoli assegnabili da admin nella pagina Utenti (non staff tecnico). */
+export const ADMIN_ASSIGNABLE_ROLES: UserRole[] = [
+  "ADMIN",
+  "YOUTH_DIRECTOR",
+  "COACH",
+  "PARENT",
+  "SOCIAL_MEDIA_MANAGER",
+];
 
 export function canAccessPath(role: UserRole, pathname: string): boolean {
   const allowedPrefixes = ROLE_PROTECTED_PREFIXES[role] ?? [];

@@ -56,7 +56,7 @@ export default async function CoachEditEventPage({ params }: CoachEditEventPageP
   ]);
 
   if (!event?.categoryId || !coachCategoryIds.includes(event.categoryId)) {
-    redirect("/unauthorized");
+    redirect("/mister/senza-accesso-categoria");
   }
 
   if (categories.length === 0) {

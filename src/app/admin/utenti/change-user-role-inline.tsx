@@ -3,15 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { UserRole } from "@prisma/client";
+import { ADMIN_ASSIGNABLE_ROLES, ROLE_LABEL_IT } from "@/lib/permissions";
 
-const ROLE_OPTIONS: UserRole[] = ["ADMIN", "YOUTH_DIRECTOR", "COACH", "PARENT"];
-
-const roleLabelMap: Record<UserRole, string> = {
-  ADMIN: "Admin",
-  YOUTH_DIRECTOR: "Direttore settore giovanile",
-  COACH: "Mister",
-  PARENT: "Genitore",
-};
+const ROLE_OPTIONS = ADMIN_ASSIGNABLE_ROLES;
+const roleLabelMap = ROLE_LABEL_IT;
 
 type ChangeUserRoleInlineProps = {
   userId: string;

@@ -6,16 +6,11 @@ import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminResetPasswordButton } from "@/components/admin/admin-reset-password-button";
 import { ChangeUserRoleInline } from "./change-user-role-inline";
 import { getAuthSession } from "@/lib/auth";
+import { ADMIN_ASSIGNABLE_ROLES, ROLE_LABEL_IT } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-const ROLE_OPTIONS: UserRole[] = ["ADMIN", "YOUTH_DIRECTOR", "COACH", "PARENT"];
-
-const roleLabelMap: Record<UserRole, string> = {
-  ADMIN: "Admin",
-  YOUTH_DIRECTOR: "Direttore settore giovanile",
-  COACH: "Mister",
-  PARENT: "Genitore",
-};
+const ROLE_OPTIONS = ADMIN_ASSIGNABLE_ROLES;
+const roleLabelMap = ROLE_LABEL_IT;
 
 type AdminUsersPageProps = {
   searchParams?: Promise<{ q?: string; role?: string }>;

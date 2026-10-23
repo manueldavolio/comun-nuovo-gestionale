@@ -47,7 +47,11 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
   });
 
   if (!canManage) {
-    redirect("/unauthorized");
+    redirect(
+      session.user.role === "COACH"
+        ? "/mister/senza-accesso-categoria"
+        : "/unauthorized",
+    );
   }
 
   let event:

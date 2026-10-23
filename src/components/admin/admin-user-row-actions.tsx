@@ -6,7 +6,13 @@ import type { UserRole } from "@prisma/client";
 import { AdminResetPasswordButton } from "@/components/admin/admin-reset-password-button";
 import { roleLabelMap } from "@/lib/staff";
 
-const USER_ROLE_OPTIONS: UserRole[] = ["ADMIN", "YOUTH_DIRECTOR", "COACH", "PARENT"];
+const USER_ROLE_OPTIONS: UserRole[] = [
+  "ADMIN",
+  "YOUTH_DIRECTOR",
+  "COACH",
+  "PARENT",
+  "SOCIAL_MEDIA_MANAGER",
+];
 
 type AdminUserRowActionsProps = {
   userId: string;

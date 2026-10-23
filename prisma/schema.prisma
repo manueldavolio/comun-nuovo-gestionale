@@ -11,6 +11,8 @@ enum UserRole {
   PARENT
   COACH
   YOUTH_DIRECTOR
+  /// Calendario partite in sola lettura (es. social media).
+  SOCIAL_MEDIA_MANAGER
 }
 
 enum EnrollmentStatus {

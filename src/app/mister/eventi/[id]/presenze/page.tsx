@@ -35,7 +35,11 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
   });
 
   if (!canManage) {
-    redirect("/unauthorized");
+    redirect(
+      session.user.role === "COACH"
+        ? "/mister/senza-accesso-categoria"
+        : "/unauthorized",
+    );
   }
 
   const event = await prisma.event.findUnique({

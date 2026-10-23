@@ -194,6 +194,8 @@ export const authOptions: NextAuthOptions = {
         ADMIN: "/admin",
         COACH: "/mister",
         PARENT: "/genitore",
+        YOUTH_DIRECTOR: "/admin",
+        SOCIAL_MEDIA_MANAGER: "/social/calendario",
       };
 
       if (resolvedUrl.origin !== appOrigin) {

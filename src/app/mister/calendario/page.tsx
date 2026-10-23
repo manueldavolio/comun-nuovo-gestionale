@@ -211,6 +211,16 @@ export default async function CoachCalendarPage() {
           </p>
         </header>
 
+        {coachCategoryIds.length === 0 ? (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm">
+            <h2 className="text-sm font-bold">Nessuna squadra assegnata</h2>
+            <p className="mt-1 text-sm leading-relaxed">
+              Non risultano categorie collegate al tuo profilo. Contatta la direzione
+              sportiva: senza assegnazione non puoi vedere o gestire impegni.
+            </p>
+          </section>
+        ) : null}
+
         <MonthCalendar
           title="Calendario mensile"
           subtitle="Eventi, convocazioni e comunicazioni delle tue categorie. Usa Gestisci partita / Registra presenze per il Match Center."
@@ -218,7 +228,11 @@ export default async function CoachCalendarPage() {
           categoryOptions={categories}
           showTypeFilter
           initialYearMonth={formatYearMonth(currentMonth)}
-          emptyMessage="Nessun evento disponibile per le categorie assegnate."
+          emptyMessage={
+            coachCategoryIds.length === 0
+              ? "Nessuna squadra assegnata: calendario vuoto."
+              : "Nessun evento disponibile per le categorie assegnate."
+          }
         />
       </div>
     </main>

@@ -31,7 +31,11 @@ export default async function MisterTrainingSessionPage({ params }: PageProps) {
     eventId,
   });
   if (!canManage) {
-    redirect("/unauthorized");
+    redirect(
+      session.user.role === "COACH"
+        ? "/mister/senza-accesso-categoria"
+        : "/unauthorized",
+    );
   }
 
   const event = await prisma.event.findUnique({

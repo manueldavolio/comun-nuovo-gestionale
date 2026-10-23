@@ -5,7 +5,13 @@ import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
 import { applyJwtRoleFromDb, expectedHomeForRole } from "@/lib/auth-jwt-role";
 import { decideMiddlewareAuth, wouldRedirectLoop } from "@/lib/middleware-auth";
 
-const ROLES: UserRole[] = ["ADMIN", "PARENT", "COACH", "YOUTH_DIRECTOR"];
+const ROLES: UserRole[] = [
+  "ADMIN",
+  "PARENT",
+  "COACH",
+  "YOUTH_DIRECTOR",
+  "SOCIAL_MEDIA_MANAGER",
+];
 
 describe("role home paths", () => {
   it("COACH lands on /mister", () => {
@@ -29,6 +35,15 @@ describe("role home paths", () => {
     assert.equal(canAccessPath("YOUTH_DIRECTOR", "/admin"), true);
     assert.equal(canAccessPath("YOUTH_DIRECTOR", "/mister"), false);
     assert.equal(canAccessPath("YOUTH_DIRECTOR", "/genitore"), false);
+  });
+
+  it("SOCIAL_MEDIA_MANAGER lands on social calendar only", () => {
+    assert.equal(ROLE_HOME_PATH.SOCIAL_MEDIA_MANAGER, "/social/calendario");
+    assert.equal(expectedHomeForRole("SOCIAL_MEDIA_MANAGER"), "/social/calendario");
+    assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/social/calendario"), true);
+    assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/admin"), false);
+    assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/mister"), false);
+    assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/genitore"), false);
   });
 });
 
@@ -61,6 +76,7 @@ describe("middleware redirects without loops", () => {
       assert.equal(wouldRedirectLoop(role, "/genitore"), false);
       assert.equal(wouldRedirectLoop(role, "/mister"), false);
       assert.equal(wouldRedirectLoop(role, "/admin"), false);
+      assert.equal(wouldRedirectLoop(role, "/social/calendario"), false);
     });
   }
 
@@ -92,6 +108,15 @@ describe("middleware redirects without loops", () => {
       hasToken: true,
     });
     assert.deepEqual(second, { type: "next" });
+  });
+
+  it("SOCIAL_MEDIA_MANAGER on /admin redirects to social calendar", () => {
+    const decision = decideMiddlewareAuth({
+      pathname: "/admin",
+      tokenRole: "SOCIAL_MEDIA_MANAGER",
+      hasToken: true,
+    });
+    assert.deepEqual(decision, { type: "redirect", to: "/social/calendario" });
   });
 
   it("logged-in user on /login redirects to role home (not back to /login)", () => {
@@ -129,6 +154,19 @@ describe("JWT role refresh", () => {
       { id: "u1", email: "a@b.it", role: "COACH", isActive: true },
     );
     assert.equal(next.role, "COACH");
+  });
+
+  it("refreshes YOUTH_DIRECTOR → SOCIAL_MEDIA_MANAGER from DB", () => {
+    const next = applyJwtRoleFromDb(
+      { sub: "u1", email: "a@b.it", role: "YOUTH_DIRECTOR" },
+      {
+        id: "u1",
+        email: "a@b.it",
+        role: "SOCIAL_MEDIA_MANAGER",
+        isActive: true,
+      },
+    );
+    assert.equal(next.role, "SOCIAL_MEDIA_MANAGER");
   });
 
   it("keeps existing role when DB is unreachable", () => {

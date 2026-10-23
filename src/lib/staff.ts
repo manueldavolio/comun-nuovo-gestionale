@@ -7,6 +7,7 @@ export const roleLabelMap: Record<UserRole, string> = {
   YOUTH_DIRECTOR: "Direttore tecnico",
   COACH: "Mister",
   PARENT: "Genitore",
+  SOCIAL_MEDIA_MANAGER: "Social Media Manager",
 };
 
 export function buildFullName(firstName: string, lastName: string): string {

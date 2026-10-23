@@ -58,7 +58,9 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
         callbackUrl === "/mister" ||
         callbackUrl.startsWith("/mister/") ||
         callbackUrl === "/admin" ||
-        callbackUrl.startsWith("/admin/")) &&
+        callbackUrl.startsWith("/admin/") ||
+        callbackUrl === "/social" ||
+        callbackUrl.startsWith("/social/")) &&
       !callbackUrl.startsWith(roleHome!);
 
     console.info("[AUTH_DEBUG] login redirect logic", {

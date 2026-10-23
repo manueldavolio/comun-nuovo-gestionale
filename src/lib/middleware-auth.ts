@@ -1,8 +1,14 @@
 import type { UserRole } from "@prisma/client";
 import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
 
-const PROTECTED_PATHS = ["/admin", "/genitore", "/mister"];
-const VALID_ROLES: UserRole[] = ["ADMIN", "PARENT", "COACH", "YOUTH_DIRECTOR"];
+const PROTECTED_PATHS = ["/admin", "/genitore", "/mister", "/social"];
+const VALID_ROLES: UserRole[] = [
+  "ADMIN",
+  "PARENT",
+  "COACH",
+  "YOUTH_DIRECTOR",
+  "SOCIAL_MEDIA_MANAGER",
+];
 
 export type MiddlewareAuthDecision =
   | { type: "next" }
