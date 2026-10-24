@@ -1390,16 +1390,20 @@ model SocialGraphic {
 
 /// Asset riutilizzabili (loghi avversari, sfondi) per Social Studio.
 model SocialAsset {
-  id          String          @id @default(cuid())
-  kind        SocialAssetKind
-  label       String
-  storagePath String
-  publicUrl   String
-  createdById String
-  createdAt   DateTime        @default(now())
+  id            String          @id @default(cuid())
+  kind          SocialAssetKind
+  label         String
+  /// Chiave normalizzata per riuso stemmi (es. "albino"). Null su asset non-opponent.
+  normalizedKey String?
+  storagePath   String
+  publicUrl     String
+  createdById   String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   createdBy User @relation("SocialAssetCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
+  @@unique([kind, normalizedKey])
   @@index([kind, label])
   @@index([createdById])
 }

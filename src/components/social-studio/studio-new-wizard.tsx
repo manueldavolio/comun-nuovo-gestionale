@@ -6,6 +6,10 @@ import { useEffect, useState } from "react";
 import type { SocialGraphicFormat, SocialGraphicTemplate } from "@prisma/client";
 import type { SocialStudioMatchDto } from "@/lib/social-studio/dto";
 import {
+  SOCIAL_STYLE_VARIANT_LABEL,
+  type SocialStyleVariant,
+} from "@/lib/social-studio/style-variants";
+import {
   SOCIAL_FORMAT_LABEL,
   SOCIAL_GRAPHIC_FORMATS,
   SOCIAL_GRAPHIC_TEMPLATES,
@@ -29,7 +33,8 @@ export function StudioNewWizard({
   const [categoryId, setCategoryId] = useState("ALL");
   const [eventId, setEventId] = useState("");
   const [template, setTemplate] = useState<SocialGraphicTemplate>("MATCHDAY");
-  const [format, setFormat] = useState<SocialGraphicFormat>("SQUARE_1080");
+  const [format, setFormat] = useState<SocialGraphicFormat>("PORTRAIT_1080x1350");
+  const [styleVariant, setStyleVariant] = useState<SocialStyleVariant>("A");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +81,7 @@ export function StudioNewWizard({
       const response = await fetch("/api/social/studio/graphics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, template, format }),
+        body: JSON.stringify({ eventId, template, format, styleVariant }),
       });
       const body = (await response.json().catch(() => null)) as {
         data?: { id?: string };
@@ -178,6 +183,21 @@ export function StudioNewWizard({
             {SOCIAL_GRAPHIC_TEMPLATES.map((value) => (
               <option key={value} value={value}>
                 {SOCIAL_TEMPLATE_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+          Variante estetica
+          <select
+            className="mt-1 min-h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm"
+            value={styleVariant}
+            onChange={(e) => setStyleVariant(e.target.value as SocialStyleVariant)}
+          >
+            {(["A", "B"] as const).map((value) => (
+              <option key={value} value={value}>
+                {SOCIAL_STYLE_VARIANT_LABEL[template][value]}
               </option>
             ))}
           </select>

@@ -58,7 +58,12 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { eventId?: unknown; template?: unknown; format?: unknown };
+  let body: {
+    eventId?: unknown;
+    template?: unknown;
+    format?: unknown;
+    styleVariant?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -74,6 +79,8 @@ export async function POST(request: Request) {
     typeof body.format === "string" && isSocialGraphicFormat(body.format)
       ? (body.format as SocialGraphicFormat)
       : null;
+  const styleVariant =
+    body.styleVariant === "A" || body.styleVariant === "B" ? body.styleVariant : "A";
 
   if (!eventId || !template || !format) {
     return NextResponse.json(
@@ -87,6 +94,7 @@ export async function POST(request: Request) {
       eventId,
       template,
       format,
+      styleVariant,
       userId: session!.user!.id,
     });
     return NextResponse.json({ success: true, data: graphic }, { status: 201 });

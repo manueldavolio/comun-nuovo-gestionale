@@ -30,12 +30,21 @@ export const SOCIAL_FORMAT_SIZE: Record<
   PORTRAIT_1080x1350: { width: 1080, height: 1350 },
 };
 
+export const SOCIAL_DEFAULT_FORMAT: SocialGraphicFormat = "PORTRAIT_1080x1350";
+
 export const SOCIAL_BRAND = {
   primary: "#0b1f63",
+  primaryDeep: "#06143f",
   accent: "#0369a1",
   sky: "#e0f2fe",
+  white: "#ffffff",
   clubLogoPath: "/logo-home.png",
-  clubName: "Comun Nuovo Calcio",
+  clubName: "Comun Nuovo",
+  clubNameFull: "Comun Nuovo Calcio",
+  displayFont:
+    'var(--font-social-display), "Oswald", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif',
+  bodyFont:
+    'var(--font-social-body), "Montserrat", "Segoe UI", Arial, Helvetica, sans-serif',
 } as const;
 
 export function isSocialGraphicTemplate(value: string): value is SocialGraphicTemplate {

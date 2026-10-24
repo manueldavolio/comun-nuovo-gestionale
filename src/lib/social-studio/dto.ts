@@ -28,16 +28,20 @@ export type SocialGraphicOverrides = {
   headline?: string | null;
   subheadline?: string | null;
   opponentName?: string | null;
+  clubDisplayName?: string | null;
   location?: string | null;
   kickoffLabel?: string | null;
   venueSideLabel?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
+  scorersText?: string | null;
   clubLogoUrl?: string | null;
   opponentLogoUrl?: string | null;
   backgroundUrl?: string | null;
   backgroundColor?: string | null;
   accentColor?: string | null;
+  /** Variante estetica A/B per template. */
+  styleVariant?: string | null;
 };
 
 export type SocialStudioMatchDto = SocialMatchSnapshot;
@@ -70,6 +74,7 @@ export type SocialAssetDto = {
   kind: SocialAssetKind;
   label: string;
   publicUrl: string;
+  normalizedKey?: string | null;
   createdAt: string;
 };
 
@@ -127,16 +132,19 @@ export function parseOverrides(value: unknown): SocialGraphicOverrides {
     headline: str(raw.headline),
     subheadline: str(raw.subheadline),
     opponentName: str(raw.opponentName),
+    clubDisplayName: str(raw.clubDisplayName),
     location: str(raw.location),
     kickoffLabel: str(raw.kickoffLabel),
     venueSideLabel: str(raw.venueSideLabel),
     homeScore: num(raw.homeScore),
     awayScore: num(raw.awayScore),
+    scorersText: str(raw.scorersText),
     clubLogoUrl: str(raw.clubLogoUrl),
     opponentLogoUrl: str(raw.opponentLogoUrl),
     backgroundUrl: str(raw.backgroundUrl),
     backgroundColor: str(raw.backgroundColor),
     accentColor: str(raw.accentColor),
+    styleVariant: str(raw.styleVariant),
   };
 }
 

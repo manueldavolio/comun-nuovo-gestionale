@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { SiteImageStorageError } from "@/lib/site-storage";
 import { decideSocialStudioAccess } from "@/lib/social-studio/access";
-import { createSocialAsset, listSocialAssets } from "@/lib/social-studio/queries";
+import {
+  createSocialAsset,
+  findOpponentAssetByName,
+  listSocialAssets,
+  replaceSocialAsset,
+} from "@/lib/social-studio/queries";
 import {
   describeSocialStudioUploadError,
   saveSocialStudioImage,
@@ -24,14 +29,33 @@ export async function GET(request: Request) {
     );
   }
 
-  const kindRaw = new URL(request.url).searchParams.get("kind");
+  const url = new URL(request.url);
+  const kindRaw = url.searchParams.get("kind");
   const kind =
     kindRaw && (KINDS as string[]).includes(kindRaw)
       ? (kindRaw as SocialAssetKind)
       : null;
+  const suggest = (url.searchParams.get("suggest") ?? "").trim();
 
   try {
     const assets = await listSocialAssets(kind);
+    if (suggest) {
+      const { matchOpponentAsset } = await import("@/lib/social-studio/opponent-key");
+      const match = matchOpponentAsset(
+        suggest,
+        assets.filter((a) => a.kind === "OPPONENT_LOGO"),
+      );
+      return NextResponse.json({
+        success: true,
+        data: {
+          assets,
+          suggestion:
+            match.kind === "none"
+              ? null
+              : { kind: match.kind, asset: match.asset, distance: "distance" in match ? match.distance : 0 },
+        },
+      });
+    }
     return NextResponse.json({ success: true, data: { assets } });
   } catch (error) {
     console.error("[social studio assets list]", error);
@@ -59,6 +83,7 @@ export async function POST(request: Request) {
 
   const kindRaw = String(form.get("kind") ?? "");
   const label = String(form.get("label") ?? "").trim();
+  const replace = String(form.get("replace") ?? "") === "true";
   const file = form.get("file");
   if (!(KINDS as string[]).includes(kindRaw) || !label || !(file instanceof File)) {
     return NextResponse.json(
@@ -68,6 +93,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (kindRaw === "OPPONENT_LOGO" && !replace) {
+      const existing = await findOpponentAssetByName(label);
+      if (existing) {
+        return NextResponse.json(
+          {
+            error: "Stemma già presente per questa squadra. Conferma per sostituirlo.",
+            code: "ASSET_EXISTS",
+            existing,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const saved = await saveSocialStudioImage({
       subfolder: "assets",
@@ -75,6 +114,22 @@ export async function POST(request: Request) {
       mimeType: file.type || "image/png",
       originalName: file.name,
     });
+
+    if (kindRaw === "OPPONENT_LOGO" && replace) {
+      const existing = await findOpponentAssetByName(label);
+      if (existing) {
+        // Nuovo path storage: i file precedenti restano online così le
+        // grafiche storiche che salvano il vecchio publicUrl non cambiano.
+        const asset = await replaceSocialAsset({
+          id: existing.id,
+          label,
+          storagePath: saved.path,
+          publicUrl: saved.publicUrl,
+        });
+        return NextResponse.json({ success: true, data: asset, replaced: true });
+      }
+    }
+
     const asset = await createSocialAsset({
       kind: kindRaw as SocialAssetKind,
       label,

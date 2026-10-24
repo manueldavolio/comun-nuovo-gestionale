@@ -26,6 +26,7 @@ import {
   defaultGraphicTitle,
   formatKickoffLabel,
 } from "@/lib/social-studio/snapshot";
+import { matchOpponentAsset, normalizeOpponentKey } from "@/lib/social-studio/opponent-key";
 import { defaultHeadline } from "@/lib/social-studio/templates";
 
 function toListItem(row: {
@@ -285,11 +286,15 @@ export async function createSocialGraphic(input: {
   template: SocialGraphicTemplate;
   format: SocialGraphicFormat;
   userId: string;
+  styleVariant?: string | null;
 }): Promise<SocialGraphicDetail> {
   const snapshot = await getStudioMatchById(input.eventId);
   if (!snapshot) {
     throw new Error("Partita non trovata o non valida per Social Studio.");
   }
+
+  const existingAssets = await listSocialAssets("OPPONENT_LOGO");
+  const logoMatch = matchOpponentAsset(snapshot.opponentName ?? "", existingAssets);
 
   const overrides: SocialGraphicOverrides = {
     headline: defaultHeadline(input.template),
@@ -297,8 +302,14 @@ export async function createSocialGraphic(input: {
     kickoffLabel: formatKickoffLabel(snapshot.startAt),
     venueSideLabel: snapshot.venueSide,
     clubLogoUrl: "/logo-home.png",
+    clubDisplayName: "Comun Nuovo",
     backgroundColor: "#0b1f63",
     accentColor: "#0369a1",
+    styleVariant: input.styleVariant === "B" ? "B" : "A",
+    opponentLogoUrl:
+      logoMatch.kind === "exact" || logoMatch.kind === "fuzzy"
+        ? logoMatch.asset.publicUrl
+        : null,
   };
 
   const created = await prisma.socialGraphic.create({
@@ -371,6 +382,24 @@ export async function updateSocialGraphic(input: {
   return { ok: true, graphic };
 }
 
+function toAssetDto(row: {
+  id: string;
+  kind: SocialAssetKind;
+  label: string;
+  publicUrl: string;
+  normalizedKey: string | null;
+  createdAt: Date;
+}): SocialAssetDto {
+  return {
+    id: row.id,
+    kind: row.kind,
+    label: row.label,
+    publicUrl: row.publicUrl,
+    normalizedKey: row.normalizedKey ?? normalizeOpponentKey(row.label),
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export async function listSocialAssets(kind?: SocialAssetKind | null): Promise<SocialAssetDto[]> {
   const rows = await prisma.socialAsset.findMany({
     where: kind ? { kind } : undefined,
@@ -381,16 +410,11 @@ export async function listSocialAssets(kind?: SocialAssetKind | null): Promise<S
       kind: true,
       label: true,
       publicUrl: true,
+      normalizedKey: true,
       createdAt: true,
     },
   });
-  const assets = rows.map((row) => ({
-    id: row.id,
-    kind: row.kind,
-    label: row.label,
-    publicUrl: row.publicUrl,
-    createdAt: row.createdAt.toISOString(),
-  }));
+  const assets = rows.map(toAssetDto);
   assertNoSocialStudioPayloadLeak({ assets });
   return assets;
 }
@@ -402,10 +426,14 @@ export async function createSocialAsset(input: {
   publicUrl: string;
   userId: string;
 }): Promise<SocialAssetDto> {
+  const label = input.label.trim();
+  const normalizedKey =
+    input.kind === "OPPONENT_LOGO" ? normalizeOpponentKey(label) || null : null;
   const row = await prisma.socialAsset.create({
     data: {
       kind: input.kind,
-      label: input.label.trim(),
+      label,
+      normalizedKey,
       storagePath: input.storagePath,
       publicUrl: input.publicUrl,
       createdById: input.userId,
@@ -415,14 +443,63 @@ export async function createSocialAsset(input: {
       kind: true,
       label: true,
       publicUrl: true,
+      normalizedKey: true,
       createdAt: true,
     },
   });
-  return {
-    id: row.id,
-    kind: row.kind,
-    label: row.label,
-    publicUrl: row.publicUrl,
-    createdAt: row.createdAt.toISOString(),
-  };
+  return toAssetDto(row);
+}
+
+export async function findOpponentAssetByName(name: string): Promise<SocialAssetDto | null> {
+  const key = normalizeOpponentKey(name);
+  if (key) {
+    const byKey = await prisma.socialAsset.findFirst({
+      where: { kind: "OPPONENT_LOGO", normalizedKey: key },
+      select: {
+        id: true,
+        kind: true,
+        label: true,
+        publicUrl: true,
+        normalizedKey: true,
+        createdAt: true,
+      },
+    });
+    if (byKey) return toAssetDto(byKey);
+  }
+  const assets = await listSocialAssets("OPPONENT_LOGO");
+  const match = matchOpponentAsset(name, assets);
+  if (match.kind === "exact") return match.asset;
+  return null;
+}
+
+/**
+ * Sostituisce lo stemma in archivio con un NUOVO path storage.
+ * Non cancella il file precedente: le grafiche storiche che puntano al vecchio
+ * publicUrl restano invariate.
+ */
+export async function replaceSocialAsset(input: {
+  id: string;
+  label: string;
+  storagePath: string;
+  publicUrl: string;
+}): Promise<SocialAssetDto> {
+  const label = input.label.trim();
+  const row = await prisma.socialAsset.update({
+    where: { id: input.id },
+    data: {
+      label,
+      normalizedKey: normalizeOpponentKey(label) || null,
+      storagePath: input.storagePath,
+      publicUrl: input.publicUrl,
+    },
+    select: {
+      id: true,
+      kind: true,
+      label: true,
+      publicUrl: true,
+      normalizedKey: true,
+      createdAt: true,
+    },
+  });
+  return toAssetDto(row);
 }
