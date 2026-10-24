@@ -9,12 +9,17 @@ export const ROLE_HOME_PATH: Record<UserRole, string> = {
 };
 
 export const ROLE_PROTECTED_PREFIXES: Record<UserRole, string[]> = {
-  ADMIN: ["/admin", "/mister"],
+  ADMIN: ["/admin", "/mister", "/social"],
   PARENT: ["/genitore"],
   COACH: ["/mister"],
   YOUTH_DIRECTOR: ["/admin"],
   SOCIAL_MEDIA_MANAGER: ["/social"],
 };
+
+/** Calendario social + Social Studio (non apre admin/finanze/utenti). */
+export function canUseSocialStudio(role: string | null | undefined): boolean {
+  return role === "ADMIN" || role === "SOCIAL_MEDIA_MANAGER";
+}
 
 export const ROLE_LABEL_IT: Record<UserRole, string> = {
   ADMIN: "Admin",

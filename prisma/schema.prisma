@@ -232,6 +232,9 @@ model User {
   disciplinaryAuditLogs DisciplinaryAuditLog[]
   matchPlayerRatingsCreated MatchPlayerRating[] @relation("MatchPlayerRatingCreatedBy")
   matchPlayerRatingsUpdated MatchPlayerRating[] @relation("MatchPlayerRatingUpdatedBy")
+  socialGraphicsCreated SocialGraphic[] @relation("SocialGraphicCreatedBy")
+  socialGraphicsUpdated SocialGraphic[] @relation("SocialGraphicUpdatedBy")
+  socialAssetsCreated   SocialAsset[]   @relation("SocialAssetCreatedBy")
 
   @@index([role])
   @@index([isActive])
@@ -539,6 +542,7 @@ model Event {
   disciplinaryIncidents DisciplinaryIncident[]
   disciplinaryServings DisciplinarySuspensionServing[]
   matchPlayerRatings MatchPlayerRating[]
+  socialGraphics     SocialGraphic[]
 
   @@index([categoryId])
   @@index([createdById])
@@ -1331,5 +1335,71 @@ model MatchPlayerRating {
   @@unique([eventId, athleteId])
   @@index([athleteId])
   @@index([eventId])
+  @@index([createdById])
+}
+
+enum SocialGraphicTemplate {
+  MATCHDAY
+  FULL_TIME
+  NEXT_MATCH
+}
+
+enum SocialGraphicFormat {
+  SQUARE_1080
+  PORTRAIT_1080x1350
+}
+
+enum SocialGraphicStatus {
+  DRAFT
+  EXPORTED
+  ARCHIVED
+}
+
+enum SocialAssetKind {
+  OPPONENT_LOGO
+  BACKGROUND
+  CLUB_LOGO
+}
+
+/// Bozza / grafica Social Studio. Gli override non modificano Event.
+model SocialGraphic {
+  id             String               @id @default(cuid())
+  eventId        String?
+  template       SocialGraphicTemplate
+  format         SocialGraphicFormat
+  status         SocialGraphicStatus  @default(DRAFT)
+  title          String
+  sourceSnapshot Json
+  overrides      Json
+  previewPath    String?
+  exportPath     String?
+  createdById    String
+  updatedById    String
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy User   @relation("SocialGraphicCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User   @relation("SocialGraphicUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([eventId, template, format])
+  @@index([status, updatedAt])
+  @@index([createdById])
+  @@index([updatedById])
+}
+
+/// Asset riutilizzabili (loghi avversari, sfondi) per Social Studio.
+model SocialAsset {
+  id          String          @id @default(cuid())
+  kind        SocialAssetKind
+  label       String
+  storagePath String
+  publicUrl   String
+  createdById String
+  createdAt   DateTime        @default(now())
+
+  createdBy User @relation("SocialAssetCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([kind, label])
   @@index([createdById])
 }

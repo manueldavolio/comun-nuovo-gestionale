@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SocialMatchesCalendar } from "@/components/social/social-matches-calendar";
 import { getAuthSession } from "@/lib/auth";
 import { formatYearMonth, currentCalendarMonthStart } from "@/lib/calendar-range";
+import { canUseSocialStudio } from "@/lib/permissions";
 import { listSocialMatches } from "@/lib/social-matches-queries";
 
 export default async function SocialMatchesCalendarPage() {
@@ -9,7 +10,7 @@ export default async function SocialMatchesCalendarPage() {
   if (!session?.user) {
     redirect("/login?callbackUrl=/social/calendario");
   }
-  if (session.user.role !== "SOCIAL_MEDIA_MANAGER") {
+  if (!canUseSocialStudio(session.user.role)) {
     redirect("/unauthorized");
   }
 

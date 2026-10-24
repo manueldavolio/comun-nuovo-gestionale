@@ -23,6 +23,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin/documenti", label: "Documenti" },
   { href: "/admin/media", label: "Media" },
   { href: "/admin/visite-mediche", label: "Visite mediche" },
+  { href: "/social/studio", label: "Social Studio", adminOnly: true },
   { href: "/admin/sito-web", label: "Sito web", adminOnly: true },
 ];
 

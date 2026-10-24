@@ -8,7 +8,7 @@ import {
 } from "./social-matches";
 
 describe("social-matches access and DTO", () => {
-  it("authorizes only SOCIAL_MEDIA_MANAGER", () => {
+  it("authorizes SOCIAL_MEDIA_MANAGER and ADMIN", () => {
     assert.equal(
       decideSocialMatchesAccess({
         authenticated: true,
@@ -18,7 +18,7 @@ describe("social-matches access and DTO", () => {
     );
     assert.equal(
       decideSocialMatchesAccess({ authenticated: true, role: "ADMIN" }).ok,
-      false,
+      true,
     );
     assert.equal(
       decideSocialMatchesAccess({ authenticated: true, role: "COACH" }).ok,

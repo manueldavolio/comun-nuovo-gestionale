@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   addMonths,
@@ -159,7 +160,15 @@ export function SocialMatchesCalendar({
               Solo lettura · tutte le categorie · {userName}
             </p>
           </div>
-          <SignOutButton />
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/social/studio"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-blue-950 hover:bg-white"
+            >
+              Social Studio
+            </Link>
+            <SignOutButton />
+          </div>
         </div>
       </header>
 

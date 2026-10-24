@@ -113,6 +113,8 @@ export function decideSocialMatchesAccess(input: {
   role: string | null | undefined;
 }): { ok: true } | { ok: false; status: 401 | 403 } {
   if (!input.authenticated) return { ok: false, status: 401 };
-  if (input.role !== "SOCIAL_MEDIA_MANAGER") return { ok: false, status: 403 };
+  if (input.role !== "SOCIAL_MEDIA_MANAGER" && input.role !== "ADMIN") {
+    return { ok: false, status: 403 };
+  }
   return { ok: true };
 }

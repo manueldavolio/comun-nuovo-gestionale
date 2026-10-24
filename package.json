@@ -42,7 +42,8 @@
     "test:session-tools-privacy": "tsx --test src/lib/session-tools-privacy.test.ts",
     "test:discipline": "tsx --test src/lib/discipline.test.ts src/lib/discipline-api-auth.test.ts src/lib/discipline-db.test.ts src/lib/match-player-rating.test.ts src/lib/mister-season-stats.test.ts",
     "test:auth-roles": "tsx --test src/lib/permissions.test.ts",
-    "test:social-matches": "tsx --test src/lib/social-matches.test.ts"
+    "test:social-matches": "tsx --test src/lib/social-matches.test.ts",
+    "test:social-studio": "tsx --test src/lib/social-studio/access.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -55,6 +56,7 @@
     "@tanstack/react-table": "^8.21.3",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "next-auth": "^4.24.14",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { UserRole } from "@prisma/client";
-import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
+import { ROLE_HOME_PATH, canAccessPath, canUseSocialStudio } from "@/lib/permissions";
 import { applyJwtRoleFromDb, expectedHomeForRole } from "@/lib/auth-jwt-role";
 import { decideMiddlewareAuth, wouldRedirectLoop } from "@/lib/middleware-auth";
 
@@ -32,18 +32,30 @@ describe("role home paths", () => {
     assert.equal(ROLE_HOME_PATH.YOUTH_DIRECTOR, "/admin");
     assert.equal(canAccessPath("ADMIN", "/admin"), true);
     assert.equal(canAccessPath("ADMIN", "/mister"), true);
+    assert.equal(canAccessPath("ADMIN", "/social/calendario"), true);
+    assert.equal(canAccessPath("ADMIN", "/social/studio"), true);
     assert.equal(canAccessPath("YOUTH_DIRECTOR", "/admin"), true);
     assert.equal(canAccessPath("YOUTH_DIRECTOR", "/mister"), false);
     assert.equal(canAccessPath("YOUTH_DIRECTOR", "/genitore"), false);
+    assert.equal(canAccessPath("YOUTH_DIRECTOR", "/social"), false);
   });
 
   it("SOCIAL_MEDIA_MANAGER lands on social calendar only", () => {
     assert.equal(ROLE_HOME_PATH.SOCIAL_MEDIA_MANAGER, "/social/calendario");
     assert.equal(expectedHomeForRole("SOCIAL_MEDIA_MANAGER"), "/social/calendario");
     assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/social/calendario"), true);
+    assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/social/studio"), true);
     assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/admin"), false);
     assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/mister"), false);
     assert.equal(canAccessPath("SOCIAL_MEDIA_MANAGER", "/genitore"), false);
+  });
+
+  it("canUseSocialStudio allows ADMIN and SOCIAL_MEDIA_MANAGER only", () => {
+    assert.equal(canUseSocialStudio("ADMIN"), true);
+    assert.equal(canUseSocialStudio("SOCIAL_MEDIA_MANAGER"), true);
+    assert.equal(canUseSocialStudio("YOUTH_DIRECTOR"), false);
+    assert.equal(canUseSocialStudio("COACH"), false);
+    assert.equal(canUseSocialStudio("PARENT"), false);
   });
 });
 
