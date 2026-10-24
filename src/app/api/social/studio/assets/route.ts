@@ -1,9 +1,13 @@
 import type { SocialAssetKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
+import { SiteImageStorageError } from "@/lib/site-storage";
 import { decideSocialStudioAccess } from "@/lib/social-studio/access";
 import { createSocialAsset, listSocialAssets } from "@/lib/social-studio/queries";
-import { saveSocialStudioImage } from "@/lib/social-studio/storage";
+import {
+  describeSocialStudioUploadError,
+  saveSocialStudioImage,
+} from "@/lib/social-studio/storage";
 
 const KINDS: SocialAssetKind[] = ["OPPONENT_LOGO", "BACKGROUND", "CLUB_LOGO"];
 
@@ -80,8 +84,18 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ success: true, data: asset }, { status: 201 });
   } catch (error) {
-    console.error("[social studio assets create]", error);
-    const message = error instanceof Error ? error.message : "Upload non riuscito.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof SiteImageStorageError) {
+      console.error("[social studio assets create] Storage failure", {
+        stage: error.details.stage,
+        code: error.details.code,
+        bucket: error.details.bucket,
+        bucketPath: error.details.bucketPath,
+        originalMessage: error.details.originalMessage,
+      });
+    } else {
+      console.error("[social studio assets create]", error);
+    }
+    const described = describeSocialStudioUploadError(error);
+    return NextResponse.json({ error: described.message }, { status: described.status });
   }
 }
