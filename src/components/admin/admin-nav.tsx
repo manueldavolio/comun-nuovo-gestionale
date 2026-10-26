@@ -47,10 +47,10 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, group: "ops" },
   { href: "/admin/calendario", label: "Calendario", icon: CalendarDays, group: "ops" },
   { href: "/admin/atleti", label: "Atleti", icon: Users, group: "ops" },
-  { href: "/admin/categorie", label: "Categorie", icon: LayoutGrid, group: "ops" },
-  { href: "/admin/staff", label: "Staff", icon: UserRound, group: "ops" },
+  { href: "/admin/categorie", label: "Categorie", icon: LayoutGrid, adminOnly: true, group: "ops" },
+  { href: "/admin/staff", label: "Staff", icon: UserRound, adminOnly: true, group: "ops" },
   { href: "/admin/utenti", label: "Utenti", icon: UserCog, group: "admin" },
-  { href: "/admin/finanze", label: "Finanze", icon: Wallet, group: "admin" },
+  { href: "/admin/finanze", label: "Finanze", icon: Wallet, adminOnly: true, group: "admin" },
   { href: "/admin/schedina", label: "Schedina", icon: Trophy, adminOnly: true, group: "admin" },
   { href: "/admin/documenti", label: "Documenti", icon: FileText, group: "admin" },
   {
