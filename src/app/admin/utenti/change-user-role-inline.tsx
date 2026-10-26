@@ -55,10 +55,10 @@ export function ChangeUserRoleInline({ userId, currentRole }: ChangeUserRoleInli
   }
 
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-center">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <select
         aria-label="Cambia ruolo utente"
-        className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none ring-blue-500 focus:ring-2"
+        className="min-h-10 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
         value={selectedRole}
         onChange={(event) => {
           setSelectedRole(event.target.value as UserRole);
@@ -76,13 +76,13 @@ export function ChangeUserRoleInline({ userId, currentRole }: ChangeUserRoleInli
       <button
         type="button"
         onClick={handleRoleChange}
-        className="inline-flex items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={isPending || selectedRole === currentRole}
       >
         {isPending ? "Salvataggio..." : "Cambia ruolo"}
       </button>
 
-      {message ? <span className="text-xs text-zinc-600">{message}</span> : null}
+      {message ? <span className="text-xs font-medium text-zinc-600">{message}</span> : null}
     </div>
   );
 }
