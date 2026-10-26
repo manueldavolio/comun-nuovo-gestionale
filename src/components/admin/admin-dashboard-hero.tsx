@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
@@ -8,32 +10,32 @@ type AdminDashboardHeroProps = {
 
 export function AdminDashboardHero({ userName, seasonLabel }: AdminDashboardHeroProps) {
   return (
-    <header className="overflow-hidden rounded-2xl border border-blue-950 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-900 text-white shadow-md">
+    <header className="overflow-hidden rounded-3xl border border-blue-800/30 bg-gradient-to-br from-blue-950 via-blue-900 to-sky-700 text-white shadow-lg shadow-blue-950/20">
       <div className="relative p-5 sm:p-6">
         <div
-          className="absolute -right-12 -top-8 h-44 w-44 rounded-full bg-sky-400/10"
+          className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-sky-400/20 blur-2xl"
           aria-hidden
         />
         <div
-          className="absolute -bottom-16 left-1/3 h-40 w-40 rounded-full bg-blue-500/10"
+          className="pointer-events-none absolute -bottom-16 left-1/4 h-40 w-40 rounded-full bg-white/10 blur-xl"
           aria-hidden
         />
 
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo-home.png"
-                alt=""
-                className="h-10 w-10 rounded-full bg-white/95 object-contain p-0.5 shadow-sm sm:h-11 sm:w-11"
+                alt="ASD Comun Nuovo"
+                className="h-12 w-12 rounded-2xl bg-white object-contain p-1 shadow-md sm:h-14 sm:w-14"
               />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-200">
-                  Comun Nuovo Calcio
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-200">
+                  ASD Comun Nuovo
                 </p>
                 {seasonLabel ? (
-                  <p className="text-[11px] font-medium text-sky-200/80">
+                  <p className="text-[11px] font-medium text-sky-100/85">
                     Stagione {seasonLabel}
                   </p>
                 ) : null}
@@ -43,7 +45,7 @@ export function AdminDashboardHero({ userName, seasonLabel }: AdminDashboardHero
             <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
               Centro di controllo
             </h1>
-            <p className="mt-1 text-sm text-sky-100">
+            <p className="mt-1 text-sm font-medium text-sky-100">
               Panoramica operativa · {userName}
             </p>
           </div>
@@ -51,13 +53,11 @@ export function AdminDashboardHero({ userName, seasonLabel }: AdminDashboardHero
           <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
             <Link
               href="/account/password"
-              className="rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              className="inline-flex min-h-11 items-center rounded-xl border border-white/25 bg-white/10 px-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
             >
-              Cambia password
+              Password
             </Link>
-            <div className="[&_button]:border-white/30 [&_button]:bg-white/10 [&_button]:text-white [&_button]:hover:bg-white/15">
-              <SignOutButton />
-            </div>
+            <SignOutButton className="inline-flex min-h-11 items-center rounded-xl border border-white/25 bg-white/10 px-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20" />
           </div>
         </div>
       </div>

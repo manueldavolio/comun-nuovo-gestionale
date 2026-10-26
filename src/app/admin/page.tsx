@@ -219,15 +219,15 @@ export default async function AdminDashboardPage() {
       value: activeAthletes,
       description: "In rosa operativa",
       href: "/admin/atleti",
-      tone: "border-blue-200 bg-white",
-      valueTone: "text-blue-900",
+      tone: "border-blue-200 bg-gradient-to-br from-white to-blue-50/40",
+      valueTone: "text-blue-950",
     },
     {
       title: "Atleti ritirati",
       value: withdrawnAthletes,
       description: "Fuori rosa, storico conservato",
       href: "/admin/atleti?status=withdrawn",
-      tone: "border-slate-200 bg-white",
+      tone: "border-sky-100 bg-gradient-to-br from-white to-slate-50",
       valueTone: "text-slate-800",
     },
     {
@@ -235,16 +235,16 @@ export default async function AdminDashboardPage() {
       value: activeCategories,
       description: "Squadre operative in stagione",
       href: "/admin/categorie?filter=active",
-      tone: "border-sky-200 bg-white",
-      valueTone: "text-sky-900",
+      tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50/50",
+      valueTone: "text-sky-950",
     },
     {
       title: "Staff tecnico",
       value: activeStaff,
       description: "Admin, direzione e mister",
       href: "/admin/staff",
-      tone: "border-indigo-200 bg-white",
-      valueTone: "text-indigo-900",
+      tone: "border-blue-100 bg-gradient-to-br from-white to-blue-50/30",
+      valueTone: "text-blue-900",
     },
     ...(canViewFinance
       ? [
@@ -256,8 +256,8 @@ export default async function AdminDashboardPage() {
                 ? `In sospeso ${euroFormatter.format(pendingPaymentsAmount)}`
                 : "Pending e overdue",
             href: "/admin/finanze",
-            tone: "border-amber-200 bg-white",
-            valueTone: "text-amber-900",
+            tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50",
+            valueTone: "text-sky-950",
           },
         ]
       : []),
@@ -308,24 +308,60 @@ export default async function AdminDashboardPage() {
           },
         ]
       : []),
+    {
+      href: "/admin/associazioni-genitori",
+      label: "Associazioni",
+      description: "Secondo genitore",
+      icon: Link2,
+    },
+    {
+      href: "/admin/utenti",
+      label: "Utenti",
+      description: "Account e password",
+      icon: UserRound,
+    },
+    {
+      href: "/admin/comunicazioni",
+      label: "Comunicazioni",
+      description: "Bacheca avvisi",
+      icon: Megaphone,
+    },
+    {
+      href: "/admin/media",
+      label: "Media",
+      description: "Foto e video",
+      icon: Images,
+    },
+    {
+      href: "/admin/visite-mediche",
+      label: "Visite mediche",
+      description: "Scadenze sanitarie",
+      icon: HeartPulse,
+    },
+    {
+      href: "/admin/documenti",
+      label: "Documenti",
+      description: "Archivio pratiche",
+      icon: FileWarning,
+    },
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-100 via-sky-50 to-blue-50 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 md:gap-5">
+    <main className="p-4 md:p-6 lg:p-8">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 md:gap-5">
         <AdminDashboardHero
           userName={session.user.name ?? "Amministratore"}
           seasonLabel={seasonLabel}
         />
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
           {kpiCards.map((card) => (
             <Link
               key={card.title}
               href={card.href}
               className={`rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone}`}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">
                 {card.title}
               </p>
               <p className={`mt-2 text-3xl font-black tracking-tight ${card.valueTone}`}>
@@ -336,8 +372,8 @@ export default async function AdminDashboardPage() {
           ))}
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-blue-950 px-4 py-3 text-white">
+        <section className="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-950 to-sky-800 px-4 py-3 text-white">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-[0.14em]">Da gestire</h2>
               <p className="mt-0.5 text-xs text-sky-200">Priorità operative della società</p>
@@ -345,28 +381,28 @@ export default async function AdminDashboardPage() {
           </div>
 
           <div className="grid gap-3 p-4 lg:grid-cols-2 xl:grid-cols-4">
-            <article className="flex flex-col rounded-xl border border-amber-200 bg-amber-50/70 p-3.5">
+            <article className="flex flex-col rounded-2xl border border-sky-200 bg-sky-50/60 p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-800 text-white">
                     <Wallet className="h-4 w-4" />
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold text-zinc-900">Pagamenti aperti</h3>
+                    <h3 className="text-sm font-bold text-zinc-900">Pagamenti aperti</h3>
                     <p className="text-[11px] text-zinc-600">Pending e overdue</p>
                   </div>
                 </div>
                 <Link
                   href="/admin/finanze"
-                  className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                  className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-950 hover:bg-sky-50"
                 >
                   Apri
                 </Link>
               </div>
               {canViewFinance ? (
                 <div className="mt-3 space-y-1.5">
-                  <p className="text-2xl font-black text-amber-950">{pendingPaymentsCount}</p>
-                  <p className="text-xs font-medium text-amber-900">
+                  <p className="text-2xl font-black text-blue-950">{pendingPaymentsCount}</p>
+                  <p className="text-xs font-semibold text-sky-900">
                     Totale {euroFormatter.format(pendingPaymentsAmount ?? 0)}
                   </p>
                 </div>
@@ -377,35 +413,35 @@ export default async function AdminDashboardPage() {
               )}
             </article>
 
-            <article className="flex flex-col rounded-xl border border-rose-200 bg-rose-50/70 p-3.5">
+            <article className="flex flex-col rounded-2xl border border-red-200 bg-red-50/50 p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-600 text-white">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-700 text-white">
                     <HeartPulse className="h-4 w-4" />
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold text-zinc-900">Certificati medici</h3>
+                    <h3 className="text-sm font-bold text-zinc-900">Certificati medici</h3>
                     <p className="text-[11px] text-zinc-600">Scaduti o in scadenza</p>
                   </div>
                 </div>
                 <Link
                   href="/admin/visite-mediche"
-                  className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                  className="rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-bold text-red-800 hover:bg-red-50"
                 >
                   Apri
                 </Link>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="rounded-lg border border-amber-200 bg-white px-2 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                <div className="rounded-xl border border-sky-200 bg-white px-2 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-sky-900">
                     In scadenza
                   </p>
-                  <p className="mt-0.5 text-xl font-black text-amber-900">
+                  <p className="mt-0.5 text-xl font-black text-sky-950">
                     {reminderTargets.expiring.length}
                   </p>
                 </div>
-                <div className="rounded-lg border border-red-200 bg-white px-2 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                <div className="rounded-xl border border-red-200 bg-white px-2 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-red-700">
                     Scadute
                   </p>
                   <p className="mt-0.5 text-xl font-black text-red-800">
@@ -430,26 +466,26 @@ export default async function AdminDashboardPage() {
               )}
             </article>
 
-            <article className="flex flex-col rounded-xl border border-blue-200 bg-blue-50/70 p-3.5">
+            <article className="flex flex-col rounded-2xl border border-blue-200 bg-blue-50/60 p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-white">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-800 text-white">
                     <FileWarning className="h-4 w-4" />
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold text-zinc-900">Nuove iscrizioni</h3>
+                    <h3 className="text-sm font-bold text-zinc-900">Nuove iscrizioni</h3>
                     <p className="text-[11px] text-zinc-600">Ultime pratiche ricevute</p>
                   </div>
                 </div>
                 <Link
                   href="/admin/atleti"
-                  className="rounded-md border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-bold text-blue-900 hover:bg-blue-50"
                 >
                   Apri
                 </Link>
               </div>
               {recentEnrollments.length === 0 ? (
-                <p className="mt-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+                <p className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
                   Nessuna nuova iscrizione.
                 </p>
               ) : (
@@ -457,9 +493,9 @@ export default async function AdminDashboardPage() {
                   {recentEnrollments.slice(0, 3).map((enrollment) => (
                     <li
                       key={enrollment.id}
-                      className="rounded-lg border border-blue-100 bg-white px-2.5 py-1.5"
+                      className="rounded-xl border border-blue-100 bg-white px-2.5 py-1.5"
                     >
-                      <p className="truncate text-sm font-semibold text-zinc-900">
+                      <p className="truncate text-sm font-bold text-zinc-900">
                         {`${enrollment.athlete.firstName} ${enrollment.athlete.lastName}`.trim()}
                       </p>
                       <p className="truncate text-[11px] text-zinc-500">
@@ -474,20 +510,20 @@ export default async function AdminDashboardPage() {
               )}
               <Link
                 href="/admin/atleti"
-                className="mt-auto pt-3 text-xs font-semibold text-blue-700 hover:underline"
+                className="mt-auto pt-3 text-xs font-bold text-blue-800 hover:underline"
               >
                 Vai ad atleti/iscrizioni
               </Link>
             </article>
 
-            <article className="flex flex-col rounded-xl border border-violet-200 bg-violet-50/70 p-3.5">
+            <article className="flex flex-col rounded-2xl border border-sky-200 bg-sky-50/50 p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-700 text-white">
                     <ClipboardList className="h-4 w-4" />
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold text-zinc-900">Convocazioni</h3>
+                    <h3 className="text-sm font-bold text-zinc-900">Convocazioni</h3>
                     <p className="text-[11px] text-zinc-600">Risposte famiglie</p>
                   </div>
                 </div>
@@ -497,13 +533,13 @@ export default async function AdminDashboardPage() {
                       ? `/admin/eventi/${nextConvocationEvent.id}/convocazioni`
                       : "/admin"
                   }
-                  className="rounded-md border border-violet-300 bg-white px-2 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-100"
+                  className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-950 hover:bg-sky-50"
                 >
                   Apri
                 </Link>
               </div>
               {nextConvocationEvent ? (
-                <div className="mt-3 rounded-lg border border-violet-100 bg-white px-3 py-2.5 text-sm text-zinc-700">
+                <div className="mt-3 rounded-xl border border-sky-100 bg-white px-3 py-2.5 text-sm text-zinc-700">
                   Prossima gestione su{" "}
                   <strong className="text-zinc-900">{nextConvocationEvent.title}</strong>
                   <p className="mt-1 text-[11px] text-zinc-500">
@@ -511,7 +547,7 @@ export default async function AdminDashboardPage() {
                   </p>
                 </div>
               ) : (
-                <p className="mt-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+                <p className="mt-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
                   Nessun evento categoria disponibile per convocazioni.
                 </p>
               )}
@@ -520,10 +556,10 @@ export default async function AdminDashboardPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-3">
-          <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
+          <article className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-blue-800" />
-              <h2 className="text-base font-bold text-zinc-900">Prossimi eventi</h2>
+              <h2 className="text-base font-black text-zinc-900">Prossimi eventi</h2>
             </div>
             <p className="mt-1 text-xs text-zinc-600">Appuntamenti sportivi in arrivo</p>
             {upcomingPreviewEvents.length === 0 ? (
@@ -550,10 +586,10 @@ export default async function AdminDashboardPage() {
             )}
           </article>
 
-          <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
+          <article className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-blue-800" />
-              <h2 className="text-base font-bold text-zinc-900">Partite e allenamenti</h2>
+              <h2 className="text-base font-black text-zinc-900">Partite e allenamenti</h2>
             </div>
             <p className="mt-1 text-xs text-zinc-600">Prossimi impegni suddivisi per tipo</p>
             <div className="mt-3 grid gap-3">
@@ -616,10 +652,10 @@ export default async function AdminDashboardPage() {
             </div>
           </article>
 
-          <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
+          <article className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm xl:col-span-1">
             <div className="flex items-center gap-2">
               <Megaphone className="h-4 w-4 text-blue-800" />
-              <h2 className="text-base font-bold text-zinc-900">Comunicazioni recenti</h2>
+              <h2 className="text-base font-black text-zinc-900">Comunicazioni recenti</h2>
             </div>
             <p className="mt-1 text-xs text-zinc-600">Ultimi avvisi in bacheca</p>
             {recentAnnouncements.length === 0 ? (
@@ -660,19 +696,19 @@ export default async function AdminDashboardPage() {
 
         <section>
           <div className="mb-3">
-            <h2 className="text-base font-bold text-zinc-900">Accessi rapidi</h2>
+            <h2 className="text-base font-black text-zinc-900">Azioni rapide</h2>
             <p className="text-xs text-zinc-600">Collegamenti alle aree operative principali</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {quickLinks.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md"
+                  className="flex min-h-[4.5rem] items-start gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
                 >
-                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-900 text-white">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-900 text-white shadow-sm">
                     <Icon className="h-4 w-4" />
                   </span>
                   <span>
@@ -685,72 +721,9 @@ export default async function AdminDashboardPage() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Link
-            href="/admin/associazioni-genitori"
-            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
-          >
-            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
-              <Link2 className="h-4 w-4" />
-              Associazioni genitore-atleta
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Richieste di secondo genitore da approvare o rifiutare.
-            </p>
-          </Link>
-          <Link
-            href="/admin/utenti"
-            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
-          >
-            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
-              <UserRound className="h-4 w-4" />
-              Utenti
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Anagrafiche account e reset password.
-            </p>
-          </Link>
-          <Link
-            href="/admin/comunicazioni"
-            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
-          >
-            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
-              <Megaphone className="h-4 w-4" />
-              Bacheca comunicazioni
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Avvisi per tutti, genitori, mister o categoria.
-            </p>
-          </Link>
-          <Link
-            href="/admin/media"
-            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
-          >
-            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
-              <Images className="h-4 w-4" />
-              Media per categoria
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Pubblica e consulta foto/video per le squadre.
-            </p>
-          </Link>
-          <Link
-            href="/admin/visite-mediche"
-            className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-blue-300"
-          >
-            <p className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-950">
-              <HeartPulse className="h-4 w-4" />
-              Scadenze sanitarie
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Controlla scadenze e promemoria visite mediche.
-            </p>
-          </Link>
-        </section>
-
         {nextAttendanceEvent ? (
-          <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-            <h2 className="text-base font-bold text-slate-900">Presenze evento</h2>
+          <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+            <h2 className="text-base font-black text-slate-900">Presenze evento</h2>
             <p className="mt-1 text-sm text-slate-600">
               Apri rapidamente l&apos;evento più vicino per verificare o aggiornare l&apos;appello.
             </p>

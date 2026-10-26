@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminShell } from "@/components/admin/admin-nav";
 import { getAuthSession } from "@/lib/auth";
 
 type AdminLayoutProps = {
@@ -9,10 +9,5 @@ type AdminLayoutProps = {
 export default async function AdminLayout({ children }: AdminLayoutProps) {
   const session = await getAuthSession();
 
-  return (
-    <>
-      <AdminNav role={session?.user?.role} />
-      {children}
-    </>
-  );
+  return <AdminShell role={session?.user?.role}>{children}</AdminShell>;
 }
