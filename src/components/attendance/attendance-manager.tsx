@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { AttendanceStatus } from "@prisma/client";
-import { CheckCircle2, MapPin } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MapPin } from "lucide-react";
 import { TouchStepper } from "@/components/mister/touch-stepper";
 import { ATTENDANCE_STATUS_CHOICES, ATTENDANCE_STATUS_LABEL } from "@/lib/attendance-status";
 import {
@@ -64,13 +64,17 @@ type AttendanceManagerProps = {
 };
 
 type StatusDraft = AttendanceStatus | null;
+type RosterFilter = "ALL" | "UNSET" | "PRESENT" | "ABSENT" | "JUSTIFIED_ABSENCE" | "INJURED";
 
 const CHIP_CLASS: Record<AttendanceStatus, string> = {
-  PRESENT: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  ABSENT: "border-red-200 bg-red-50 text-red-800",
-  JUSTIFIED_ABSENCE: "border-amber-200 bg-amber-50 text-amber-900",
-  INJURED: "border-slate-300 bg-slate-100 text-slate-800",
+  PRESENT: "border-emerald-400 bg-emerald-500 text-white shadow-sm shadow-emerald-200",
+  ABSENT: "border-red-400 bg-red-500 text-white shadow-sm shadow-red-200",
+  JUSTIFIED_ABSENCE: "border-sky-400 bg-sky-600 text-white shadow-sm shadow-sky-200",
+  INJURED: "border-slate-400 bg-slate-600 text-white shadow-sm shadow-slate-200",
 };
+
+const CHIP_IDLE =
+  "border-zinc-200 bg-white text-zinc-600 hover:border-blue-200 hover:bg-sky-50 active:bg-sky-100";
 
 const SHORT_LABEL: Record<AttendanceStatus, string> = {
   PRESENT: "Presente",
@@ -137,6 +141,53 @@ function buildInitialPeriods(
   });
 }
 
+type AttendanceDraftSnapshotInput = {
+  athletes: AthleteRow[];
+  statusByAthlete: Record<string, StatusDraft>;
+  goalsByAthlete: Record<string, number>;
+  assistsByAthlete: Record<string, number>;
+  goalsConcededByAthlete: Record<string, number | null>;
+  matchMode: boolean;
+  clubScore: number;
+  opponentScore: number;
+  isHome: boolean;
+  resultEntered: boolean;
+  periods: PeriodDraft[];
+};
+
+/** Snapshot UI di tutti i campi modificabili (presenze + partita). Solo dirty tracking. */
+function draftSnapshot(input: AttendanceDraftSnapshotInput): string {
+  const athletesPart = input.athletes
+    .map((athlete) => {
+      const id = athlete.id;
+      const status = input.statusByAthlete[id] ?? "";
+      const goals = input.goalsByAthlete[id] ?? 0;
+      const assists = input.assistsByAthlete[id] ?? 0;
+      const conceded =
+        input.goalsConcededByAthlete[id] === undefined ||
+        input.goalsConcededByAthlete[id] === null
+          ? "null"
+          : String(input.goalsConcededByAthlete[id]);
+      return `${id}:${status}:${goals}:${assists}:${conceded}`;
+    })
+    .join("|");
+
+  if (!input.matchMode) return `attendance:${athletesPart}`;
+
+  const periodsPart = input.periods
+    .map(
+      (period, index) =>
+        `${index}:${period.entered ? 1 : 0}:${period.clubGoals}:${period.opponentGoals}`,
+    )
+    .join("|");
+
+  return [
+    `attendance:${athletesPart}`,
+    `match:${input.isHome ? 1 : 0}:${input.resultEntered ? 1 : 0}:${input.clubScore}:${input.opponentScore}`,
+    `periods:${periodsPart}`,
+  ].join("::");
+}
+
 export function AttendanceManager({
   eventId,
   eventTitle,
@@ -155,31 +206,53 @@ export function AttendanceManager({
   });
   const fourPeriodMode = usesFourPeriodScoring(eventCategoryName);
 
-  const [statusByAthlete, setStatusByAthlete] = useState<Record<string, StatusDraft>>(
-    buildInitialStatus(athletes),
-  );
-  const [goalsByAthlete, setGoalsByAthlete] = useState(buildInitialGoals(athletes));
-  const [assistsByAthlete, setAssistsByAthlete] = useState(buildInitialAssists(athletes));
-  const [goalsConcededByAthlete, setGoalsConcededByAthlete] = useState(
-    buildInitialGoalsConceded(athletes),
-  );
-  const [clubScore, setClubScore] = useState(
+  const initialStatus = buildInitialStatus(athletes);
+  const initialGoals = buildInitialGoals(athletes);
+  const initialAssists = buildInitialAssists(athletes);
+  const initialConceded = buildInitialGoalsConceded(athletes);
+  const initialClubScore =
     initialMatchResult?.isHome === false
       ? (initialMatchResult.awayScore ?? 0)
-      : (initialMatchResult?.homeScore ?? 0),
-  );
-  const [opponentScore, setOpponentScore] = useState(
+      : (initialMatchResult?.homeScore ?? 0);
+  const initialOpponentScore =
     initialMatchResult?.isHome === false
       ? (initialMatchResult.homeScore ?? 0)
-      : (initialMatchResult?.awayScore ?? 0),
+      : (initialMatchResult?.awayScore ?? 0);
+  const initialIsHome = initialMatchResult?.isHome ?? true;
+  const initialResultEnteredFlag = initialResultEntered(initialMatchResult);
+  const initialPeriods = buildInitialPeriods(
+    initialPeriodScores,
+    initialMatchResult?.isHome ?? true,
   );
-  const [isHome, setIsHome] = useState(initialMatchResult?.isHome ?? true);
-  const [resultEntered, setResultEntered] = useState(initialResultEntered(initialMatchResult));
-  const [periods, setPeriods] = useState<PeriodDraft[]>(() =>
-    buildInitialPeriods(initialPeriodScores, initialMatchResult?.isHome ?? true),
+
+  const [statusByAthlete, setStatusByAthlete] =
+    useState<Record<string, StatusDraft>>(initialStatus);
+  const [goalsByAthlete, setGoalsByAthlete] = useState(initialGoals);
+  const [assistsByAthlete, setAssistsByAthlete] = useState(initialAssists);
+  const [goalsConcededByAthlete, setGoalsConcededByAthlete] = useState(initialConceded);
+  const [clubScore, setClubScore] = useState(initialClubScore);
+  const [opponentScore, setOpponentScore] = useState(initialOpponentScore);
+  const [isHome, setIsHome] = useState(initialIsHome);
+  const [resultEntered, setResultEntered] = useState(initialResultEnteredFlag);
+  const [periods, setPeriods] = useState<PeriodDraft[]>(initialPeriods);
+  const [savedDraftSnapshot, setSavedDraftSnapshot] = useState(() =>
+    draftSnapshot({
+      athletes,
+      statusByAthlete: initialStatus,
+      goalsByAthlete: initialGoals,
+      assistsByAthlete: initialAssists,
+      goalsConcededByAthlete: initialConceded,
+      matchMode,
+      clubScore: initialClubScore,
+      opponentScore: initialOpponentScore,
+      isHome: initialIsHome,
+      resultEntered: initialResultEnteredFlag,
+      periods: initialPeriods,
+    }),
   );
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{ error?: string; ok?: string }>({});
+  const [filter, setFilter] = useState<RosterFilter>("ALL");
 
   const summary = useMemo(() => {
     const counts = {
@@ -196,6 +269,62 @@ export function AttendanceManager({
     }
     return counts;
   }, [athletes, statusByAthlete]);
+
+  const registeredCount =
+    summary.PRESENT + summary.ABSENT + summary.JUSTIFIED_ABSENCE + summary.INJURED;
+  const presencePercent =
+    registeredCount > 0 ? Math.round((summary.PRESENT / registeredCount) * 100) : null;
+
+  const missingToday = useMemo(
+    () =>
+      athletes.filter((athlete) => {
+        const status = statusByAthlete[athlete.id];
+        return (
+          status === "ABSENT" ||
+          status === "JUSTIFIED_ABSENCE" ||
+          status === "INJURED"
+        );
+      }),
+    [athletes, statusByAthlete],
+  );
+
+  const currentDraftSnapshot = useMemo(
+    () =>
+      draftSnapshot({
+        athletes,
+        statusByAthlete,
+        goalsByAthlete,
+        assistsByAthlete,
+        goalsConcededByAthlete,
+        matchMode,
+        clubScore,
+        opponentScore,
+        isHome,
+        resultEntered,
+        periods,
+      }),
+    [
+      athletes,
+      statusByAthlete,
+      goalsByAthlete,
+      assistsByAthlete,
+      goalsConcededByAthlete,
+      matchMode,
+      clubScore,
+      opponentScore,
+      isHome,
+      resultEntered,
+      periods,
+    ],
+  );
+
+  const dirty = currentDraftSnapshot !== savedDraftSnapshot;
+
+  const filteredAthletes = useMemo(() => {
+    if (filter === "ALL") return athletes;
+    if (filter === "UNSET") return athletes.filter((a) => !statusByAthlete[a.id]);
+    return athletes.filter((a) => statusByAthlete[a.id] === filter);
+  }, [athletes, filter, statusByAthlete]);
 
   const periodInputs: PeriodScoreInput[] = useMemo(
     () =>
@@ -266,6 +395,7 @@ export function AttendanceManager({
       setFeedback({
         error: `Seleziona lo stato presenza per tutti gli atleti (${unset.length} da registrare).`,
       });
+      setFilter("UNSET");
       return;
     }
 
@@ -335,6 +465,21 @@ export function AttendanceManager({
         return;
       }
 
+      setSavedDraftSnapshot(
+        draftSnapshot({
+          athletes,
+          statusByAthlete,
+          goalsByAthlete,
+          assistsByAthlete,
+          goalsConcededByAthlete,
+          matchMode,
+          clubScore,
+          opponentScore,
+          isHome,
+          resultEntered,
+          periods,
+        }),
+      );
       setFeedback({
         ok: matchMode
           ? `Partita salvata (${data?.updated ?? entries.length} atleti).`
@@ -350,12 +495,21 @@ export function AttendanceManager({
   const venueLabel =
     isHome === true ? "Casa" : isHome === false ? "Trasferta" : "—";
 
+  const filterChips: Array<{ id: RosterFilter; label: string; count: number }> = [
+    { id: "ALL", label: "Tutti", count: athletes.length },
+    { id: "UNSET", label: "Da gestire", count: summary.unset },
+    { id: "PRESENT", label: "Presenti", count: summary.PRESENT },
+    { id: "ABSENT", label: "Assenti", count: summary.ABSENT },
+    { id: "JUSTIFIED_ABSENCE", label: "Giustificati", count: summary.JUSTIFIED_ABSENCE },
+    { id: "INJURED", label: "Infortunati", count: summary.INJURED },
+  ];
+
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-2xl border border-blue-700 bg-blue-800 text-white shadow-md">
-        <div className="p-5">
+      <section className="overflow-hidden rounded-2xl border border-blue-700 bg-gradient-to-br from-blue-800 via-blue-800 to-sky-700 text-white shadow-md">
+        <div className="p-4 sm:p-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-200">
-            Match Center · {eventCategoryName}
+            {matchMode ? "Match Center" : "Presenze allenamento"} · {eventCategoryName}
           </p>
           <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
             {matchMode ? (
@@ -378,6 +532,90 @@ export function AttendanceManager({
               </span>
             ) : null}
           </div>
+        </div>
+      </section>
+
+      {/* Contatori live */}
+      <section className="sticky top-0 z-30 -mx-1 rounded-2xl border border-blue-100 bg-white/95 p-3 shadow-sm backdrop-blur sm:static sm:mx-0 sm:p-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-sky-800">Da gestire</p>
+            <p className="text-2xl font-black text-blue-900">{summary.unset}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">Presenti</p>
+            <p className="text-2xl font-black text-emerald-900">{summary.PRESENT}</p>
+          </div>
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-red-800">Assenti</p>
+            <p className="text-2xl font-black text-red-900">{summary.ABSENT}</p>
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/80 px-3 py-2 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-sky-800">Giustificati</p>
+            <p className="text-2xl font-black text-blue-900">{summary.JUSTIFIED_ABSENCE}</p>
+          </div>
+          <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center sm:col-span-1">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-700">Infortunati</p>
+            <p className="text-2xl font-black text-slate-900">{summary.INJURED}</p>
+          </div>
+        </div>
+
+        {dirty ? (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+            <p className="font-semibold">
+              Modifiche non salvate. Tocca “Salva” in basso per confermare.
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      {/* Riepilogo semplice */}
+      <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-blue-800">Riepilogo</h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              {presencePercent == null
+                ? "Registra le presenze per vedere la percentuale."
+                : `${presencePercent}% presenti tra i ${registeredCount} già registrati`}
+            </p>
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-sky-800">Presenza</p>
+            <p className="text-xl font-black text-blue-900">
+              {presencePercent == null ? "—" : `${presencePercent}%`}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">Chi manca oggi</p>
+          {missingToday.length === 0 ? (
+            <p className="mt-1 text-sm text-zinc-600">
+              Nessun assente/giustificato/infortunato al momento.
+            </p>
+          ) : (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {missingToday.map((athlete) => {
+                const status = statusByAthlete[athlete.id];
+                return (
+                  <li
+                    key={athlete.id}
+                    className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-blue-950"
+                  >
+                    <span>
+                      {athlete.firstName} {athlete.lastName}
+                    </span>
+                    {status ? (
+                      <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase text-zinc-600">
+                        {SHORT_LABEL[status]}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </section>
 
@@ -591,46 +829,122 @@ export function AttendanceManager({
       ) : null}
 
       <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
-        <div>
-          <h3 className="text-sm font-bold uppercase tracking-wide text-blue-800">Rosa</h3>
-          <p className="mt-1 text-sm text-zinc-600">
-            {summary.unset > 0
-              ? `${summary.unset} da registrare`
-              : `${summary.PRESENT} presenti · ${summary.ABSENT + summary.JUSTIFIED_ABSENCE + summary.INJURED} non disponibili`}
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-blue-800">Rosa</h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              {summary.unset > 0
+                ? `${summary.unset} da registrare · tap rapido sugli stati`
+                : `${summary.PRESENT} presenti · ${summary.ABSENT + summary.JUSTIFIED_ABSENCE + summary.INJURED} non disponibili`}
+            </p>
+          </div>
+          <p className="text-xs font-semibold text-zinc-500">
+            {filteredAthletes.length}/{athletes.length} in elenco
           </p>
         </div>
 
-        <ul className="mt-4 space-y-3 pb-24">
-          {athletes.map((athlete) => {
+        <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+          {filterChips.map((chip) => {
+            const active = filter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setFilter(chip.id)}
+                className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold uppercase tracking-wide ${
+                  active
+                    ? "border-blue-700 bg-blue-800 text-white"
+                    : "border-blue-100 bg-sky-50 text-blue-900"
+                }`}
+              >
+                {chip.label}
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                    active ? "bg-white/20 text-white" : "bg-white text-blue-800"
+                  }`}
+                >
+                  {chip.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <ul className="mt-4 space-y-3 pb-28 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 md:pb-4">
+          {filteredAthletes.length === 0 ? (
+            <li className="rounded-2xl border border-dashed border-blue-200 bg-sky-50/50 p-6 text-center text-sm text-zinc-600 md:col-span-2">
+              Nessun giocatore in questo filtro.
+            </li>
+          ) : null}
+          {filteredAthletes.map((athlete) => {
             const status = statusByAthlete[athlete.id] ?? null;
             const present = status === "PRESENT";
             const initials = athleteInitials(athlete.firstName, athlete.lastName);
+            const attendanceSegment =
+              currentDraftSnapshot.split("::")[0]?.replace(/^attendance:/, "") ?? "";
+            const savedAttendanceSegment =
+              savedDraftSnapshot.split("::")[0]?.replace(/^attendance:/, "") ?? "";
+            const currentAthleteToken = attendanceSegment
+              .split("|")
+              .find((part) => part.startsWith(`${athlete.id}:`));
+            const savedAthleteToken = savedAttendanceSegment
+              .split("|")
+              .find((part) => part.startsWith(`${athlete.id}:`));
+            const dirtyRow = currentAthleteToken !== savedAthleteToken;
 
             return (
               <li
                 key={athlete.id}
-                className="rounded-2xl border border-sky-100 bg-sky-50/40 p-3 sm:p-4"
+                className={`rounded-2xl border p-3 sm:p-4 ${
+                  !status
+                    ? "border-sky-200 bg-sky-50/50"
+                    : dirtyRow
+                      ? "border-sky-300 bg-sky-50/70 ring-1 ring-sky-200"
+                      : "border-sky-100 bg-white"
+                }`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-sm font-bold text-white">
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-base font-black tracking-wide text-white shadow-sm ${
+                      status === "PRESENT"
+                        ? "bg-emerald-600"
+                        : status === "ABSENT"
+                          ? "bg-red-600"
+                          : status === "JUSTIFIED_ABSENCE"
+                            ? "bg-sky-600"
+                            : status === "INJURED"
+                              ? "bg-slate-600"
+                              : "bg-blue-800"
+                    }`}
+                    aria-hidden
+                  >
                     {initials}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-zinc-900">
-                      {athlete.firstName} {athlete.lastName}
+                    <p className="text-base font-black leading-tight text-zinc-900 sm:text-lg">
+                      {athlete.firstName}{" "}
+                      <span className="text-blue-950">{athlete.lastName}</span>
                     </p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="mt-0.5 text-xs font-medium text-zinc-500">
                       {athlete.shirtNumber != null ? `#${athlete.shirtNumber}` : "Maglia —"}
                       {" · "}
                       {formatAthleteRoleDisplay(athlete.position)}
                     </p>
                     {!status ? (
-                      <span className="mt-1 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                      <span className="mt-1 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-900">
                         Da registrare
                       </span>
                     ) : (
                       <span
-                        className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${CHIP_CLASS[status]}`}
+                        className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                          status === "PRESENT"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                            : status === "ABSENT"
+                              ? "border-red-200 bg-red-50 text-red-800"
+                              : status === "JUSTIFIED_ABSENCE"
+                                ? "border-sky-200 bg-sky-50 text-sky-900"
+                                : "border-slate-300 bg-slate-100 text-slate-800"
+                        }`}
                       >
                         {ATTENDANCE_STATUS_LABEL[status]}
                       </span>
@@ -646,10 +960,8 @@ export function AttendanceManager({
                         key={choice.value}
                         type="button"
                         onClick={() => setStatus(athlete.id, choice.value)}
-                        className={`min-h-11 rounded-xl border px-2 text-xs font-bold uppercase tracking-wide ${
-                          active
-                            ? CHIP_CLASS[choice.value]
-                            : "border-zinc-200 bg-white text-zinc-600"
+                        className={`min-h-12 rounded-xl border px-2 text-[11px] font-bold uppercase tracking-wide transition sm:min-h-11 sm:text-xs ${
+                          active ? CHIP_CLASS[choice.value] : CHIP_IDLE
                         }`}
                       >
                         {SHORT_LABEL[choice.value]}
@@ -750,7 +1062,7 @@ export function AttendanceManager({
       </section>
 
       {feedback.error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
           {feedback.error}
         </p>
       ) : null}
@@ -762,18 +1074,31 @@ export function AttendanceManager({
       ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-blue-100 bg-white/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
-        <button
-          type="button"
-          onClick={saveAttendance}
-          disabled={pending || athletes.length === 0}
-          className="mx-auto flex min-h-12 w-full max-w-[1100px] items-center justify-center rounded-xl bg-blue-800 px-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-blue-900 disabled:opacity-60"
-        >
-          {pending
-            ? "Salvataggio..."
-            : matchMode
-              ? "Salva partita"
-              : "Salva presenze"}
-        </button>
+        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-2 sm:flex-row sm:items-center">
+          {dirty ? (
+            <p className="text-center text-xs font-bold uppercase tracking-wide text-amber-700 sm:text-left">
+              Modifiche non salvate
+            </p>
+          ) : (
+            <p className="text-center text-xs font-semibold text-zinc-500 sm:text-left">
+              {summary.unset > 0
+                ? `${summary.unset} ancora da gestire`
+                : "Tutto registrato"}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={saveAttendance}
+            disabled={pending || athletes.length === 0}
+            className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-blue-800 px-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-blue-900 disabled:opacity-60 sm:ml-auto sm:max-w-sm"
+          >
+            {pending
+              ? "Salvataggio..."
+              : matchMode
+                ? "Salva partita"
+                : "Salva presenze"}
+          </button>
+        </div>
       </div>
     </div>
   );
