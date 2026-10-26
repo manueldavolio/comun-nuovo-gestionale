@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Shield } from "lucide-react";
 
 type ParentAdminPanelProps = {
   summaryText: string;
@@ -30,32 +30,42 @@ export function ParentAdminPanel({
   }, []);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+        className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left transition hover:bg-sky-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
       >
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Area amministrativa
-          </p>
-          <h3 className="text-sm font-semibold text-zinc-900 sm:text-base">
-            Iscrizione, documenti e scadenze
-          </h3>
-          <p
+        <div className="flex min-w-0 items-start gap-3">
+          <span
             className={[
-              "mt-1 text-xs font-medium",
-              hasAttention ? "text-amber-700" : "text-slate-500",
+              "mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+              hasAttention ? "bg-sky-100 text-blue-800" : "bg-blue-50 text-blue-700",
             ].join(" ")}
           >
-            {summaryText}
-          </p>
+            <Shield className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
+              Documenti e scadenze
+            </p>
+            <h3 className="text-base font-bold text-zinc-900">
+              Certificato, quote e pratiche
+            </h3>
+            <p
+              className={[
+                "mt-1 text-sm font-medium",
+                hasAttention ? "text-sky-800" : "text-zinc-500",
+              ].join(" ")}
+            >
+              {summaryText}
+            </p>
+          </div>
         </div>
         <ChevronDown
           className={[
-            "mt-1 h-5 w-5 shrink-0 text-slate-500 transition",
+            "mt-1 h-5 w-5 shrink-0 text-blue-700 transition",
             open ? "rotate-180" : "",
           ].join(" ")}
           aria-hidden
@@ -63,7 +73,7 @@ export function ParentAdminPanel({
       </button>
 
       {open ? (
-        <div className="space-y-3 border-t border-slate-100 bg-slate-50/80 px-4 py-4">
+        <div className="space-y-3 border-t border-sky-100 bg-gradient-to-b from-sky-50/80 to-white px-4 py-4">
           {children}
         </div>
       ) : null}

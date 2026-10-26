@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
 import { MatchListClient, type MatchListItem } from "@/components/matches/match-list-client";
+import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
 import { getAuthSession } from "@/lib/auth";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { listMatchesForParent } from "@/lib/match-queries";
@@ -32,19 +31,14 @@ export default async function GenitorePartitePage() {
   }));
 
   return (
-    <main className="p-4 md:p-8">
+    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
-        <AreaHeader
+        <ParentAreaHeader
           title="Partite"
           subtitle="Gare delle squadre dei tuoi figli"
           userName={session.user.name ?? "Genitore"}
+          backHref="/genitore"
         />
-        <Link
-          href="/genitore"
-          className="inline-flex w-fit rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-        >
-          ← Dashboard
-        </Link>
         <MatchListClient
           items={items}
           wallNowIso={wallNow.toISOString()}

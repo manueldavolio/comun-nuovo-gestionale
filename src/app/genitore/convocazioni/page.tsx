@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
 import { ParentConvocations } from "@/components/convocations/parent-convocations";
+import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
 import { getAuthSession } from "@/lib/auth";
 import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
@@ -120,30 +119,23 @@ export default async function ParentConvocationsPage() {
     });
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
+    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-        <AreaHeader
+        <ParentAreaHeader
           title="Convocazioni"
-          subtitle="Conferma se tuo figlio sara presente all'evento"
+          subtitle="Conferma presenza o indisponibilità"
           userName={session.user.name ?? "Genitore"}
+          backHref="/genitore"
         />
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/genitore"
-            className="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-          >
-            Torna dashboard genitore
-          </Link>
-        </div>
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Convocazioni ricevute</h2>
+        <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="text-lg font-black text-zinc-900">Convocazioni ricevute</h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Conferma se tuo figlio sara presente all&apos;evento. Le risposte aggiornano subito lo stato della convocazione.
+            Conferma se tuo figlio sarà presente all&apos;evento. Le risposte aggiornano subito lo
+            stato della convocazione.
           </p>
           {isConvocationsSchemaMissing ? (
-            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="mt-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-950">
               {CONVOCATIONS_SCHEMA_MISSING_MESSAGE}
             </p>
           ) : (

@@ -73,7 +73,7 @@ export function PaymentActions({
           type="button"
           onClick={handleCheckout}
           disabled={isSubmitting}
-          className="min-h-11 rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-12 w-full rounded-xl bg-blue-800 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Apertura checkout..." : `${checkoutLabel} · ${displayAmountLabel}`}
         </button>

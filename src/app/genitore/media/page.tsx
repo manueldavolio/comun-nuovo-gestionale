@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
 import { MediaGallery } from "@/components/media/media-gallery";
+import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
 import { getAuthSession } from "@/lib/auth";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
@@ -69,25 +68,17 @@ export default async function ParentMediaPage() {
   }));
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
+    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-        <AreaHeader
-          title="Media categoria (Genitore)"
-          subtitle="Foto e video delle categorie dei tuoi figli"
+        <ParentAreaHeader
+          title="Foto e video"
+          subtitle="Galleria delle categorie dei tuoi figli"
           userName={session.user.name ?? "Genitore"}
+          backHref="/genitore"
         />
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/genitore"
-            className="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-          >
-            Torna dashboard genitore
-          </Link>
-        </div>
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Galleria categoria</h2>
+        <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="text-lg font-black text-zinc-900">Galleria categoria</h2>
           <div className="mt-4">
             <MediaGallery
               items={galleryItems}

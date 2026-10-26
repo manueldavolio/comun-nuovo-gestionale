@@ -36,16 +36,16 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
       label: "Presenze partite",
       value: String(stats.matchPresences),
       icon: Shirt,
-      tone: "border-blue-200 bg-blue-50",
-      iconTone: "bg-blue-700 text-white",
-      valueTone: "text-blue-800",
+      tone: "border-blue-200 bg-gradient-to-br from-blue-50 to-white",
+      iconTone: "bg-blue-800 text-white",
+      valueTone: "text-blue-900",
     },
     {
       key: "gol",
       label: "Gol",
       value: String(stats.goals),
       icon: Goal,
-      tone: "border-sky-200 bg-sky-50",
+      tone: "border-sky-200 bg-gradient-to-br from-sky-50 to-white",
       iconTone: "bg-sky-600 text-white",
       valueTone: "text-sky-900",
     },
@@ -54,9 +54,9 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
       label: "Media voti",
       value: mediaLabel,
       icon: Star,
-      tone: "border-amber-200 bg-amber-50",
-      iconTone: "bg-amber-600 text-white",
-      valueTone: "text-amber-950",
+      tone: "border-blue-200 bg-gradient-to-br from-blue-50/80 to-sky-50",
+      iconTone: "bg-blue-700 text-white",
+      valueTone: "text-blue-950",
       interactive: hasRatings,
     },
     {
@@ -64,7 +64,7 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
       label: "Allenamenti %",
       value: stats.trainingPercent == null ? "—" : `${stats.trainingPercent}%`,
       icon: Percent,
-      tone: "border-emerald-200 bg-emerald-50",
+      tone: "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white",
       iconTone: "bg-emerald-700 text-white",
       valueTone: "text-emerald-900",
       hint:
@@ -75,11 +75,11 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
   ] as const;
 
   return (
-    <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-800">
-        La mia stagione
+    <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
+        Presenze e statistiche
       </p>
-      <p className="mt-1 text-sm text-zinc-600">I tuoi numeri, senza confronti.</p>
+      <p className="mt-1 text-sm text-zinc-600">I numeri di tuo figlio, senza confronti.</p>
       <div className="mt-3 grid grid-cols-2 gap-2.5">
         {items.map((kpi) => {
           const Icon = kpi.icon;
@@ -87,23 +87,23 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
           const content = (
             <>
               <span
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${kpi.iconTone}`}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-xl shadow-sm ${kpi.iconTone}`}
               >
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
               <p className={`mt-2 text-3xl font-black tracking-tight ${kpi.valueTone}`}>
                 {kpi.value}
               </p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
+              <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
                 {kpi.label}
               </p>
               {"hint" in kpi && kpi.hint ? (
-                <p className="mt-1 text-[11px] font-medium text-emerald-800">
+                <p className="mt-1 text-[11px] font-semibold text-emerald-800">
                   Allenamenti: {kpi.hint}
                 </p>
               ) : null}
               {isMedia && hasRatings ? (
-                <p className="mt-1 text-[11px] font-medium text-amber-900">
+                <p className="mt-1 text-[11px] font-semibold text-blue-800">
                   Tocca per il dettaglio
                 </p>
               ) : null}
@@ -118,7 +118,7 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={() => setOpen((value) => !value)}
-                className={`rounded-2xl border px-3 py-3 text-left transition hover:brightness-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 ${kpi.tone}`}
+                className={`rounded-2xl border px-3 py-3 text-left transition hover:brightness-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${kpi.tone}`}
               >
                 {content}
               </button>
@@ -136,26 +136,26 @@ export function AthleteSeasonCard({ stats, ratings }: AthleteSeasonCardProps) {
       {open && hasRatings ? (
         <div
           id={panelId}
-          className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-3"
+          className="mt-3 rounded-2xl border border-sky-100 bg-sky-50/70 p-3"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-950">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-900">
             Voti per partita
           </p>
           <ul className="mt-2 space-y-2">
             {ratings.matches.map((match) => (
               <li
                 key={match.eventId}
-                className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-white px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-zinc-900">
+                  <p className="truncate text-sm font-bold text-zinc-900">
                     {match.opponentLabel}
                   </p>
                   <p className="text-[11px] font-medium text-zinc-500">
                     {formatMatchDate(match.startAt)}
                   </p>
                 </div>
-                <p className="text-lg font-black tabular-nums text-amber-950">
+                <p className="text-lg font-black tabular-nums text-blue-900">
                   {match.matchAverage.toFixed(1)}
                 </p>
               </li>

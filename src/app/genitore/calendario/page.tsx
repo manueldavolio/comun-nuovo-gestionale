@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
+import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
 import { getAuthSession } from "@/lib/auth";
 import { currentCalendarMonthStart, formatYearMonth } from "@/lib/calendar-range";
 import { toFloatingDateTime } from "@/lib/date-input";
@@ -241,22 +240,14 @@ export default async function ParentCalendarPage() {
   }));
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
+    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-        <AreaHeader
-          title="Calendario genitore"
-          subtitle="Eventi, convocazioni e comunicazioni dei tuoi figli"
+        <ParentAreaHeader
+          title="Calendario"
+          subtitle="Eventi, convocazioni e comunicazioni"
           userName={session.user.name ?? "Genitore"}
+          backHref="/genitore"
         />
-
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/genitore"
-            className="inline-flex items-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-          >
-            Torna dashboard genitore
-          </Link>
-        </div>
 
         <MonthCalendar
           title="Calendario mensile"

@@ -9,7 +9,6 @@ import {
   Trophy,
   Wallet,
 } from "lucide-react";
-import { AreaHeader } from "@/components/layout/area-header";
 import { StatusBadge } from "@/components/layout/status-badge";
 import { PaymentActions } from "@/components/payments/payment-actions";
 import { AthleteHeroCard } from "@/components/parent-dashboard/athlete-hero-card";
@@ -22,9 +21,11 @@ import { AthleteGrowthPathSection } from "@/components/parent-dashboard/athlete-
 import { AthleteWeekSection } from "@/components/parent-dashboard/athlete-week-section";
 import { MatchDayCard } from "@/components/parent-dashboard/match-day-card";
 import { ParentAdminPanel } from "@/components/parent-dashboard/parent-admin-panel";
+import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
 import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
 import { ParentGoalsCard } from "@/components/parent-dashboard/parent-goals-card";
 import { PredictionSlipDashboardCard } from "@/components/parent-dashboard/prediction-slip-dashboard-card";
+import { UpcomingCommitments } from "@/components/parent-dashboard/upcoming-commitments";
 import { getAuthSession } from "@/lib/auth";
 import { formatCoachNoteAuthorLabel } from "@/lib/coach-note-tags";
 import {
@@ -99,14 +100,14 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
 };
 
 const ENROLLMENT_STATUS_COLORS: Record<string, string> = {
-  DRAFT: "border-amber-200 bg-amber-50 text-amber-800",
-  SUBMITTED: "border-amber-200 bg-amber-50 text-amber-800",
+  DRAFT: "border-sky-200 bg-sky-50 text-sky-900",
+  SUBMITTED: "border-sky-200 bg-sky-50 text-sky-900",
   APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-800",
   REJECTED: "border-red-200 bg-red-50 text-red-700",
 };
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-800",
+  PENDING: "border-sky-200 bg-sky-50 text-sky-900",
   OVERDUE: "border-red-200 bg-red-50 text-red-700",
   PAID: "border-emerald-200 bg-emerald-50 text-emerald-800",
   CANCELLED: "border-zinc-200 bg-zinc-50 text-zinc-700",
@@ -327,10 +328,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
   if (associatedAthletes.length === 0) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-sky-100 via-sky-50 to-blue-50 p-4 md:p-8">
+      <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
-          <AreaHeader
-            title="Area Genitore"
+          <ParentAreaHeader
+            title="Area Genitori"
             subtitle="Dashboard famiglia ASD Comun Nuovo"
             userName={session.user.name ?? "Genitore"}
           />
@@ -798,8 +799,13 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       : responseStatus === "ABSENT"
         ? "border-red-200 bg-red-50 text-red-800"
         : responseStatus === "PENDING"
-          ? "border-amber-200 bg-amber-50 text-amber-900"
+          ? "border-sky-200 bg-sky-50 text-sky-900"
           : "border-sky-200 bg-sky-50 text-sky-900";
+
+  const nextTrainingEvent =
+    nextEventCandidates.find((event) => event.type === "TRAINING") ?? null;
+  const nextMatchEvent =
+    nextEventCandidates.find((event) => isMatchEventType(event.type)) ?? null;
 
   const openPaymentsCount = paymentDisplayRows.filter((row) => row.canCheckout).length;
   const medicalNeedsAttention =
@@ -827,23 +833,23 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       href: "/genitore/convocazioni",
       label: "Convocazioni",
       icon: ClipboardList,
-      tone: "border-amber-200 bg-amber-50 text-amber-950",
-      iconWrap: "bg-amber-500 text-white",
+      tone: "border-sky-200 bg-sky-50 text-sky-950",
+      iconWrap: "bg-sky-600 text-white",
       badge: pendingConvocationsCount > 0 ? pendingConvocationsCount : null,
     },
     {
       href: "/genitore/partite",
       label: "Partite",
       icon: Trophy,
-      tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
-      iconWrap: "bg-emerald-700 text-white",
+      tone: "border-blue-200 bg-blue-50 text-blue-950",
+      iconWrap: "bg-blue-800 text-white",
       badge: null,
     },
     {
       href: "/genitore/calendario",
       label: "Calendario",
       icon: CalendarDays,
-      tone: "border-blue-200 bg-sky-50 text-blue-950",
+      tone: "border-blue-200 bg-white text-blue-950",
       iconWrap: "bg-blue-700 text-white",
       badge: null,
     },
@@ -851,8 +857,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       href: "#documenti",
       label: "Documenti",
       icon: FileText,
-      tone: "border-blue-100 bg-white text-blue-950",
-      iconWrap: "bg-blue-600 text-white",
+      tone: "border-sky-100 bg-white text-blue-950",
+      iconWrap: "bg-sky-700 text-white",
       badge: null,
     },
     {
@@ -878,7 +884,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
             label: "Pagamenti",
             icon: Wallet,
             tone: "border-blue-200 bg-blue-50 text-blue-950",
-            iconWrap: "bg-blue-800 text-white",
+            iconWrap: "bg-blue-900 text-white",
             badge: openPaymentsCount > 0 ? openPaymentsCount : (null as number | null),
           },
         ]
@@ -886,16 +892,16 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-100 via-sky-50 to-blue-50 p-4 md:p-8">
+    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 md:gap-5">
-        <AreaHeader
-          title="Area Genitore"
-          subtitle="Dashboard sportiva famiglia"
+        <ParentAreaHeader
+          title="Area Genitori"
+          subtitle="La tua app famiglia Comun Nuovo"
           userName={session.user.name ?? "Genitore"}
         />
 
         {showEnrollmentSuccess ? (
-          <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm">
+          <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm">
             Iscrizione inviata correttamente. Le scadenze economiche sono state generate.
           </p>
         ) : null}
@@ -918,6 +924,30 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           portraitUrl={
             portraitDocumentId
               ? `/api/genitore/enrollment-documents/${portraitDocumentId}/download`
+              : null
+          }
+        />
+
+        <UpcomingCommitments
+          nextTraining={
+            nextTrainingEvent
+              ? {
+                  id: nextTrainingEvent.id,
+                  title: nextTrainingEvent.title,
+                  startAt: nextTrainingEvent.startAt,
+                  location: nextTrainingEvent.location,
+                }
+              : null
+          }
+          nextMatch={
+            nextMatchEvent
+              ? {
+                  id: nextMatchEvent.id,
+                  title: nextMatchEvent.title,
+                  startAt: nextMatchEvent.startAt,
+                  location: nextMatchEvent.location,
+                  opponentName: nextMatchEvent.opponentName,
+                }
               : null
           }
         />
@@ -971,20 +1001,20 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         />
 
         {showNextEventCard && nextEvent ? (
-          <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 bg-blue-800 px-4 py-3 text-white">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em]">Prossimo impegno</p>
+          <section className="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-blue-900 to-sky-700 px-4 py-3 text-white">
+              <p className="text-xs font-bold uppercase tracking-[0.14em]">Altro impegno in vista</p>
               <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold uppercase">
                 {EVENT_TYPE_LABEL[nextEvent.type]}
               </span>
             </div>
             <div className="space-y-2 p-4">
-              <h3 className="text-lg font-bold text-zinc-900">
+              <h3 className="text-lg font-black text-zinc-900">
                 {nextEvent.opponentName?.trim() && isMatchEventType(nextEvent.type)
                   ? `vs ${nextEvent.opponentName}`
                   : nextEvent.title}
               </h3>
-              <p className="text-sm text-zinc-600">
+              <p className="text-sm font-medium text-zinc-600">
                 {formatConvocationWallClockDate(nextEvent.startAt)} ·{" "}
                 {formatConvocationWallClockTime(nextEvent.startAt)}
               </p>
@@ -1035,14 +1065,14 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         <AthleteRecentMatchesStrip chips={recentMatchChips} />
 
         {recentMedia.length > 0 ? (
-          <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+          <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-800">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
                 Ultime foto
               </p>
               <Link
                 href="/genitore/media"
-                className="text-xs font-semibold text-blue-700 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="text-xs font-bold text-blue-700 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Vedi tutte
               </Link>
@@ -1074,27 +1104,27 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </section>
         ) : null}
 
-        <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-800">
+        <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
             Azioni rapide
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
                 <Link
                   key={action.label}
                   href={action.href}
-                  className={`relative flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center text-sm font-semibold transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${action.tone}`}
+                  className={`relative flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-center text-sm font-bold transition hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${action.tone}`}
                 >
                   <span
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl ${action.iconWrap}`}
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm ${action.iconWrap}`}
                   >
                     <Icon className="h-5 w-5" aria-hidden />
                   </span>
                   <span>{action.label}</span>
                   {action.badge ? (
-                    <span className="absolute right-2 top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white">
+                    <span className="absolute right-2 top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-800 px-1.5 text-[10px] font-bold text-white">
                       {action.badge}
                     </span>
                   ) : null}
@@ -1108,24 +1138,24 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           <div className="mb-1 flex flex-wrap gap-2">
             <Link
               href="/genitore/iscrizione/nuova"
-              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-slate-50"
+              className="inline-flex min-h-11 items-center rounded-xl border border-blue-200 bg-white px-3 text-xs font-bold text-blue-900 hover:bg-sky-50"
             >
               Nuova iscrizione
             </Link>
             <Link
               href="/genitore/associa-figlio"
-              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-slate-50"
+              className="inline-flex min-h-11 items-center rounded-xl border border-blue-200 bg-white px-3 text-xs font-bold text-blue-900 hover:bg-sky-50"
             >
               Associa figlio
             </Link>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <div className="rounded-2xl border border-blue-100 bg-white p-3.5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-zinc-900">Iscrizione</p>
+              <p className="text-sm font-bold text-zinc-900">Iscrizione</p>
               <span
                 className={[
-                  "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                  "inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
                   statusClass(ENROLLMENT_STATUS_COLORS, latestEnrollment?.status ?? null),
                 ].join(" ")}
               >
@@ -1140,10 +1170,10 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           </div>
 
           {isPrimaryParent ? (
-            <div id="pagamenti" className="rounded-xl border border-slate-200 bg-white p-3">
-              <p className="text-sm font-semibold text-zinc-900">Pagamenti</p>
+            <div id="pagamenti" className="rounded-2xl border border-blue-100 bg-white p-3.5 shadow-sm">
+              <p className="text-sm font-bold text-zinc-900">Pagamenti e quote</p>
               {paymentFeesError ? (
-                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <p className="mt-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-950">
                   {paymentFeesError}
                 </p>
               ) : null}
@@ -1154,13 +1184,13 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 {paymentDisplayRows.map((row) => (
                   <div
                     key={row.paymentId}
-                    className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+                    className="rounded-2xl border border-sky-100 bg-sky-50/60 p-3"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-zinc-900">{row.label}</p>
+                      <p className="text-sm font-bold text-zinc-900">{row.label}</p>
                       <span
                         className={[
-                          "inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                          "inline-flex rounded-full border px-2 py-0.5 text-xs font-bold",
                           statusClass(PAYMENT_STATUS_COLORS, row.status),
                         ].join(" ")}
                       >
@@ -1191,13 +1221,13 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-zinc-600">
+            <div className="rounded-2xl border border-blue-100 bg-white p-3.5 text-sm font-medium text-zinc-600 shadow-sm">
               I pagamenti sono gestiti dal genitore principale.
             </div>
           )}
 
-          <div id="visita-medica" className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-sm font-semibold text-zinc-900">Visita medica</p>
+          <div id="visita-medica" className="rounded-2xl border border-blue-100 bg-white p-3.5 shadow-sm">
+            <p className="text-sm font-bold text-zinc-900">Certificato medico</p>
             {medicalVisit ? (
               <div className="mt-2 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1205,14 +1235,14 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 </div>
                 <p className="text-sm text-zinc-700">
                   Scadenza:{" "}
-                  <span className="font-semibold">
+                  <span className="font-bold">
                     {dateFormatter.format(new Date(medicalVisit.expiryDate))}
                   </span>
                 </p>
                 {medicalVisit.certificateFilePath ? (
                   <a
                     href={`/api/genitore/medical-visits/${medicalVisit.id}/certificate/download`}
-                    className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800"
+                    className="inline-flex min-h-11 items-center rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-xs font-bold text-emerald-800"
                   >
                     Scarica certificato
                   </a>
@@ -1221,24 +1251,24 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 )}
               </div>
             ) : (
-              <p className="mt-2 text-sm text-red-700">Nessuna visita medica registrata.</p>
+              <p className="mt-2 text-sm font-semibold text-red-700">Nessuna visita medica registrata.</p>
             )}
           </div>
 
-          <div id="documenti" className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-sm font-semibold text-zinc-900">Documenti</p>
+          <div id="documenti" className="rounded-2xl border border-blue-100 bg-white p-3.5 shadow-sm">
+            <p className="text-sm font-bold text-zinc-900">Documenti</p>
             {selectedAthlete.documents.length === 0 ? (
               <p className="mt-2 text-sm text-zinc-600">Nessun documento caricato.</p>
             ) : (
-              <ul className="mt-2 space-y-1 text-sm text-zinc-700">
+              <ul className="mt-2 space-y-1.5 text-sm text-zinc-700">
                 {selectedAthlete.documents.slice(0, 6).map((doc) => {
                   const status = computeExpiryBadgeStatus(doc.expiryDate, now);
                   return (
                     <li
                       key={doc.id}
-                      className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5"
+                      className="flex items-center justify-between gap-2 rounded-xl bg-sky-50/80 px-2.5 py-2"
                     >
-                      <span>{DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}</span>
+                      <span className="font-medium">{DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}</span>
                       <StatusBadge status={status} />
                     </li>
                   );

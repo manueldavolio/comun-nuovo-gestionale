@@ -26,17 +26,17 @@ export function AthleteWeekSection({
   weekCompleted = false,
 }: AthleteWeekSectionProps) {
   return (
-    <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+    <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-800">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
             La settimana di {athleteFirstName}
           </p>
           <p className="mt-1 text-sm text-zinc-600">Lunedì → domenica · Comun Nuovo</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {weekCompleted ? (
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-950">
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-bold text-sky-900">
               Settimana completata
             </span>
           ) : null}
@@ -61,27 +61,32 @@ export function AthleteWeekSection({
             return (
               <li
                 key={row.id}
-                className="rounded-2xl border border-sky-100 bg-sky-50/60 px-3 py-3 sm:px-4"
+                className={[
+                  "rounded-2xl border px-3 py-3 transition sm:px-4",
+                  row.isMatch
+                    ? "border-blue-200 bg-gradient-to-r from-blue-50 to-sky-50"
+                    : "border-sky-100 bg-sky-50/70",
+                ].join(" ")}
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-[4.5rem] shrink-0">
+                  <div className="w-[4.75rem] shrink-0">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-blue-800">
                       {formatWeekEventDateLabel(row.startAt)}
                     </p>
-                    <p className="mt-0.5 text-sm font-bold tabular-nums text-zinc-900">{time}</p>
+                    <p className="mt-0.5 text-sm font-black tabular-nums text-zinc-900">{time}</p>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-blue-700">
                       {row.isMatch ? "Partita" : row.typeLabel}
                     </p>
-                    <p className="truncate text-sm font-semibold text-zinc-900">{matchTitle}</p>
+                    <p className="truncate text-sm font-bold text-zinc-900">{matchTitle}</p>
                     {row.isMatch && row.meetingAt ? (
                       <p className="mt-0.5 text-xs text-zinc-600">
                         Convocazione {formatConvocationWallClockTime(row.meetingAt)}
                       </p>
                     ) : null}
                     {row.isPast && row.attendanceStatus === "PRESENT" ? (
-                      <p className="mt-1 text-xs font-semibold text-emerald-700">✓ Presente</p>
+                      <p className="mt-1 text-xs font-bold text-emerald-700">✓ Presente</p>
                     ) : null}
                     {row.isPast &&
                     row.attendanceStatus != null &&
@@ -89,7 +94,7 @@ export function AthleteWeekSection({
                       <p className="mt-1 text-xs font-semibold text-zinc-500">— Assente</p>
                     ) : null}
                     {!row.isPast && row.isMatch && row.isConvoked ? (
-                      <p className="mt-1 text-xs font-semibold text-blue-800">
+                      <p className="mt-1 text-xs font-bold text-blue-800">
                         Convocato
                         {row.convocationResponse
                           ? ` · ${

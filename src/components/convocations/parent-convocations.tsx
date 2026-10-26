@@ -81,7 +81,7 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
 
   if (items.length === 0) {
     return (
-      <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+      <p className="mt-2 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-zinc-700">
         Nessuna convocazione ricevuta.
       </p>
     );
@@ -99,30 +99,36 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
       <article
         key={item.convocationAthleteId}
         className={[
-          "rounded-2xl border bg-white p-4 shadow-sm transition",
+          "rounded-3xl border bg-white p-4 shadow-sm transition",
           isUnanswered
-            ? "border-amber-300 bg-gradient-to-br from-amber-50 to-white shadow-amber-100"
+            ? "border-sky-300 bg-gradient-to-br from-sky-50 to-white ring-1 ring-sky-200"
             : "border-blue-100",
         ].join(" ")}
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-zinc-900">{item.athleteFullName}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">{item.categoryName}</p>
+            <p className="text-sm font-bold text-zinc-900">{item.athleteFullName}</p>
+            <p className="mt-0.5 text-xs font-medium text-zinc-500">{item.categoryName}</p>
           </div>
           <span
-            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[item.responseStatus]}`}
+            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${
+              isUnanswered
+                ? "border-sky-300 bg-sky-100 text-sky-950"
+                : CONVOCATION_RESPONSE_BADGE_CLASS[item.responseStatus]
+            }`}
           >
             {CONVOCATION_RESPONSE_LABEL[item.responseStatus]}
           </span>
         </div>
-        <p className="mt-2 text-base font-semibold text-zinc-900">{item.eventTitle}</p>
-        <p className="mt-1 text-sm text-zinc-600">Convocazione: {item.meetingAtLabel}</p>
-        <p className="text-sm text-zinc-600">Partita: {item.matchStartAtLabel}</p>
-        <p className="text-sm text-zinc-600">Luogo: {item.eventLocation || "-"}</p>
-        {item.notes ? <p className="mt-1 text-sm text-zinc-600">Note: {item.notes}</p> : null}
+        <p className="mt-3 text-lg font-black tracking-tight text-zinc-900">{item.eventTitle}</p>
+        <div className="mt-2 space-y-1 text-sm text-zinc-600">
+          <p>Convocazione: {item.meetingAtLabel}</p>
+          <p>Partita: {item.matchStartAtLabel}</p>
+          <p>Luogo: {item.eventLocation || "-"}</p>
+        </div>
+        {item.notes ? <p className="mt-2 text-sm text-zinc-600">Note: {item.notes}</p> : null}
         {isUnanswered ? (
-          <p className="mt-2 rounded-xl border border-amber-200 bg-amber-100/60 px-3 py-2 text-xs font-semibold text-amber-900">
+          <p className="mt-3 rounded-2xl border border-sky-200 bg-sky-100/70 px-3 py-2.5 text-xs font-bold text-sky-950">
             In attesa di risposta: conferma ora per aiutare lo staff a organizzare l&apos;evento.
           </p>
         ) : null}
@@ -137,27 +143,27 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
             type="button"
             onClick={() => saveResponse(item.convocationAthleteId, "PRESENT")}
             disabled={isPending}
-            className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
+            className="min-h-12 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
           >
-            Presente
+            Conferma presenza
           </button>
           <button
             type="button"
             onClick={() => saveResponse(item.convocationAthleteId, "ABSENT")}
             disabled={isPending}
-            className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+            className="min-h-12 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
           >
-            Assente
+            Comunica indisponibilità
           </button>
         </div>
 
         {itemFeedback.error ? (
-          <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
             {itemFeedback.error}
           </p>
         ) : null}
         {itemFeedback.ok ? (
-          <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+          <p className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
             {itemFeedback.ok}
           </p>
         ) : null}
@@ -168,25 +174,27 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
   return (
     <div className="mt-3 space-y-4">
       {openItems.length > 0 ? (
-        <p className="rounded-2xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 shadow-sm">
+        <p className="rounded-2xl border border-sky-300 bg-sky-100 px-4 py-3 text-sm font-bold text-sky-950 shadow-sm">
           Hai {openItems.length} convocazioni ancora da confermare.
         </p>
       ) : null}
 
-      <p className="text-sm text-zinc-700">Conferma se tuo figlio sara presente all&apos;evento.</p>
+      <p className="text-sm text-zinc-700">
+        Conferma se tuo figlio sarà presente all&apos;evento.
+      </p>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+        <p className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm font-bold text-sky-900">
           Da confermare: {openItems.length}
         </p>
-        <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
-          Gia risposte: {answeredItems.length}
+        <p className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-bold text-blue-900">
+          Già risposte: {answeredItems.length}
         </p>
       </div>
 
       {openItems.length > 0 ? (
         <section>
-          <h5 className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+          <h5 className="text-xs font-bold uppercase tracking-wide text-sky-800">
             Da confermare
           </h5>
           <div className="mt-2 space-y-3">{openItems.map((item) => renderItem(item, false))}</div>
@@ -195,10 +203,12 @@ export function ParentConvocations({ items }: ParentConvocationsProps) {
 
       {answeredItems.length > 0 ? (
         <section>
-          <h5 className="text-xs font-semibold uppercase tracking-wide text-blue-800">
-            Gia risposte
+          <h5 className="text-xs font-bold uppercase tracking-wide text-blue-800">
+            Già risposte
           </h5>
-          <div className="mt-2 space-y-3">{answeredItems.map((item) => renderItem(item, true))}</div>
+          <div className="mt-2 space-y-3">
+            {answeredItems.map((item) => renderItem(item, true))}
+          </div>
         </section>
       ) : null}
     </div>
