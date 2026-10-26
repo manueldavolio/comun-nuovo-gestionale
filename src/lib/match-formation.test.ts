@@ -10,16 +10,28 @@ import {
   defaultModuleForPlayersPerSide,
   emptyCustomStarterSlots,
   expectedStarterSlotKeys,
+  formationDraftSnapshot,
   isFormationModuleId,
   isMatchFormationEventType,
   isModuleCompatibleWithPlayersPerSide,
+  moduleChangeWouldReassignAthletes,
   modulesForPlayersPerSide,
   nextBenchSlotKey,
   nextCustomStarterSlotKey,
   pitchLinesForModule,
+  placeAthleteOnSlot,
+  remapSlotsForModule,
   starterCountForModule,
+  swapFormationSlots,
   validateFormationSlots,
 } from "./match-formation";
+
+function athleteIds(slots: Array<{ athleteId: string | null }>): string[] {
+  return slots
+    .map((s) => s.athleteId)
+    .filter((id): id is string => Boolean(id))
+    .sort();
+}
 
 describe("resolvePlayersPerSide", () => {
   it("Primi Calci = 5", () => {
@@ -316,5 +328,131 @@ describe("helpers", () => {
   it("buildStarterSlotsForModule yields unique keys", () => {
     const slots = buildStarterSlotsForModule("4-2-3-1");
     assert.equal(new Set(slots.map((s) => s.slotKey)).size, slots.length);
+  });
+
+  it("placeAthleteOnSlot swaps when both slots occupied without duplicates", () => {
+    const slots = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "FW1", athleteId: "a2", isBench: false },
+      { slotKey: "BENCH_1", athleteId: null, isBench: true },
+    ];
+    const next = placeAthleteOnSlot(slots, "FW1", "a1");
+    assert.equal(next.find((s) => s.slotKey === "FW1")?.athleteId, "a1");
+    assert.equal(next.find((s) => s.slotKey === "POR")?.athleteId, "a2");
+    assert.deepEqual(athleteIds(next), ["a1", "a2"]);
+  });
+
+  it("placeAthleteOnSlot moves from pool onto occupied and frees previous", () => {
+    const slots = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "FW1", athleteId: null, isBench: false },
+    ];
+    const next = placeAthleteOnSlot(slots, "POR", "a9");
+    assert.equal(next.find((s) => s.slotKey === "POR")?.athleteId, "a9");
+    assert.equal(
+      next.every((s) => s.athleteId !== "a1"),
+      true,
+    );
+  });
+
+  it("placeAthleteOnSlot moves field to empty bench without loss", () => {
+    const slots = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "FW1", athleteId: "a2", isBench: false },
+      { slotKey: "BENCH_1", athleteId: null, isBench: true },
+    ];
+    const next = placeAthleteOnSlot(slots, "BENCH_1", "a2");
+    assert.equal(next.find((s) => s.slotKey === "FW1")?.athleteId, null);
+    assert.equal(next.find((s) => s.slotKey === "BENCH_1")?.athleteId, "a2");
+    assert.deepEqual(athleteIds(next), ["a1", "a2"]);
+  });
+
+  it("placeAthleteOnSlot swaps occupied field with occupied bench", () => {
+    const slots = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "BENCH_1", athleteId: "a2", isBench: true },
+    ];
+    const next = placeAthleteOnSlot(slots, "POR", "a2");
+    assert.equal(next.find((s) => s.slotKey === "POR")?.athleteId, "a2");
+    assert.equal(next.find((s) => s.slotKey === "BENCH_1")?.athleteId, "a1");
+    assert.deepEqual(athleteIds(next), ["a1", "a2"]);
+  });
+
+  it("swapFormationSlots exchanges athletes", () => {
+    const slots = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "BENCH_1", athleteId: "a2", isBench: true },
+    ];
+    const next = swapFormationSlots(slots, "POR", "BENCH_1");
+    assert.equal(next.find((s) => s.slotKey === "POR")?.athleteId, "a2");
+    assert.equal(next.find((s) => s.slotKey === "BENCH_1")?.athleteId, "a1");
+    assert.deepEqual(athleteIds(next), ["a1", "a2"]);
+  });
+
+  it("formationDraftSnapshot changes when assignments change", () => {
+    const base = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "FW1", athleteId: null, isBench: false },
+    ];
+    const a = formationDraftSnapshot("4-3-3", base);
+    const b = formationDraftSnapshot(
+      "4-3-3",
+      placeAthleteOnSlot(base, "FW1", "a1"),
+    );
+    assert.notEqual(a, b);
+  });
+
+  it("remapSlotsForModule keeps matching keys and parks orphans on bench", () => {
+    const previous = [
+      { slotKey: "POR", athleteId: "gk", isBench: false },
+      { slotKey: "DF1", athleteId: "d1", isBench: false },
+      { slotKey: "DF2", athleteId: "d2", isBench: false },
+      { slotKey: "DF3", athleteId: "d3", isBench: false },
+      { slotKey: "MF1", athleteId: "m1", isBench: false },
+      { slotKey: "MF2", athleteId: "m2", isBench: false },
+      { slotKey: "MF3", athleteId: "m3", isBench: false },
+      { slotKey: "FW1", athleteId: "f1", isBench: false },
+      { slotKey: "FW2", athleteId: "f2", isBench: false },
+      // 3-3-2 → 3-2-3: MF3 diventa orfano di chiave, FW3 nasce vuoto
+    ];
+    const next = remapSlotsForModule("3-2-3", previous, 9);
+    assert.equal(next.find((s) => s.slotKey === "POR")?.athleteId, "gk");
+    assert.equal(next.find((s) => s.slotKey === "FW1")?.athleteId, "f1");
+    assert.equal(next.find((s) => s.slotKey === "FW2")?.athleteId, "f2");
+    assert.ok(next.some((s) => s.slotKey === "FW3"));
+    assert.deepEqual(athleteIds(next), athleteIds(previous));
+    assert.equal(new Set(athleteIds(next)).size, athleteIds(next).length);
+  });
+
+  it("remapSlotsForModule to CUSTOM preserves all athletes", () => {
+    const previous = [
+      { slotKey: "POR", athleteId: "a1", isBench: false },
+      { slotKey: "DF1", athleteId: "a2", isBench: false },
+      { slotKey: "MF1", athleteId: "a3", isBench: false },
+      { slotKey: "MF2", athleteId: "a4", isBench: false },
+      { slotKey: "FW1", athleteId: "a5", isBench: false },
+      { slotKey: "BENCH_1", athleteId: "b1", isBench: true },
+    ];
+    const next = remapSlotsForModule("CUSTOM", previous, 5);
+    assert.equal(next.filter((s) => !s.isBench).length, 5);
+    assert.deepEqual(athleteIds(next), ["a1", "a2", "a3", "a4", "a5", "b1"]);
+  });
+
+  it("moduleChangeWouldReassignAthletes detects real moves", () => {
+    const previous = [
+      { slotKey: "POR", athleteId: "gk", isBench: false },
+      { slotKey: "FW3", athleteId: "f3", isBench: false },
+      ...expectedStarterSlotKeys("4-3-3")
+        .filter((k) => k !== "POR" && k !== "FW3")
+        .map((slotKey) => ({ slotKey, athleteId: null, isBench: false })),
+    ];
+    assert.equal(
+      moduleChangeWouldReassignAthletes("4-3-3", "4-4-2", previous, 11),
+      true,
+    );
+    assert.equal(
+      moduleChangeWouldReassignAthletes("4-3-3", "4-3-3", previous, 11),
+      false,
+    );
   });
 });

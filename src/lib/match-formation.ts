@@ -511,3 +511,187 @@ export const FORMATION_MODULE_OPTIONS: Array<{
   value: FormationModuleId;
   label: string;
 }> = formationModuleOptionsForPlayersPerSide(11);
+
+export type FormationSlotDraft = {
+  slotKey: string;
+  athleteId: string | null;
+  isBench: boolean;
+};
+
+/**
+ * Posiziona un atleta su uno slot.
+ * - Se lo slot di destinazione è occupato e l'atleta proviene da un altro slot → scambio.
+ * - Se proviene dalla rosa libera (non in campo) e la destinazione è occupata →
+ *   il precedente torna libero.
+ * - Altrimenti assegna e libera eventuali altre posizioni dello stesso atleta.
+ */
+export function placeAthleteOnSlot(
+  slots: FormationSlotDraft[],
+  targetSlotKey: string,
+  athleteId: string | null,
+): FormationSlotDraft[] {
+  if (!slots.some((s) => s.slotKey === targetSlotKey)) return slots;
+
+  if (athleteId == null) {
+    return slots.map((slot) =>
+      slot.slotKey === targetSlotKey ? { ...slot, athleteId: null } : slot,
+    );
+  }
+
+  const target = slots.find((s) => s.slotKey === targetSlotKey);
+  const source = slots.find((s) => s.athleteId === athleteId);
+  if (!target) return slots;
+
+  if (source && source.slotKey !== targetSlotKey && target.athleteId) {
+    const displacedId = target.athleteId;
+    return slots.map((slot) => {
+      if (slot.slotKey === targetSlotKey) return { ...slot, athleteId };
+      if (slot.slotKey === source.slotKey) return { ...slot, athleteId: displacedId };
+      return slot;
+    });
+  }
+
+  return slots.map((slot) => {
+    if (slot.slotKey === targetSlotKey) return { ...slot, athleteId };
+    if (slot.athleteId === athleteId) return { ...slot, athleteId: null };
+    return slot;
+  });
+}
+
+export function swapFormationSlots(
+  slots: FormationSlotDraft[],
+  slotKeyA: string,
+  slotKeyB: string,
+): FormationSlotDraft[] {
+  if (slotKeyA === slotKeyB) return slots;
+  const a = slots.find((s) => s.slotKey === slotKeyA);
+  const b = slots.find((s) => s.slotKey === slotKeyB);
+  if (!a || !b) return slots;
+  return slots.map((slot) => {
+    if (slot.slotKey === slotKeyA) return { ...slot, athleteId: b.athleteId };
+    if (slot.slotKey === slotKeyB) return { ...slot, athleteId: a.athleteId };
+    return slot;
+  });
+}
+
+export function formationDraftSnapshot(
+  module: string,
+  slots: FormationSlotDraft[],
+): string {
+  const body = slots
+    .map((s) => `${s.slotKey}:${s.athleteId ?? ""}:${s.isBench ? 1 : 0}`)
+    .join("|");
+  return `${module}::${body}`;
+}
+
+/**
+ * Ricalcola gli slot per un nuovo modulo senza perdere atleti assegnati.
+ * 1) conserva per slotKey coincidente
+ * 2) riempie gli slot titolari vuoti con gli orfani (ex titolari, poi panchina)
+ * 3) gli eventuali restanti vanno in panchina (slot esistenti vuoti o nuovi BENCH_n)
+ */
+export function remapSlotsForModule(
+  module: FormationModuleId,
+  previous: FormationSlotDraft[],
+  playersPerSide: PlayersPerSide,
+): FormationSlotDraft[] {
+  const starters: FormationSlotDraft[] =
+    module === "CUSTOM"
+      ? (() => {
+          const customs = previous.filter(
+            (s) => !s.isBench && isCustomStarterSlotKey(s.slotKey),
+          );
+          if (customs.length === playersPerSide) {
+            return customs.map((s) => ({
+              slotKey: s.slotKey,
+              athleteId: null,
+              isBench: false as const,
+            }));
+          }
+          return emptyCustomStarterSlots(playersPerSide).map((s) => ({
+            slotKey: s.slotKey,
+            athleteId: null,
+            isBench: false as const,
+          }));
+        })()
+      : buildStarterSlotsForModule(module).map((t) => ({
+          slotKey: t.slotKey,
+          athleteId: null,
+          isBench: false as const,
+        }));
+
+  const prevBench = previous.filter((s) => s.isBench);
+  const prevByKey = new Map(previous.map((s) => [s.slotKey, s.athleteId]));
+  const used = new Set<string>();
+
+  for (const slot of starters) {
+    const prevId = prevByKey.get(slot.slotKey) ?? null;
+    if (prevId && !used.has(prevId)) {
+      slot.athleteId = prevId;
+      used.add(prevId);
+    }
+  }
+
+  const orphans: string[] = [];
+  for (const slot of previous) {
+    if (!slot.athleteId || used.has(slot.athleteId)) continue;
+    orphans.push(slot.athleteId);
+    used.add(slot.athleteId);
+  }
+
+  let orphanIdx = 0;
+  for (const slot of starters) {
+    if (slot.athleteId || orphanIdx >= orphans.length) continue;
+    slot.athleteId = orphans[orphanIdx++]!;
+  }
+
+  const remainingOrphans = orphans.slice(orphanIdx);
+  const bench: FormationSlotDraft[] = prevBench.map((s) => ({
+    slotKey: s.slotKey,
+    athleteId: null,
+    isBench: true as const,
+  }));
+
+  let remainingIdx = 0;
+  for (const slot of bench) {
+    if (remainingIdx >= remainingOrphans.length) break;
+    slot.athleteId = remainingOrphans[remainingIdx++]!;
+  }
+  while (remainingIdx < remainingOrphans.length) {
+    bench.push({
+      slotKey: nextBenchSlotKey([
+        ...starters.map((s) => s.slotKey),
+        ...bench.map((s) => s.slotKey),
+      ]),
+      athleteId: remainingOrphans[remainingIdx++]!,
+      isBench: true,
+    });
+  }
+
+  return [...starters, ...bench];
+}
+
+/** True se il remapping sposterebbe almeno un atleta (chiave diversa o verso panchina). */
+export function moduleChangeWouldReassignAthletes(
+  fromModule: FormationModuleId,
+  toModule: FormationModuleId,
+  previous: FormationSlotDraft[],
+  playersPerSide: PlayersPerSide,
+): boolean {
+  if (fromModule === toModule) return false;
+  const assigned = previous.filter((s) => s.athleteId);
+  if (assigned.length === 0) return false;
+  const remapped = remapSlotsForModule(toModule, previous, playersPerSide);
+  const before = new Map(previous.map((s) => [s.athleteId ?? "", s.slotKey]));
+  for (const slot of remapped) {
+    if (!slot.athleteId) continue;
+    const prevKey = before.get(slot.athleteId);
+    if (prevKey !== slot.slotKey) return true;
+  }
+  for (const slot of previous) {
+    if (!slot.athleteId) continue;
+    const still = remapped.some((s) => s.athleteId === slot.athleteId);
+    if (!still) return true;
+  }
+  return false;
+}
