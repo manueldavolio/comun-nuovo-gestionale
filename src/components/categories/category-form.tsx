@@ -20,8 +20,11 @@ type CategoryFieldErrors = Partial<Record<keyof UpsertCategoryInput, string>>;
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+  return <p className="mt-1 text-xs font-medium text-red-600">{message}</p>;
 }
+
+const inputClass =
+  "mt-1.5 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-blue-950 outline-none ring-blue-500 focus:ring-2";
 
 export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormProps) {
   const router = useRouter();
@@ -75,31 +78,31 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">
+    <form onSubmit={onSubmit} className="space-y-4">
+      <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
+        <h2 className="text-base font-black text-blue-950">
           {mode === "create" ? "Nuova categoria" : "Modifica categoria"}
         </h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Gestisci nome, annata/descrizione, formato partita e stato operativo.
+          Nome, annata/descrizione, formato partita e stato operativo.
         </p>
 
-        <div className="mt-4 grid gap-4">
+        <div className="mt-5 grid gap-4">
           <div>
-            <label className="text-sm font-medium text-zinc-700" htmlFor="name">
+            <label className="text-sm font-bold text-blue-950" htmlFor="name">
               Nome categoria
             </label>
             <input
               id="name"
               value={formData.name}
               onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className={inputClass}
             />
             <FieldError message={fieldErrors.name} />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-zinc-700" htmlFor="birthYearsLabel">
+            <label className="text-sm font-bold text-blue-950" htmlFor="birthYearsLabel">
               Annata / descrizione
             </label>
             <input
@@ -109,13 +112,13 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
                 setFormData((prev) => ({ ...prev, birthYearsLabel: event.target.value }))
               }
               placeholder="es. 2016-2017"
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className={inputClass}
             />
             <FieldError message={fieldErrors.birthYearsLabel} />
           </div>
 
           <div>
-            <label className="text-sm font-medium text-zinc-700" htmlFor="playersPerSide">
+            <label className="text-sm font-bold text-blue-950" htmlFor="playersPerSide">
               Formato partita
             </label>
             <select
@@ -127,7 +130,7 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
                   playersPerSide: Number(event.target.value) as PlayersPerSide,
                 }))
               }
-              className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className={inputClass}
             >
               {PLAYERS_PER_SIDE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -135,18 +138,18 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1.5 text-xs font-medium text-zinc-500">
               Primi Calci 5 · Pulcini 7 · Esordienti 9 · altre 11
             </p>
             <FieldError message={fieldErrors.playersPerSide} />
           </div>
 
-          <label className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+          <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-sm font-semibold text-blue-950">
             <input
               type="checkbox"
               checked={formData.isActive}
               onChange={(event) => setFormData((prev) => ({ ...prev, isActive: event.target.checked }))}
-              className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-sky-300 text-blue-800 focus:ring-blue-500"
             />
             Categoria attiva
           </label>
@@ -154,7 +157,7 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
         </div>
 
         {error ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
             {error}
           </p>
         ) : null}
@@ -162,7 +165,7 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-4 w-full rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Salvataggio..." : mode === "create" ? "Crea categoria" : "Salva modifiche"}
         </button>

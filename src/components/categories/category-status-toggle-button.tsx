@@ -39,12 +39,12 @@ export function CategoryStatusToggleButton({ categoryId, isActive }: CategorySta
   }
 
   return (
-    <div className="flex flex-col items-start gap-1">
+    <div className="flex w-full flex-col items-stretch gap-1">
       <button
         type="button"
         onClick={onToggle}
         disabled={isSubmitting}
-        className="inline-flex items-center rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-sky-200 bg-white px-3 text-sm font-bold text-blue-900 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Salvataggio..." : isActive ? "Disattiva" : "Attiva"}
       </button>

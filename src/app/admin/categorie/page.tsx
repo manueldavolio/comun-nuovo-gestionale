@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LayoutGrid, Plus, Search, Users } from "lucide-react";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
-import { AreaHeader } from "@/components/layout/area-header";
 import { CategoryStatusToggleButton } from "@/components/categories/category-status-toggle-button";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -84,130 +84,187 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
     },
   });
 
+  const activeCount = categories.filter((c) => c.isActive).length;
+  const athleteTotal = categories.reduce((sum, c) => sum + c._count.athletes, 0);
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-        <AreaHeader
-          title="Categorie (Admin)"
-          subtitle="Fasce annata e assegnazioni tecniche"
-          userName={session.user.name ?? "Amministratore"}
-        />
-        <AdminBackLink />
-
-        <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm text-zinc-600">{categories.length} categoria/e</p>
-              <p className="mt-1 text-xs text-zinc-500">
-                Stato selezionato: <span className="font-semibold">{statusLabelMap[status]}</span>
-              </p>
-            </div>
-
-            <div className="flex w-full flex-col gap-2 md:w-auto md:items-end">
+    <main className="p-4 md:p-6 lg:p-8">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 md:gap-5">
+        <header className="overflow-hidden rounded-3xl border border-blue-800/30 bg-gradient-to-br from-blue-950 via-blue-900 to-sky-700 text-white shadow-lg shadow-blue-950/15">
+          <div className="relative p-5 sm:p-6">
+            <div
+              className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-sky-400/20 blur-2xl"
+              aria-hidden
+            />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+                  <LayoutGrid className="h-6 w-6" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-200">
+                    Organizzazione sportiva
+                  </p>
+                  <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Categorie</h1>
+                  <p className="mt-1 text-sm font-medium text-sky-100">
+                    {categories.length} categor{categories.length === 1 ? "ia" : "ie"} · {activeCount}{" "}
+                    attiv{activeCount === 1 ? "a" : "e"} · {athleteTotal} atleti in elenco
+                  </p>
+                </div>
+              </div>
               <Link
                 href="/admin/categorie/nuovo"
-                className="inline-flex w-full items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 md:w-fit"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-blue-900 shadow-sm transition hover:bg-sky-50"
               >
+                <Plus className="h-4 w-4" aria-hidden />
                 Nuova categoria
               </Link>
-
-              <form method="get" className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
-                <input
-                  name="q"
-                  defaultValue={q}
-                  placeholder="Cerca nome o fascia annata"
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 md:w-64"
-                />
-                <select
-                  name="status"
-                  defaultValue={status}
-                  className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                >
-                  <option value="all">Tutte</option>
-                  <option value="active">Attive</option>
-                  <option value="inactive">Non attive</option>
-                </select>
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
-                >
-                  Filtra
-                </button>
-                {(q || status !== "all") && (
-                  <Link
-                    href="/admin/categorie"
-                    className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                  >
-                    Reset
-                  </Link>
-                )}
-              </form>
             </div>
           </div>
+        </header>
 
-          {categories.length === 0 ? (
-            <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
-              Nessuna categoria trovata con i filtri selezionati.
-            </p>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-blue-100 text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-blue-800">
-                    <th className="px-3 py-2 font-semibold">Nome</th>
-                    <th className="px-3 py-2 font-semibold">Fascia annata</th>
-                    <th className="px-3 py-2 font-semibold">Stato</th>
-                    <th className="px-3 py-2 font-semibold">Atleti iscritti</th>
-                    <th className="px-3 py-2 font-semibold">Mister assegnato</th>
-                    <th className="px-3 py-2 font-semibold">Azioni</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50 text-zinc-700">
-                  {categories.map((category) => {
-                    const assignedCoaches = category.coachAssignments
-                      .map((assignment) => assignment.coach.user.name.trim())
-                      .filter(Boolean)
-                      .join(", ");
+        <AdminBackLink />
 
-                    return (
-                      <tr key={category.id}>
-                        <td className="px-3 py-2 font-medium text-zinc-900">{category.name}</td>
-                        <td className="px-3 py-2">
-                          <div>{category.birthYearsLabel}</div>
-                          <div className="text-xs text-zinc-500">Stagione {category.seasonLabel}</div>
-                        </td>
-                        <td className="px-3 py-2">
-                          {category.isActive ? (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
-                              Attiva
-                            </span>
-                          ) : (
-                            <span className="rounded-full border border-zinc-300 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-700">
-                              Non attiva
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">{category._count.athletes}</td>
-                        <td className="px-3 py-2">{assignedCoaches || "-"}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col items-start gap-2">
-                            <Link
-                              href={`/admin/categorie/${category.id}/modifica`}
-                              className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                            >
-                              Modifica
-                            </Link>
-                            <CategoryStatusToggleButton categoryId={category.id} isActive={category.isActive} />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <section className="rounded-3xl border border-sky-100 bg-white/95 p-4 shadow-sm sm:p-5">
+          <form method="get" className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">Cerca categoria</span>
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-400"
+                aria-hidden
+              />
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder="Cerca nome o fascia annata"
+                className="min-h-12 w-full rounded-2xl border border-sky-200 bg-sky-50/50 py-2.5 pl-10 pr-3 text-sm font-medium text-blue-950 outline-none ring-blue-500 placeholder:text-zinc-400 focus:bg-white focus:ring-2"
+              />
+            </label>
+            <select
+              name="status"
+              defaultValue={status}
+              aria-label="Filtro stato categoria"
+              className="min-h-12 rounded-2xl border border-sky-200 bg-white px-3 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
+            >
+              <option value="all">Tutte</option>
+              <option value="active">Attive</option>
+              <option value="inactive">Non attive</option>
+            </select>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900"
+              >
+                Filtra
+              </button>
+              {q || status !== "all" ? (
+                <Link
+                  href="/admin/categorie"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-blue-200 bg-white px-4 text-sm font-bold text-blue-800 hover:bg-sky-50"
+                >
+                  Reset
+                </Link>
+              ) : null}
             </div>
-          )}
+          </form>
+          <p className="mt-3 text-xs font-medium text-zinc-500">
+            Filtro: <span className="font-bold text-blue-900">{statusLabelMap[status]}</span>
+            {q ? ` · ricerca “${q}”` : ""}
+          </p>
         </section>
+
+        {categories.length === 0 ? (
+          <section className="rounded-3xl border border-dashed border-sky-200 bg-white/80 px-5 py-10 text-center shadow-sm">
+            <LayoutGrid className="mx-auto h-10 w-10 text-sky-300" aria-hidden />
+            <h2 className="mt-3 text-lg font-black text-blue-950">Nessuna categoria trovata</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600">
+              Nessun risultato con i filtri selezionati. Prova a cambiare ricerca o stato.
+            </p>
+            <Link
+              href="/admin/categorie/nuovo"
+              className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900"
+            >
+              Crea categoria
+            </Link>
+          </section>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {categories.map((category) => {
+              const assignedCoaches = category.coachAssignments
+                .map((assignment) => assignment.coach.user.name.trim())
+                .filter(Boolean);
+
+              return (
+                <li key={category.id}>
+                  <article className="flex h-full flex-col rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-black text-blue-950">{category.name}</h2>
+                        <p className="mt-1 text-sm font-medium text-zinc-600">
+                          {category.birthYearsLabel}
+                        </p>
+                        <p className="mt-0.5 text-xs font-medium text-zinc-500">
+                          Stagione {category.seasonLabel}
+                        </p>
+                      </div>
+                      {category.isActive ? (
+                        <span className="shrink-0 rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-900 ring-1 ring-sky-200">
+                          Attiva
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-700 ring-1 ring-slate-200">
+                          Non attiva
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-800/70">
+                          Atleti
+                        </p>
+                        <p className="mt-1 flex items-center gap-1.5 text-xl font-black text-blue-950">
+                          <Users className="h-4 w-4 text-sky-600" aria-hidden />
+                          {category._count.athletes}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-800/70">
+                          Staff
+                        </p>
+                        <p className="mt-1 text-xl font-black text-blue-950">
+                          {assignedCoaches.length}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 min-h-[2.5rem]">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500">
+                        Mister assegnati
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-blue-950">
+                        {assignedCoaches.length > 0 ? assignedCoaches.join(", ") : "Nessuno"}
+                      </p>
+                    </div>
+
+                    <div className="mt-auto flex flex-col gap-2 border-t border-sky-100 pt-4">
+                      <Link
+                        href={`/admin/categorie/${category.id}/modifica`}
+                        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-800 px-3 text-sm font-bold text-white transition hover:bg-blue-900"
+                      >
+                        Modifica
+                      </Link>
+                      <CategoryStatusToggleButton
+                        categoryId={category.id}
+                        isActive={category.isActive}
+                      />
+                    </div>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </main>
   );
