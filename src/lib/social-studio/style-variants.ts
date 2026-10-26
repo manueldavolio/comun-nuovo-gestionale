@@ -19,6 +19,14 @@ export const SOCIAL_STYLE_VARIANT_LABEL: Record<
     A: "Focus — avversario in evidenza",
     B: "Countdown — data e luogo",
   },
+  WEEKEND_BASE: {
+    A: "Locandina ufficiale Attività di Base",
+    B: "Locandina ufficiale Attività di Base",
+  },
+  WEEKEND_AGONISTICO: {
+    A: "Locandina ufficiale Settore Agonistico",
+    B: "Locandina ufficiale Settore Agonistico",
+  },
 };
 
 export function isSocialStyleVariant(value: string): value is SocialStyleVariant {

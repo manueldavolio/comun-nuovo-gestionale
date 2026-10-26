@@ -74,3 +74,12 @@ export function defaultGraphicTitle(
     (snapshot.opponentName ?? "").trim() || snapshot.title.trim() || "Partita";
   return `${template.replaceAll("_", " ")} · ${snapshot.categoryName} vs ${opponent}`;
 }
+
+export function defaultWeekendGraphicTitle(
+  template: string,
+  weekendLabel: string,
+  matchCount: number,
+): string {
+  const label = template === "WEEKEND_BASE" ? "Attività di Base" : "Settore Agonistico";
+  return `${label} · ${weekendLabel} · ${matchCount} gare`;
+}

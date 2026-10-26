@@ -43,7 +43,7 @@
     "test:discipline": "tsx --test src/lib/discipline.test.ts src/lib/discipline-api-auth.test.ts src/lib/discipline-db.test.ts src/lib/match-player-rating.test.ts src/lib/mister-season-stats.test.ts",
     "test:auth-roles": "tsx --test src/lib/permissions.test.ts",
     "test:social-matches": "tsx --test src/lib/social-matches.test.ts",
-    "test:social-studio": "tsx --test src/lib/social-studio/access.test.ts"
+    "test:social-studio": "tsx --test src/lib/social-studio/access.test.ts src/lib/social-studio/access-assets.test.ts src/lib/social-studio/archive-history.test.ts src/lib/social-studio/opponent-key.test.ts src/lib/social-studio/weekend-sectors.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

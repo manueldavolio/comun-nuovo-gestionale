@@ -4,6 +4,7 @@ import type {
   SocialGraphicStatus,
   SocialGraphicTemplate,
 } from "@prisma/client";
+import type { WeekendCategoryKind, WeekendSector } from "@/lib/social-studio/weekend-sectors";
 
 /** Snapshot partita al momento della creazione bozza (non muta Event). */
 export type SocialMatchSnapshot = {
@@ -24,6 +25,56 @@ export type SocialMatchSnapshot = {
   seasonLabel: string | null;
 };
 
+/** Riga partita in locandina weekend (derivata da Event, editabile solo in overrides). */
+export type SocialWeekendMatchRow = SocialMatchSnapshot & {
+  categoryKind: WeekendCategoryKind;
+  displayCategory: string;
+  dayLabel: string;
+  timeLabel: string;
+  venueSideLabel: string;
+  venueLabel: string;
+  opponentLogoUrl?: string | null;
+};
+
+export type SocialWeekendSnapshot = {
+  kind: "weekend";
+  sector: WeekendSector;
+  rangeStart: string;
+  rangeEnd: string;
+  weekendLabel: string;
+  matches: SocialWeekendMatchRow[];
+  /** Campi compatibilità lista / editor single-match (primi valori). */
+  eventId: string | null;
+  startAt: string;
+  endAt: string | null;
+  title: string;
+  type: string;
+  typeLabel: string;
+  categoryId: string | null;
+  categoryName: string;
+  opponentName: string | null;
+  isHome: boolean | null;
+  venueSide: string;
+  location: string | null;
+  homeScore: number | null;
+  awayScore: number | null;
+  seasonLabel: string | null;
+};
+
+export type SocialGraphicSourceSnapshot = SocialMatchSnapshot | SocialWeekendSnapshot;
+
+export type SocialWeekendMatchOverride = {
+  eventId: string;
+  opponentName?: string | null;
+  displayCategory?: string | null;
+  dayLabel?: string | null;
+  timeLabel?: string | null;
+  venueSideLabel?: string | null;
+  venueLabel?: string | null;
+  location?: string | null;
+  opponentLogoUrl?: string | null;
+};
+
 export type SocialGraphicOverrides = {
   headline?: string | null;
   subheadline?: string | null;
@@ -42,6 +93,10 @@ export type SocialGraphicOverrides = {
   accentColor?: string | null;
   /** Variante estetica A/B per template. */
   styleVariant?: string | null;
+  /** Correzione manuale righe locandina weekend (non tocca Event). */
+  weekendMatches?: SocialWeekendMatchOverride[] | null;
+  weekendLabel?: string | null;
+  footerSlogan?: string | null;
 };
 
 export type SocialStudioMatchDto = SocialMatchSnapshot;
@@ -62,7 +117,7 @@ export type SocialGraphicListItem = {
 };
 
 export type SocialGraphicDetail = SocialGraphicListItem & {
-  sourceSnapshot: SocialMatchSnapshot;
+  sourceSnapshot: SocialGraphicSourceSnapshot;
   overrides: SocialGraphicOverrides;
   previewPath: string | null;
   exportPath: string | null;
@@ -122,6 +177,31 @@ export function assertNoSocialStudioPayloadLeak(payload: unknown): void {
   }
 }
 
+function parseWeekendMatchOverrides(value: unknown): SocialWeekendMatchOverride[] | undefined {
+  if (value === null) return undefined;
+  if (!Array.isArray(value)) return undefined;
+  const str = (v: unknown) => (typeof v === "string" ? v : v === null ? null : undefined);
+  const rows: SocialWeekendMatchOverride[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const raw = item as Record<string, unknown>;
+    const eventId = typeof raw.eventId === "string" ? raw.eventId.trim() : "";
+    if (!eventId) continue;
+    rows.push({
+      eventId,
+      opponentName: str(raw.opponentName),
+      displayCategory: str(raw.displayCategory),
+      dayLabel: str(raw.dayLabel),
+      timeLabel: str(raw.timeLabel),
+      venueSideLabel: str(raw.venueSideLabel),
+      venueLabel: str(raw.venueLabel),
+      location: str(raw.location),
+      opponentLogoUrl: str(raw.opponentLogoUrl),
+    });
+  }
+  return rows;
+}
+
 export function parseOverrides(value: unknown): SocialGraphicOverrides {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const raw = value as Record<string, unknown>;
@@ -145,7 +225,27 @@ export function parseOverrides(value: unknown): SocialGraphicOverrides {
     backgroundColor: str(raw.backgroundColor),
     accentColor: str(raw.accentColor),
     styleVariant: str(raw.styleVariant),
+    weekendMatches: parseWeekendMatchOverrides(raw.weekendMatches),
+    weekendLabel: str(raw.weekendLabel),
+    footerSlogan: str(raw.footerSlogan),
   };
+}
+
+export function isWeekendSnapshot(
+  snapshot: SocialGraphicSourceSnapshot,
+): snapshot is SocialWeekendSnapshot {
+  return (snapshot as SocialWeekendSnapshot).kind === "weekend";
+}
+
+export function parseSourceSnapshot(value: unknown): SocialGraphicSourceSnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("sourceSnapshot non valido.");
+  }
+  const raw = value as Record<string, unknown>;
+  if (raw.kind === "weekend") {
+    return value as SocialWeekendSnapshot;
+  }
+  return value as SocialMatchSnapshot;
 }
 
 export function mergeGraphicView(
@@ -165,4 +265,31 @@ export function mergeGraphicView(
     awayScore: overrides.awayScore !== undefined ? overrides.awayScore : snapshot.awayScore,
     resolvedOpponent: opponentName,
   };
+}
+
+export function mergeWeekendMatches(
+  snapshot: SocialWeekendSnapshot,
+  overrides: SocialGraphicOverrides,
+): SocialWeekendMatchRow[] {
+  const byId = new Map(
+    (overrides.weekendMatches ?? []).map((row) => [row.eventId, row] as const),
+  );
+  return snapshot.matches.map((row) => {
+    const patch = byId.get(row.eventId);
+    if (!patch) return row;
+    return {
+      ...row,
+      opponentName:
+        patch.opponentName !== undefined ? patch.opponentName : row.opponentName,
+      displayCategory:
+        (patch.displayCategory ?? "").trim() || row.displayCategory,
+      dayLabel: (patch.dayLabel ?? "").trim() || row.dayLabel,
+      timeLabel: (patch.timeLabel ?? "").trim() || row.timeLabel,
+      venueSideLabel: (patch.venueSideLabel ?? "").trim() || row.venueSideLabel,
+      venueLabel: (patch.venueLabel ?? "").trim() || row.venueLabel,
+      location: patch.location !== undefined ? patch.location : row.location,
+      opponentLogoUrl:
+        patch.opponentLogoUrl !== undefined ? patch.opponentLogoUrl : row.opponentLogoUrl,
+    };
+  });
 }

@@ -1,9 +1,12 @@
 import type { SocialGraphicFormat, SocialGraphicTemplate } from "@prisma/client";
+import { isWeekendTemplate } from "@/lib/social-studio/weekend-sectors";
 
 export const SOCIAL_GRAPHIC_TEMPLATES: SocialGraphicTemplate[] = [
   "MATCHDAY",
   "FULL_TIME",
   "NEXT_MATCH",
+  "WEEKEND_BASE",
+  "WEEKEND_AGONISTICO",
 ];
 
 export const SOCIAL_GRAPHIC_FORMATS: SocialGraphicFormat[] = [
@@ -15,6 +18,8 @@ export const SOCIAL_TEMPLATE_LABEL: Record<SocialGraphicTemplate, string> = {
   MATCHDAY: "Matchday",
   FULL_TIME: "Full time",
   NEXT_MATCH: "Next match",
+  WEEKEND_BASE: "Le nostre partite — Attività di Base",
+  WEEKEND_AGONISTICO: "Le nostre partite — Settore Agonistico",
 };
 
 export const SOCIAL_FORMAT_LABEL: Record<SocialGraphicFormat, string> = {
@@ -35,12 +40,17 @@ export const SOCIAL_DEFAULT_FORMAT: SocialGraphicFormat = "PORTRAIT_1080x1350";
 export const SOCIAL_BRAND = {
   primary: "#0b1f63",
   primaryDeep: "#06143f",
-  accent: "#0369a1",
+  night: "#021433",
+  accent: "#00a3ff",
+  accentBright: "#1ec8ff",
   sky: "#e0f2fe",
   white: "#ffffff",
   clubLogoPath: "/logo-home.png",
   clubName: "Comun Nuovo",
   clubNameFull: "Comun Nuovo Calcio",
+  youthSector: "SETTORE GIOVANILE",
+  address: "Via Azzurri 2006, Comun Nuovo (BG)",
+  website: "www.asdcomunnuovo.it",
   displayFont:
     'var(--font-social-display), "Oswald", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif',
   bodyFont:
@@ -63,7 +73,14 @@ export function defaultHeadline(template: SocialGraphicTemplate): string {
       return "FULL TIME";
     case "NEXT_MATCH":
       return "NEXT MATCH";
+    case "WEEKEND_BASE":
+    case "WEEKEND_AGONISTICO":
+      return "LE NOSTRE PARTITE";
     default:
       return "PARTITA";
   }
+}
+
+export function isMultiMatchTemplate(template: SocialGraphicTemplate | string): boolean {
+  return isWeekendTemplate(template);
 }

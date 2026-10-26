@@ -1342,6 +1342,10 @@ enum SocialGraphicTemplate {
   MATCHDAY
   FULL_TIME
   NEXT_MATCH
+  /// Locandina weekend Attività di Base (Primi Calci, Pulcini 2017, Esordienti).
+  WEEKEND_BASE
+  /// Locandina weekend Settore Agonistico (U15, U17, U19).
+  WEEKEND_AGONISTICO
 }
 
 enum SocialGraphicFormat {

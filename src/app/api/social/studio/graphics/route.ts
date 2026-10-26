@@ -2,11 +2,17 @@ import type { SocialGraphicFormat, SocialGraphicStatus, SocialGraphicTemplate } 
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { decideSocialStudioAccess } from "@/lib/social-studio/access";
-import { createSocialGraphic, listSocialGraphics } from "@/lib/social-studio/queries";
+import {
+  createSocialGraphic,
+  createWeekendSocialGraphic,
+  listSocialGraphics,
+} from "@/lib/social-studio/queries";
 import {
   isSocialGraphicFormat,
   isSocialGraphicTemplate,
+  isMultiMatchTemplate,
 } from "@/lib/social-studio/templates";
+import { sectorFromTemplate, type WeekendSector } from "@/lib/social-studio/weekend-sectors";
 
 const STATUSES: SocialGraphicStatus[] = ["DRAFT", "EXPORTED", "ARCHIVED"];
 
@@ -63,6 +69,9 @@ export async function POST(request: Request) {
     template?: unknown;
     format?: unknown;
     styleVariant?: unknown;
+    sector?: unknown;
+    from?: unknown;
+    to?: unknown;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -70,7 +79,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
   }
 
-  const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
   const template =
     typeof body.template === "string" && isSocialGraphicTemplate(body.template)
       ? (body.template as SocialGraphicTemplate)
@@ -82,14 +90,42 @@ export async function POST(request: Request) {
   const styleVariant =
     body.styleVariant === "A" || body.styleVariant === "B" ? body.styleVariant : "A";
 
-  if (!eventId || !template || !format) {
+  if (!template || !format) {
     return NextResponse.json(
-      { error: "eventId, template e format sono obbligatori." },
+      { error: "template e format sono obbligatori." },
       { status: 400 },
     );
   }
 
   try {
+    if (isMultiMatchTemplate(template)) {
+      const sectorFromBody =
+        body.sector === "BASE" || body.sector === "AGONISTICO"
+          ? (body.sector as WeekendSector)
+          : null;
+      const sector = sectorFromBody ?? sectorFromTemplate(template);
+      if (!sector) {
+        return NextResponse.json({ error: "Settore weekend non valido." }, { status: 400 });
+      }
+      const graphic = await createWeekendSocialGraphic({
+        sector,
+        format,
+        styleVariant,
+        userId: session!.user!.id,
+        from: typeof body.from === "string" ? body.from : null,
+        to: typeof body.to === "string" ? body.to : null,
+      });
+      return NextResponse.json({ success: true, data: graphic }, { status: 201 });
+    }
+
+    const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
+    if (!eventId) {
+      return NextResponse.json(
+        { error: "eventId, template e format sono obbligatori." },
+        { status: 400 },
+      );
+    }
+
     const graphic = await createSocialGraphic({
       eventId,
       template,

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { decideSocialStudioAccess } from "@/lib/social-studio/access";
-import { listStudioMatches } from "@/lib/social-studio/queries";
+import { listStudioMatches, listWeekendStudioMatches } from "@/lib/social-studio/queries";
+import type { WeekendSector } from "@/lib/social-studio/weekend-sectors";
 
 export async function GET(request: Request) {
   const session = await getAuthSession();
@@ -17,7 +18,17 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const sectorRaw = (searchParams.get("sector") ?? "").trim().toUpperCase();
   try {
+    if (sectorRaw === "BASE" || sectorRaw === "AGONISTICO") {
+      const data = await listWeekendStudioMatches({
+        sector: sectorRaw as WeekendSector,
+        from: searchParams.get("from"),
+        to: searchParams.get("to"),
+      });
+      return NextResponse.json({ success: true, data });
+    }
+
     const data = await listStudioMatches({
       month: searchParams.get("month"),
       categoryId: searchParams.get("categoryId"),

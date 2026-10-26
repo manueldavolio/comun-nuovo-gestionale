@@ -10,6 +10,11 @@ import type {
   SocialAssetDto,
   SocialGraphicDetail,
   SocialGraphicOverrides,
+  SocialWeekendMatchOverride,
+} from "@/lib/social-studio/dto";
+import {
+  isWeekendSnapshot,
+  mergeWeekendMatches,
 } from "@/lib/social-studio/dto";
 import { matchOpponentAsset } from "@/lib/social-studio/opponent-key";
 import {
@@ -22,6 +27,7 @@ import {
   SOCIAL_FORMAT_LABEL,
   SOCIAL_FORMAT_SIZE,
   SOCIAL_TEMPLATE_LABEL,
+  isMultiMatchTemplate,
   isSocialGraphicFormat,
 } from "@/lib/social-studio/templates";
 
@@ -64,19 +70,44 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
     [assets],
   );
 
+  const weekendMode = isMultiMatchTemplate(graphic.template);
+  const weekendSnapshot = isWeekendSnapshot(graphic.sourceSnapshot)
+    ? graphic.sourceSnapshot
+    : null;
+  const weekendRows = useMemo(
+    () => (weekendSnapshot ? mergeWeekendMatches(weekendSnapshot, overrides) : []),
+    [weekendSnapshot, overrides],
+  );
+
   const opponentName =
     overrides.opponentName ?? graphic.sourceSnapshot.opponentName ?? "";
 
   const autoLogoMatch = useMemo(() => {
-    if (overrides.opponentLogoUrl) return null;
+    if (weekendMode || overrides.opponentLogoUrl) return null;
     const match = matchOpponentAsset(opponentName, opponentLogos);
     return match.kind === "exact" || match.kind === "fuzzy" ? match : null;
-  }, [opponentName, opponentLogos, overrides.opponentLogoUrl]);
+  }, [weekendMode, opponentName, opponentLogos, overrides.opponentLogoUrl]);
 
   const effectiveOverrides = useMemo<SocialGraphicOverrides>(() => {
     if (!autoLogoMatch) return overrides;
     return { ...overrides, opponentLogoUrl: autoLogoMatch.asset.publicUrl };
   }, [overrides, autoLogoMatch]);
+
+  function patchWeekendRow(
+    eventId: string,
+    patch: Omit<SocialWeekendMatchOverride, "eventId">,
+  ) {
+    setOverrides((prev) => {
+      const current = [...(prev.weekendMatches ?? [])];
+      const idx = current.findIndex((row) => row.eventId === eventId);
+      if (idx >= 0) {
+        current[idx] = { ...current[idx], ...patch };
+      } else {
+        current.push({ eventId, ...patch });
+      }
+      return { ...prev, weekendMatches: current };
+    });
+  }
 
   useEffect(() => {
     function updateScale() {
@@ -335,6 +366,143 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
             />
           </label>
 
+          {weekendMode ? (
+            <>
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                Sottotitolo settore
+                <input
+                  className="mt-1 min-h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm"
+                  value={overrides.subheadline ?? ""}
+                  onChange={(e) => patchOverride("subheadline", e.target.value)}
+                />
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                Banner weekend
+                <input
+                  className="mt-1 min-h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm"
+                  value={overrides.weekendLabel ?? weekendSnapshot?.weekendLabel ?? ""}
+                  onChange={(e) => patchOverride("weekendLabel", e.target.value)}
+                />
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                Slogan footer
+                <input
+                  className="mt-1 min-h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm"
+                  value={overrides.footerSlogan ?? ""}
+                  onChange={(e) => patchOverride("footerSlogan", e.target.value)}
+                />
+              </label>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  Partite (solo bozza)
+                </p>
+                {weekendRows.length === 0 ? (
+                  <p className="mt-2 text-sm font-semibold text-amber-800">
+                    Nessuna gara nel periodo: la locandina mostra lo stato vuoto.
+                  </p>
+                ) : (
+                  <ul className="mt-2 flex flex-col gap-3">
+                    {weekendRows.map((row) => (
+                      <li
+                        key={row.eventId}
+                        className="rounded-lg border border-zinc-200 bg-white p-2"
+                      >
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-blue-800">
+                          {row.displayCategory}
+                        </p>
+                        <label className="mt-1 block text-[11px] font-semibold text-zinc-500">
+                          Avversario
+                          <input
+                            className="mt-0.5 min-h-9 w-full rounded-lg border border-zinc-200 px-2 text-sm"
+                            value={row.opponentName ?? ""}
+                            onChange={(e) =>
+                              patchWeekendRow(row.eventId, {
+                                opponentName: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <div className="mt-1 grid grid-cols-2 gap-1">
+                          <label className="text-[11px] font-semibold text-zinc-500">
+                            Giorno
+                            <input
+                              className="mt-0.5 min-h-9 w-full rounded-lg border border-zinc-200 px-2 text-sm"
+                              value={row.dayLabel}
+                              onChange={(e) =>
+                                patchWeekendRow(row.eventId, {
+                                  dayLabel: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="text-[11px] font-semibold text-zinc-500">
+                            Ora
+                            <input
+                              className="mt-0.5 min-h-9 w-full rounded-lg border border-zinc-200 px-2 text-sm"
+                              value={row.timeLabel}
+                              onChange={(e) =>
+                                patchWeekendRow(row.eventId, {
+                                  timeLabel: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                        <label className="mt-1 block text-[11px] font-semibold text-zinc-500">
+                          Luogo / campo
+                          <input
+                            className="mt-0.5 min-h-9 w-full rounded-lg border border-zinc-200 px-2 text-sm"
+                            value={row.venueLabel}
+                            onChange={(e) =>
+                              patchWeekendRow(row.eventId, {
+                                venueLabel: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="mt-1 block text-[11px] font-semibold text-zinc-500">
+                          CASA / TRASFERTA
+                          <select
+                            className="mt-0.5 min-h-9 w-full rounded-lg border border-zinc-200 px-2 text-sm"
+                            value={row.venueSideLabel}
+                            onChange={(e) =>
+                              patchWeekendRow(row.eventId, {
+                                venueSideLabel: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="CASA">CASA</option>
+                            <option value="TRASFERTA">TRASFERTA</option>
+                            <option value="SEDE N/D">SEDE N/D</option>
+                          </select>
+                        </label>
+                        <label className="mt-1 block text-[11px] font-semibold text-zinc-500">
+                          Stemma
+                          <select
+                            className="mt-0.5 min-h-9 w-full rounded-lg border border-zinc-200 px-2 text-sm"
+                            value={row.opponentLogoUrl ?? ""}
+                            onChange={(e) =>
+                              patchWeekendRow(row.eventId, {
+                                opponentLogoUrl: e.target.value || null,
+                              })
+                            }
+                          >
+                            <option value="">Placeholder</option>
+                            {opponentLogos.map((asset) => (
+                              <option key={asset.id} value={asset.publicUrl}>
+                                {asset.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
           <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
             Categoria
             <input
@@ -379,6 +547,8 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
               onChange={(e) => patchOverride("location", e.target.value)}
             />
           </label>
+            </>
+          )}
 
           {graphic.template === "FULL_TIME" ? (
             <>
@@ -424,6 +594,8 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
             </>
           ) : null}
 
+          {!weekendMode ? (
+            <>
           <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
             Stemma avversario (archivio)
             <select
@@ -453,6 +625,8 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
               }}
             />
           </label>
+            </>
+          ) : null}
 
           {pendingReplace ? (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">

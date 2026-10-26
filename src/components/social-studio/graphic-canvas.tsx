@@ -5,22 +5,32 @@ import type { SocialGraphicFormat, SocialGraphicTemplate } from "@prisma/client"
 import { FullTimeLayout } from "@/components/social-studio/templates/full-time-layout";
 import { MatchdayLayout } from "@/components/social-studio/templates/matchday-layout";
 import { NextMatchLayout } from "@/components/social-studio/templates/next-match-layout";
+import { WeekendLayout } from "@/components/social-studio/templates/weekend-layout";
 import type {
   SocialGraphicOverrides,
+  SocialGraphicSourceSnapshot,
   SocialMatchSnapshot,
 } from "@/lib/social-studio/dto";
-import { mergeGraphicView } from "@/lib/social-studio/dto";
+import {
+  isWeekendSnapshot,
+  mergeGraphicView,
+  mergeWeekendMatches,
+} from "@/lib/social-studio/dto";
 import {
   defaultStyleVariant,
   isSocialStyleVariant,
   type SocialStyleVariant,
 } from "@/lib/social-studio/style-variants";
-import { SOCIAL_FORMAT_SIZE } from "@/lib/social-studio/templates";
+import { SOCIAL_BRAND, SOCIAL_FORMAT_SIZE } from "@/lib/social-studio/templates";
+import {
+  sectorFromTemplate,
+  WEEKEND_SECTOR_META,
+} from "@/lib/social-studio/weekend-sectors";
 
 type GraphicCanvasProps = {
   template: SocialGraphicTemplate;
   format: SocialGraphicFormat;
-  snapshot: SocialMatchSnapshot;
+  snapshot: SocialGraphicSourceSnapshot;
   overrides: SocialGraphicOverrides;
   canvasRef?: RefObject<HTMLDivElement | null>;
   previewScale?: number;
@@ -37,15 +47,37 @@ function TemplateBody({
   template,
   width,
   height,
-  view,
+  snapshot,
+  overrides,
   variant,
 }: {
   template: SocialGraphicTemplate;
   width: number;
   height: number;
-  view: ReturnType<typeof mergeGraphicView>;
+  snapshot: SocialGraphicSourceSnapshot;
+  overrides: SocialGraphicOverrides;
   variant: SocialStyleVariant;
 }) {
+  const sector = sectorFromTemplate(template);
+  if (sector && isWeekendSnapshot(snapshot)) {
+    const meta = WEEKEND_SECTOR_META[sector];
+    const matches = mergeWeekendMatches(snapshot, overrides);
+    return (
+      <WeekendLayout
+        width={width}
+        height={height}
+        sector={sector}
+        snapshot={snapshot}
+        matches={matches}
+        weekendLabel={(overrides.weekendLabel ?? snapshot.weekendLabel).trim()}
+        headline={(overrides.headline ?? "LE NOSTRE PARTITE").trim()}
+        footerSlogan={(overrides.footerSlogan ?? meta.footerSlogan.replace("\n", " ")).trim()}
+        clubLogoUrl={(overrides.clubLogoUrl ?? SOCIAL_BRAND.clubLogoPath).trim()}
+      />
+    );
+  }
+
+  const view = mergeGraphicView(snapshot as SocialMatchSnapshot, overrides);
   if (template === "FULL_TIME") {
     return <FullTimeLayout width={width} height={height} view={view} variant={variant} />;
   }
@@ -69,7 +101,6 @@ export function GraphicCanvas({
   exportCaseId,
 }: GraphicCanvasProps) {
   const size = SOCIAL_FORMAT_SIZE[format];
-  const view = mergeGraphicView(snapshot, overrides);
   const variant = resolveVariant(overrides);
   const scale = Math.max(0.05, Math.min(previewScale, 1));
 
@@ -77,7 +108,8 @@ export function GraphicCanvas({
     template,
     width: size.width,
     height: size.height,
-    view,
+    snapshot,
+    overrides,
     variant,
   } as const;
 
