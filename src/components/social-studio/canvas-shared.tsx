@@ -52,30 +52,47 @@ export function TeamLogo({
           src={src}
           alt={alt}
           crossOrigin="anonymous"
+          decoding="sync"
           style={{
             width: "100%",
             height: "100%",
             objectFit: "contain",
             objectPosition: "center",
             display: "block",
+            imageRendering: "auto",
           }}
         />
       </div>
     );
   }
 
+  const initials = fallback
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
-    <div style={{ ...box, background: tone === "solid" ? "#fff" : "rgba(255,255,255,0.2)" }}>
+    <div
+      style={{
+        ...box,
+        background:
+          tone === "solid"
+            ? "linear-gradient(145deg,#ffffff,#e8f1ff)"
+            : "linear-gradient(145deg,rgba(255,255,255,0.28),rgba(255,255,255,0.08))",
+      }}
+    >
       <span
         style={{
           fontFamily: SOCIAL_BRAND.displayFont,
-          fontSize: Math.round(size * 0.26),
+          fontSize: Math.round(size * 0.28),
           fontWeight: 800,
-          letterSpacing: "0.04em",
+          letterSpacing: "0.06em",
           color: tone === "solid" ? SOCIAL_BRAND.primary : "#fff",
         }}
       >
-        {fallback.replace(/\s+/g, "").slice(0, 3).toUpperCase()}
+        {initials || fallback.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "?"}
       </span>
     </div>
   );

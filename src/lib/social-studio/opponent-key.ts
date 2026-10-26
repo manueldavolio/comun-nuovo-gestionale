@@ -17,10 +17,25 @@ const STRIP_PREFIXES = [
   "g.s.",
   "pol",
   "polisportiva",
+  "or",
+  "oratorio",
+  "soc",
+  "societa",
 ];
 
+/**
+ * Espande abbreviazioni frequenti nei calendari locali
+ * (es. "Or." → "oratorio") prima della normalizzazione.
+ */
+function expandCommonAbbreviations(raw: string): string {
+  return raw
+    .replace(/\bor\.?\b/gi, "oratorio")
+    .replace(/\bsoc\.?\b/gi, "societa")
+    .replace(/\bpol\.?\b/gi, "polisportiva");
+}
+
 export function normalizeOpponentKey(raw: string): string {
-  let base = raw
+  let base = expandCommonAbbreviations(raw)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -34,6 +49,8 @@ export function normalizeOpponentKey(raw: string): string {
     .replace(/\ba\.?\s*c\.?\b/g, " ")
     .replace(/\bf\.?\s*c\.?\b/g, " ")
     .replace(/\bg\.?\s*s\.?\b/g, " ")
+    .replace(/\boratorio\b/g, " ")
+    .replace(/\bsocieta\b/g, " ")
     .replace(/\bpolisportiva\b/g, " ")
     .replace(/[^a-z0-9\s-]/g, " ")
     .replace(/\s+/g, " ")
@@ -98,4 +115,15 @@ export function matchOpponentAsset<T extends { label: string; normalizedKey?: st
   }
   if (best) return { kind: "fuzzy", asset: best.asset, distance: best.distance };
   return { kind: "none" };
+}
+
+/**
+ * Solo match esatti (chiave normalizzata o alias verificato).
+ * I fuzzy NON vengono applicati automaticamente: richiedono conferma manuale.
+ */
+export function resolveExactOpponentLogoUrl<
+  T extends { label: string; normalizedKey?: string | null; publicUrl: string },
+>(opponentName: string, assets: T[]): string | null {
+  const match = matchOpponentAsset(opponentName, assets);
+  return match.kind === "exact" ? match.asset.publicUrl : null;
 }

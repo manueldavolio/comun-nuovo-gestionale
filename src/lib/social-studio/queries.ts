@@ -31,7 +31,11 @@ import {
   defaultWeekendGraphicTitle,
   formatKickoffLabel,
 } from "@/lib/social-studio/snapshot";
-import { matchOpponentAsset, normalizeOpponentKey } from "@/lib/social-studio/opponent-key";
+import {
+  matchOpponentAsset,
+  normalizeOpponentKey,
+  resolveExactOpponentLogoUrl,
+} from "@/lib/social-studio/opponent-key";
 import { defaultHeadline } from "@/lib/social-studio/templates";
 import {
   categoryMatchesSector,
@@ -270,7 +274,6 @@ export async function listWeekendStudioMatches(query: {
       snapshot.opponentName,
       snapshot.title,
     );
-    const logoMatchResolved = matchOpponentAsset(opponentDisplay, assets);
     matches.push({
       ...snapshot,
       opponentName: opponentDisplay,
@@ -280,10 +283,8 @@ export async function listWeekendStudioMatches(query: {
       timeLabel: formatMatchTimeLabel(snapshot.startAt),
       venueSideLabel: venue.venueSideLabel,
       venueLabel: venue.venueLabel,
-      opponentLogoUrl:
-        logoMatchResolved.kind === "exact" || logoMatchResolved.kind === "fuzzy"
-          ? logoMatchResolved.asset.publicUrl
-          : null,
+      // Solo match esatti / alias verificati: i fuzzy restano placeholder.
+      opponentLogoUrl: resolveExactOpponentLogoUrl(opponentDisplay, assets),
     });
   }
 
@@ -461,22 +462,23 @@ export async function createSocialGraphic(input: {
   }
 
   const existingAssets = await listSocialAssets("OPPONENT_LOGO");
-  const logoMatch = matchOpponentAsset(snapshot.opponentName ?? "", existingAssets);
+  const opponentLogoUrl = resolveExactOpponentLogoUrl(
+    snapshot.opponentName ?? "",
+    existingAssets,
+  );
 
   const overrides: SocialGraphicOverrides = {
     headline: defaultHeadline(input.template),
     subheadline: snapshot.categoryName,
     kickoffLabel: formatKickoffLabel(snapshot.startAt),
     venueSideLabel: snapshot.venueSide,
+    // Logo istituzionale ASD Comun Nuovo (asset pubblico del progetto).
     clubLogoUrl: "/logo-home.png",
     clubDisplayName: "Comun Nuovo",
     backgroundColor: "#0b1f63",
     accentColor: "#0369a1",
     styleVariant: input.styleVariant === "B" ? "B" : "A",
-    opponentLogoUrl:
-      logoMatch.kind === "exact" || logoMatch.kind === "fuzzy"
-        ? logoMatch.asset.publicUrl
-        : null,
+    opponentLogoUrl,
   };
 
   const created = await prisma.socialGraphic.create({
@@ -718,6 +720,7 @@ export async function findOpponentAssetByName(name: string): Promise<SocialAsset
  * Sostituisce lo stemma in archivio con un NUOVO path storage.
  * Non cancella il file precedente: le grafiche storiche che puntano al vecchio
  * publicUrl restano invariate.
+ * Propaga URL/path agli alias verificati che condividevano lo stesso file.
  */
 export async function replaceSocialAsset(input: {
   id: string;
@@ -726,6 +729,15 @@ export async function replaceSocialAsset(input: {
   publicUrl: string;
 }): Promise<SocialAssetDto> {
   const label = input.label.trim();
+  const current = await prisma.socialAsset.findUnique({
+    where: { id: input.id },
+    select: { id: true, kind: true, publicUrl: true },
+  });
+  if (!current || current.kind !== "OPPONENT_LOGO") {
+    throw new Error("Stemma non trovato.");
+  }
+
+  const previousUrl = current.publicUrl;
   const row = await prisma.socialAsset.update({
     where: { id: input.id },
     data: {
@@ -733,6 +745,83 @@ export async function replaceSocialAsset(input: {
       normalizedKey: normalizeOpponentKey(label) || null,
       storagePath: input.storagePath,
       publicUrl: input.publicUrl,
+    },
+    select: {
+      id: true,
+      kind: true,
+      label: true,
+      publicUrl: true,
+      normalizedKey: true,
+      createdAt: true,
+    },
+  });
+
+  if (previousUrl && previousUrl !== input.publicUrl) {
+    await prisma.socialAsset.updateMany({
+      where: {
+        kind: "OPPONENT_LOGO",
+        publicUrl: previousUrl,
+        NOT: { id: input.id },
+      },
+      data: {
+        storagePath: input.storagePath,
+        publicUrl: input.publicUrl,
+      },
+    });
+  }
+
+  return toAssetDto(row);
+}
+
+/**
+ * Crea un alias verificato: stessa immagine, nuova etichetta/chiave normalizzata.
+ * Usato quando un nome calendario è simile ma non identico e l'utente conferma.
+ */
+export async function linkOpponentAlias(input: {
+  sourceAssetId: string;
+  aliasLabel: string;
+  userId: string;
+}): Promise<SocialAssetDto> {
+  const aliasLabel = input.aliasLabel.trim();
+  if (!aliasLabel) throw new Error("Nome società obbligatorio per l'alias.");
+
+  const key = normalizeOpponentKey(aliasLabel);
+  if (!key) throw new Error("Nome società non valido per l'alias.");
+
+  const existing = await prisma.socialAsset.findFirst({
+    where: { kind: "OPPONENT_LOGO", normalizedKey: key },
+    select: {
+      id: true,
+      kind: true,
+      label: true,
+      publicUrl: true,
+      normalizedKey: true,
+      createdAt: true,
+    },
+  });
+  if (existing) return toAssetDto(existing);
+
+  const source = await prisma.socialAsset.findUnique({
+    where: { id: input.sourceAssetId },
+    select: {
+      id: true,
+      kind: true,
+      storagePath: true,
+      publicUrl: true,
+    },
+  });
+  if (!source || source.kind !== "OPPONENT_LOGO") {
+    throw new Error("Stemma di riferimento non trovato.");
+  }
+
+  const row = await prisma.socialAsset.create({
+    data: {
+      kind: "OPPONENT_LOGO",
+      label: aliasLabel,
+      normalizedKey: key,
+      storagePath: source.storagePath,
+      publicUrl: source.publicUrl,
+      createdById: input.userId,
     },
     select: {
       id: true,

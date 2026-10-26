@@ -6,6 +6,7 @@ import { decideSocialStudioAccess } from "@/lib/social-studio/access";
 import {
   createSocialAsset,
   findOpponentAssetByName,
+  linkOpponentAlias,
   listSocialAssets,
   replaceSocialAsset,
 } from "@/lib/social-studio/queries";
@@ -52,7 +53,12 @@ export async function GET(request: Request) {
           suggestion:
             match.kind === "none"
               ? null
-              : { kind: match.kind, asset: match.asset, distance: "distance" in match ? match.distance : 0 },
+              : {
+                  kind: match.kind,
+                  asset: match.asset,
+                  distance: "distance" in match ? match.distance : 0,
+                  autoApply: match.kind === "exact",
+                },
         },
       });
     }
@@ -74,6 +80,50 @@ export async function POST(request: Request) {
       { error: access.status === 401 ? "Sessione non valida." : "Operazione non consentita." },
       { status: access.status },
     );
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+
+  // Alias verificato (JSON): collega un nome calendario a uno stemma esistente.
+  if (contentType.includes("application/json")) {
+    let body: {
+      action?: unknown;
+      sourceAssetId?: unknown;
+      aliasLabel?: unknown;
+    };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
+    }
+    if (body.action !== "alias") {
+      return NextResponse.json({ error: "Azione non supportata." }, { status: 400 });
+    }
+    const sourceAssetId =
+      typeof body.sourceAssetId === "string" ? body.sourceAssetId.trim() : "";
+    const aliasLabel = typeof body.aliasLabel === "string" ? body.aliasLabel.trim() : "";
+    if (!sourceAssetId || !aliasLabel) {
+      return NextResponse.json(
+        { error: "sourceAssetId e aliasLabel sono obbligatori." },
+        { status: 400 },
+      );
+    }
+    try {
+      const asset = await linkOpponentAlias({
+        sourceAssetId,
+        aliasLabel,
+        userId: session!.user!.id,
+      });
+      return NextResponse.json({ success: true, data: asset, aliased: true }, { status: 201 });
+    } catch (error) {
+      console.error("[social studio assets alias]", error);
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Impossibile creare l'alias.",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const form = await request.formData().catch(() => null);

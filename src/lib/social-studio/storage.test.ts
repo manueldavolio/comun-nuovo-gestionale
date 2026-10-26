@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { SiteImageStorageError } from "@/lib/site-storage";
-import { describeSocialStudioUploadError } from "@/lib/social-studio/storage";
+import {
+  assertSafeSocialStudioSvg,
+  describeSocialStudioUploadError,
+} from "@/lib/social-studio/storage";
 
 describe("describeSocialStudioUploadError", () => {
   it("maps missing env clearly", () => {
@@ -35,6 +38,31 @@ describe("describeSocialStudioUploadError", () => {
     assert.equal(
       describeSocialStudioUploadError(new Error("L'immagine supera la dimensione massima di 8 MB.")).status,
       400,
+    );
+  });
+
+  it("maps unsafe svg as 400", () => {
+    assert.equal(
+      describeSocialStudioUploadError(
+        new Error("SVG non sicuro: rimuovi script, event handler o riferimenti javascript prima del caricamento."),
+      ).status,
+      400,
+    );
+  });
+});
+
+describe("assertSafeSocialStudioSvg", () => {
+  it("accepts plain svg marks", () => {
+    assert.doesNotThrow(() =>
+      assertSafeSocialStudioSvg(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>')),
+    );
+  });
+
+  it("rejects scripted svg", () => {
+    assert.throws(() =>
+      assertSafeSocialStudioSvg(
+        Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+      ),
     );
   });
 });

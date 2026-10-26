@@ -175,12 +175,20 @@ export function StudioNewWizard({
               Scegli template e periodo. I dati ufficiali del calendario restano invariati.
             </p>
           </div>
-          <Link
-            href="/social/studio"
-            className="inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-blue-950"
-          >
-            Archivio
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/social/studio/loghi"
+              className="inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-blue-950"
+            >
+              Loghi squadre
+            </Link>
+            <Link
+              href="/social/studio"
+              className="inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-blue-950"
+            >
+              Bozze
+            </Link>
+          </div>
         </div>
       </header>
 

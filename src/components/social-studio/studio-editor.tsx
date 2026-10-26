@@ -82,16 +82,16 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
   const opponentName =
     overrides.opponentName ?? graphic.sourceSnapshot.opponentName ?? "";
 
-  const autoLogoMatch = useMemo(() => {
+  const logoMatch = useMemo(() => {
     if (weekendMode || overrides.opponentLogoUrl) return null;
-    const match = matchOpponentAsset(opponentName, opponentLogos);
-    return match.kind === "exact" || match.kind === "fuzzy" ? match : null;
+    return matchOpponentAsset(opponentName, opponentLogos);
   }, [weekendMode, opponentName, opponentLogos, overrides.opponentLogoUrl]);
 
+  // Solo match esatti / alias verificati: i fuzzy restano da confermare.
   const effectiveOverrides = useMemo<SocialGraphicOverrides>(() => {
-    if (!autoLogoMatch) return overrides;
-    return { ...overrides, opponentLogoUrl: autoLogoMatch.asset.publicUrl };
-  }, [overrides, autoLogoMatch]);
+    if (!logoMatch || logoMatch.kind !== "exact") return overrides;
+    return { ...overrides, opponentLogoUrl: logoMatch.asset.publicUrl };
+  }, [overrides, logoMatch]);
 
   function patchWeekendRow(
     eventId: string,
@@ -169,10 +169,23 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
     if (!canvasRef.current) return;
     setError(null);
     try {
-      // Attendi font/immagini
       if (typeof document !== "undefined" && "fonts" in document) {
         await document.fonts.ready;
       }
+      const images = Array.from(canvasRef.current.querySelectorAll("img"));
+      await Promise.all(
+        images.map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete && img.naturalWidth > 0) {
+                resolve();
+                return;
+              }
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            }),
+        ),
+      );
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const dataUrl = await toPng(canvasRef.current, {
         cacheBust: true,
@@ -195,6 +208,35 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export PNG non riuscito.");
     }
+  }
+
+  async function confirmFuzzyAlias() {
+    if (!logoMatch || logoMatch.kind !== "fuzzy" || !opponentName.trim()) return;
+    setError(null);
+    const response = await fetch("/api/social/studio/assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "alias",
+        sourceAssetId: logoMatch.asset.id,
+        aliasLabel: opponentName.trim(),
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+      data?: SocialAssetDto;
+    } | null;
+    if (!response.ok || !body?.data) {
+      setError(body?.error ?? "Conferma alias non riuscita.");
+      return;
+    }
+    setAssets((prev) => {
+      const without = prev.filter((a) => a.id !== body.data!.id);
+      return [...without, body.data!].sort((a, b) => a.label.localeCompare(b.label, "it"));
+    });
+    patchOverride("opponentLogoUrl", body.data.publicUrl);
+    setMessage(`Alias verificato: “${opponentName.trim()}” collegato a ${logoMatch.asset.label}.`);
+    startTransition(() => router.refresh());
   }
 
   async function postAsset(file: File, label: string, replace = false) {
@@ -280,6 +322,12 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
           <p className="mt-1 text-sm text-sky-100">
             Bozza indipendente · calendario ufficiale invariato
           </p>
+          <Link
+            href="/social/studio/loghi"
+            className="mt-2 inline-flex text-xs font-semibold text-sky-100 underline underline-offset-2"
+          >
+            Archivio Loghi Squadre
+          </Link>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -695,12 +743,25 @@ export function StudioEditor({ initialGraphic, assets: initialAssets }: StudioEd
             </select>
           </label>
 
-          {autoLogoMatch?.kind === "fuzzy" ? (
-            <p className="text-sm font-semibold text-amber-800">
-              Stemma suggerito per nome simile: {autoLogoMatch.asset.label}
-            </p>
+          {logoMatch?.kind === "fuzzy" ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+              <p className="font-semibold">
+                Nome simile rilevato: {logoMatch.asset.label}
+              </p>
+              <p className="mt-1 text-amber-900/90">
+                Non applicato automaticamente (ambiguo). Conferma l’alias o scegli lo stemma
+                manualmente.
+              </p>
+              <button
+                type="button"
+                className="mt-2 min-h-10 w-full rounded-lg bg-amber-700 px-3 text-sm font-semibold text-white"
+                onClick={() => void confirmFuzzyAlias()}
+              >
+                Conferma alias e usa questo stemma
+              </button>
+            </div>
           ) : null}
-          {autoLogoMatch?.kind === "exact" && !overrides.opponentLogoUrl ? (
+          {logoMatch?.kind === "exact" && !overrides.opponentLogoUrl ? (
             <p className="text-sm font-semibold text-emerald-700">
               Stemma archivio applicato automaticamente.
             </p>

@@ -74,9 +74,28 @@ export function describeSocialStudioUploadError(error: unknown): {
     if (/supera la dimensione massima/i.test(error.message)) {
       return { status: 400, message: error.message };
     }
+    if (/svg non sicuro/i.test(error.message)) {
+      return { status: 400, message: error.message };
+    }
     return { status: 500, message: error.message };
   }
   return { status: 500, message: "Caricamento immagine non riuscito." };
+}
+
+/** Rifiuta SVG con payload eseguibili (script / handler / javascript:). */
+export function assertSafeSocialStudioSvg(buffer: Buffer): void {
+  const text = buffer.toString("utf8");
+  if (
+    /<script[\s>]/i.test(text) ||
+    /\bon\w+\s*=/i.test(text) ||
+    /javascript\s*:/i.test(text) ||
+    /<foreignObject[\s>]/i.test(text) ||
+    /data:text\/html/i.test(text)
+  ) {
+    throw new Error(
+      "SVG non sicuro: rimuovi script, event handler o riferimenti javascript prima del caricamento.",
+    );
+  }
 }
 
 export async function saveSocialStudioImage(params: {
@@ -94,6 +113,9 @@ export async function saveSocialStudioImage(params: {
   }
   if (params.fileBuffer.length > SITE_IMAGE_MAX_BYTES) {
     throw new Error("L'immagine supera la dimensione massima di 8 MB.");
+  }
+  if (mimeType === "image/svg+xml") {
+    assertSafeSocialStudioSvg(params.fileBuffer);
   }
 
   await ensureSiteImagesBucket();

@@ -40,6 +40,8 @@ function OpponentMark({
         alt=""
         width={size}
         height={size}
+        crossOrigin="anonymous"
+        decoding="sync"
         style={{
           width: size,
           height: size,
@@ -47,6 +49,7 @@ function OpponentMark({
           borderRadius: size * 0.18,
           background: "rgba(255,255,255,0.92)",
           flexShrink: 0,
+          imageRendering: "auto",
         }}
       />
     );

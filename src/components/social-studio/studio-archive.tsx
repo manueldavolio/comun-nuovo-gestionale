@@ -51,6 +51,12 @@ export function StudioArchive({ initialItems, categories, userName }: StudioArch
               Nuova grafica
             </Link>
             <Link
+              href="/social/studio/loghi"
+              className="inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-blue-950"
+            >
+              Archivio Loghi Squadre
+            </Link>
+            <Link
               href="/social/calendario"
               className="inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-blue-950"
             >
