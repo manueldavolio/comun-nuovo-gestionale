@@ -27,7 +27,7 @@ type DocumentFormProps = {
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+  return <p className="mt-1 text-xs font-medium text-red-600">{message}</p>;
 }
 
 type DocumentFieldErrors = Partial<Record<keyof UpsertDocumentInput, string>>;
@@ -94,14 +94,15 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">
+    <form onSubmit={onSubmit} className="space-y-4">
+      <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
+        <h2 className="text-base font-black text-blue-950">
           {mode === "create" ? "Nuovo documento atleta" : "Modifica documento atleta"}
         </h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Inserisci i metadati del documento. Per ora l&apos;upload file complesso non è implementato: usa un&apos;etichetta
-          testuale per `filePath`.
+          Archivio metadati Document. L&apos;upload file reale non è implementato su questo modello:
+          usa un percorso testuale in FilePath. I file di iscrizione e i certificati medici restano
+          nelle rispettive sezioni.
         </p>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -113,7 +114,7 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
               id="athleteId"
               value={formData.athleteId}
               onChange={(event) => setFormData((prev) => ({ ...prev, athleteId: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             >
               {athletes.map((athlete) => (
                 <option key={athlete.id} value={athlete.id}>
@@ -132,7 +133,7 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
               id="type"
               value={formData.type}
               onChange={(event) => setFormData((prev) => ({ ...prev, type: event.target.value as DocumentType }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             >
               {DOCUMENT_TYPE_CHOICES.map((choice) => (
                 <option key={choice.value} value={choice.value}>
@@ -151,7 +152,7 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
               id="title"
               value={formData.title}
               onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.title} />
           </div>
@@ -165,21 +166,21 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
               type="date"
               value={formData.expiryDate}
               onChange={(event) => setFormData((prev) => ({ ...prev, expiryDate: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.expiryDate} />
           </div>
 
           <div>
             <label className="text-sm font-medium text-zinc-700" htmlFor="filePath">
-              FilePath (placeholder)
+              FilePath (testuale)
             </label>
             <input
               id="filePath"
               value={formData.filePath}
               onChange={(event) => setFormData((prev) => ({ ...prev, filePath: event.target.value }))}
               placeholder="es. manual-placeholder/documenti/xyz.pdf"
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.filePath} />
           </div>
@@ -193,18 +194,20 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
               rows={3}
               value={formData.notes}
               onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.notes} />
           </div>
         </div>
 
         {error ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {error}
+          </p>
         ) : null}
 
         {ok ? (
-          <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-blue-900">
             {ok}
           </p>
         ) : null}
@@ -212,7 +215,7 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-4 w-full rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Salvataggio..." : mode === "create" ? "Crea documento" : "Salva modifiche"}
         </button>
@@ -220,4 +223,3 @@ export function DocumentForm({ mode, documentId, athletes, initialValues }: Docu
     </form>
   );
 }
-
