@@ -22,6 +22,8 @@ import { EventList } from "@/components/events/event-list";
 import { AdminMedicalVisitRemindersActions } from "@/components/medical-visits/admin-medical-visit-reminders-actions";
 import {
   YD_QUICK_LINKS,
+  announcementWidgetWhereForRole,
+  enrollmentWidgetWhereForRole,
   youthDirectorAthleteCategoryFilter,
   youthDirectorDocumentAthleteFilter,
 } from "@/lib/admin-dashboard-yd";
@@ -176,11 +178,7 @@ export default async function AdminDashboardPage() {
       ...(manageableCategoryIds != null ? { categoryIds: manageableCategoryIds } : {}),
     }),
     prisma.enrollment.findMany({
-      where: {
-        status: {
-          in: ["SUBMITTED", "APPROVED"],
-        },
-      },
+      where: enrollmentWidgetWhereForRole(role),
       orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
       take: 5,
       select: {
@@ -202,6 +200,7 @@ export default async function AdminDashboardPage() {
       },
     }),
     prisma.announcement.findMany({
+      where: announcementWidgetWhereForRole(role),
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       take: 5,
       select: {

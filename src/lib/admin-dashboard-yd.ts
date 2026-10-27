@@ -3,6 +3,11 @@
  * Does not grant permissions — pages/APIs remain the source of truth.
  * Event/category scope for YD is Category.sector === YOUTH (see category-event-access).
  */
+import type { Prisma } from "@prisma/client";
+import {
+  youthDirectorAnnouncementWhere,
+  youthDirectorAthleteWhere,
+} from "@/lib/youth-director-data-access-policy";
 
 export const YD_FORBIDDEN_DASHBOARD_HREFS = [
   "/admin/finanze",
@@ -81,6 +86,45 @@ export function youthDirectorDocumentAthleteFilter(youthCategoryIds: string[]) {
       categoryId: { in: youthCategoryIds },
     },
   };
+}
+
+/** Statusi del widget dashboard "Nuove iscrizioni" (invariati per ADMIN e YD). */
+export const DASHBOARD_ENROLLMENT_WIDGET_STATUSES = ["SUBMITTED", "APPROVED"] as const;
+
+/**
+ * Where Prisma per il widget iscrizioni.
+ * YD: solo atleti con category.sector === YOUTH (FT / null / senza categoria esclusi).
+ * ADMIN: solo filtro status (comportamento storico).
+ */
+export function enrollmentWidgetWhereForRole(
+  role: string | null | undefined,
+): Prisma.EnrollmentWhereInput {
+  const statusFilter = {
+    status: { in: [...DASHBOARD_ENROLLMENT_WIDGET_STATUSES] },
+  } satisfies Prisma.EnrollmentWhereInput;
+
+  if (role === "YOUTH_DIRECTOR") {
+    return {
+      ...statusFilter,
+      athlete: youthDirectorAthleteWhere(),
+    };
+  }
+
+  return statusFilter;
+}
+
+/**
+ * Where Prisma per il widget "Comunicazioni recenti".
+ * YD: riusa youthDirectorAnnouncementWhere() (solo CATEGORY_ONLY su YOUTH; no society-wide / FT).
+ * ADMIN: nessun filtro aggiuntivo (undefined = tutte).
+ */
+export function announcementWidgetWhereForRole(
+  role: string | null | undefined,
+): Prisma.AnnouncementWhereInput | undefined {
+  if (role === "YOUTH_DIRECTOR") {
+    return youthDirectorAnnouncementWhere();
+  }
+  return undefined;
 }
 
 /**
