@@ -45,7 +45,7 @@ export function RegenerateCheckoutButton({ paymentId }: RegenerateCheckoutButton
         type="button"
         onClick={handleRegenerateCheckout}
         disabled={isSubmitting}
-        className="inline-flex rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Rigenerazione..." : "Rigenera checkout"}
       </button>

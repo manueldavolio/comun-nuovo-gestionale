@@ -96,10 +96,10 @@ export function FinanceEntryForm() {
   }
 
   return (
-    <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-zinc-900">Nuovo movimento</h2>
+    <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
+      <h2 className="text-base font-black text-blue-950">Nuovo movimento</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Registra una entrata/uscita reale o una uscita prevista per la previsione di bilancio.
+        Registra una entrata/uscita reale o una previsione per il bilancio previsto.
       </p>
 
       <form onSubmit={onSubmit} className="mt-4 grid gap-4 md:grid-cols-2">
@@ -113,7 +113,7 @@ export function FinanceEntryForm() {
             onChange={(event) =>
               setFormData((prev) => ({ ...prev, type: event.target.value as AccountingEntryType }))
             }
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
           >
             {ENTRY_TYPE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -134,7 +134,7 @@ export function FinanceEntryForm() {
             onChange={(event) =>
               setFormData((prev) => ({ ...prev, category: event.target.value as FinanceCategory }))
             }
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
           >
             {FINANCE_CATEGORY_VALUES.map((value) => (
               <option key={value} value={value}>
@@ -155,7 +155,7 @@ export function FinanceEntryForm() {
             value={formData.amount}
             onChange={(event) => setFormData((prev) => ({ ...prev, amount: event.target.value }))}
             placeholder="0.00"
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
           />
           <FieldError message={fieldErrors.amount} />
         </div>
@@ -169,7 +169,7 @@ export function FinanceEntryForm() {
             type="date"
             value={formData.date}
             onChange={(event) => setFormData((prev) => ({ ...prev, date: event.target.value }))}
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
           />
           <FieldError message={fieldErrors.date} />
         </div>
@@ -184,29 +184,29 @@ export function FinanceEntryForm() {
             value={formData.description}
             onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
             placeholder="Es. acquisto kit allenamento"
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+            className="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-blue-950 outline-none ring-blue-500 focus:ring-2"
           />
           <FieldError message={fieldErrors.description} />
         </div>
 
-        <label className="md:col-span-2 flex items-center gap-2 text-sm text-zinc-700">
+        <label className="md:col-span-2 flex items-center gap-2 text-sm font-medium text-zinc-700">
           <input
             type="checkbox"
             checked={formData.isForecast}
             onChange={(event) => setFormData((prev) => ({ ...prev, isForecast: event.target.checked }))}
-            className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-600"
+            className="h-4 w-4 rounded border-sky-300 text-blue-800 focus:ring-blue-600"
           />
           Segna come previsione (non entra nei totali attuali, ma nel bilancio previsto)
         </label>
 
         {error ? (
-          <p className="md:col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="md:col-span-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
             {error}
           </p>
         ) : null}
 
         {ok ? (
-          <p className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p className="md:col-span-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-blue-900">
             {ok}
           </p>
         ) : null}
@@ -214,7 +214,7 @@ export function FinanceEntryForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="md:col-span-2 rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="md:col-span-2 inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Salvataggio..." : "Aggiungi movimento"}
         </button>

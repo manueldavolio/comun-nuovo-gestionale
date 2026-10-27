@@ -39,7 +39,7 @@ export function RegenerateReceiptButton({ paymentId }: RegenerateReceiptButtonPr
         type="button"
         onClick={handleRegenerate}
         disabled={isSubmitting}
-        className="inline-flex rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Rigenerazione..." : "Rigenera ricevuta"}
       </button>
