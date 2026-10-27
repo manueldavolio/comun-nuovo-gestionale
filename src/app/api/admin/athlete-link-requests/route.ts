@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { youthDirectorParentLinkRequestWhere } from "@/lib/youth-director-data-access";
 
 export async function GET() {
   const session = await getAuthSession();
@@ -12,6 +13,10 @@ export async function GET() {
   }
 
   const requests = await prisma.parentAthleteLinkRequest.findMany({
+    where:
+      session.user.role === "YOUTH_DIRECTOR"
+        ? youthDirectorParentLinkRequestWhere()
+        : undefined,
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 200,
     select: {

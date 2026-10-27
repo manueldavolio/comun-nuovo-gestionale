@@ -8,6 +8,10 @@ import { getAuthSession } from "@/lib/auth";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  athleteListWhereForAdminRole,
+  categoryListWhereForAdminRole,
+} from "@/lib/youth-director-data-access";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -64,9 +68,15 @@ export default async function AdminMedicalVisitsPage({ searchParams }: AdminMedi
   const categoryId = (params?.categoryId ?? "").trim();
 
   const now = new Date();
+  const athleteScope = athleteListWhereForAdminRole(session.user.role);
+  const categoryScope = categoryListWhereForAdminRole(session.user.role, true);
+  if (!athleteScope || !categoryScope) {
+    redirect(ROLE_HOME_PATH[session.user.role]);
+  }
 
   const [athletes, categories] = await Promise.all([
     prisma.athlete.findMany({
+      where: athleteScope,
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,
@@ -93,7 +103,7 @@ export default async function AdminMedicalVisitsPage({ searchParams }: AdminMedi
       },
     }),
     prisma.category.findMany({
-      where: { isActive: true },
+      where: categoryScope,
       orderBy: [{ name: "asc" }],
       select: { id: true, name: true },
     }),

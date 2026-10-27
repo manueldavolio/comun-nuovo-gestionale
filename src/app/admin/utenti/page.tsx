@@ -8,6 +8,7 @@ import { ChangeUserRoleInline } from "./change-user-role-inline";
 import { getAuthSession } from "@/lib/auth";
 import { ADMIN_ASSIGNABLE_ROLES, ROLE_LABEL_IT } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { youthDirectorParentUserWhere } from "@/lib/youth-director-data-access";
 
 const ROLE_OPTIONS = ADMIN_ASSIGNABLE_ROLES;
 const roleLabelMap = ROLE_LABEL_IT;
@@ -53,11 +54,17 @@ function roleBadgeClass(role: UserRole | null): string {
 async function getAdminUsers({
   q,
   role,
+  viewerRole,
 }: {
   q: string;
   role: UserRole | "";
+  viewerRole: UserRole;
 }): Promise<AdminUserListItem[]> {
   const filters: Prisma.UserWhereInput[] = [];
+
+  if (viewerRole === "YOUTH_DIRECTOR") {
+    filters.push(youthDirectorParentUserWhere());
+  }
 
   if (q) {
     filters.push({
@@ -69,7 +76,11 @@ async function getAdminUsers({
   }
 
   if (role) {
-    filters.push({ role });
+    if (viewerRole === "YOUTH_DIRECTOR" && role !== "PARENT") {
+      // YD may only consult youth-linked parents; ignore other role filters.
+    } else {
+      filters.push({ role });
+    }
   }
 
   return prisma.user.findMany({
@@ -100,8 +111,14 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   const params = searchParams ? await searchParams : {};
   const q = (params?.q ?? "").trim();
   const role = isUserRole(params?.role ?? "") ? (params?.role as UserRole) : "";
+  const roleFilterOptions =
+    session.user.role === "YOUTH_DIRECTOR" ? (["PARENT"] as UserRole[]) : ROLE_OPTIONS;
 
-  const users = await getAdminUsers({ q, role });
+  const users = await getAdminUsers({
+    q,
+    role: session.user.role === "YOUTH_DIRECTOR" && role && role !== "PARENT" ? "" : role,
+    viewerRole: session.user.role,
+  });
   const activeCount = users.filter((user) => user.isActive).length;
 
   return (
@@ -155,8 +172,10 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
               aria-label="Filtro ruolo"
               className="min-h-12 rounded-2xl border border-sky-200 bg-white px-3 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             >
-              <option value="">Tutti i ruoli</option>
-              {ROLE_OPTIONS.map((option) => (
+              <option value="">
+                {session.user.role === "YOUTH_DIRECTOR" ? "Genitori giovanili" : "Tutti i ruoli"}
+              </option>
+              {roleFilterOptions.map((option) => (
                 <option key={option} value={option}>
                   {roleLabelMap[option]}
                 </option>

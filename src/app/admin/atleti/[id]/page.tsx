@@ -24,6 +24,7 @@ import {
   isAthleteActive,
 } from "@/lib/athlete-roster-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
+import { assertCanAccessAthleteData } from "@/lib/youth-director-data-access";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -54,6 +55,15 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
 
   const canManageAthleteCategory = session.user.role === "ADMIN";
   if (!canManageAthleteCategory && session.user.role !== "YOUTH_DIRECTOR") {
+    redirect("/unauthorized");
+  }
+
+  const athleteAccess = await assertCanAccessAthleteData({
+    userId: session.user.id,
+    role: session.user.role,
+    athleteId: id,
+  });
+  if (!athleteAccess.ok) {
     redirect("/unauthorized");
   }
 

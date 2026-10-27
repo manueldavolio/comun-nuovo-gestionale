@@ -6,6 +6,7 @@ import {
   readEnrollmentDocument,
 } from "@/lib/enrollment-documents";
 import { prisma } from "@/lib/prisma";
+import { assertCanAccessEnrollmentDocumentData } from "@/lib/youth-director-data-access";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,18 @@ export async function GET(_request: Request, context: RouteContext) {
   const { documentId } = await context.params;
   if (!documentId) {
     return NextResponse.json({ error: "Documento non valido." }, { status: 400 });
+  }
+
+  const enrollmentAccess = await assertCanAccessEnrollmentDocumentData({
+    userId: session.user.id,
+    role: session.user.role,
+    documentId,
+  });
+  if (!enrollmentAccess.ok) {
+    return NextResponse.json(
+      { error: enrollmentAccess.error },
+      { status: enrollmentAccess.status },
+    );
   }
 
   const document = await prisma.enrollmentDocument.findUnique({

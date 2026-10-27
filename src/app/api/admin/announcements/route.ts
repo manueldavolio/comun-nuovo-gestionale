@@ -6,6 +6,11 @@ import { createAnnouncementSchema } from "@/lib/validation/announcements";
 import { parseDateInputToUTC } from "@/lib/date-input";
 import { sendAnnouncementEmails } from "@/lib/mail";
 import { parentUsersLinkedToCategoryWhere } from "@/lib/parent-athletes";
+import { toCategorySectorLookup } from "@/lib/category-event-access-policy";
+import {
+  decideYouthDirectorAnnouncementCreate,
+  youthDirectorDataAccessErrorMessage,
+} from "@/lib/youth-director-data-access";
 
 type EmailSummary = {
   attempted: boolean;
@@ -91,14 +96,36 @@ export async function POST(request: Request) {
   }
 
   const categoryId = parsed.data.categoryId?.trim() ? parsed.data.categoryId : null;
+  let categorySector: ReturnType<typeof toCategorySectorLookup> = null;
   if (categoryId) {
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
-      select: { id: true },
+      select: { id: true, sector: true },
     });
     if (!category) {
       return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
     }
+    categorySector = toCategorySectorLookup(category.sector);
+  } else {
+    categorySector = "MISSING";
+  }
+
+  const announcementDecision = decideYouthDirectorAnnouncementCreate({
+    role: session.user.role,
+    audience: parsed.data.audience,
+    categoryId,
+    sector: categorySector,
+  });
+  if (!announcementDecision.allow) {
+    return NextResponse.json(
+      {
+        error:
+          session.user.role === "YOUTH_DIRECTOR"
+            ? "Puoi pubblicare solo comunicazioni CATEGORY_ONLY del settore giovanile."
+            : youthDirectorDataAccessErrorMessage(announcementDecision),
+      },
+      { status: 403 },
+    );
   }
 
   const publishedAt =

@@ -9,6 +9,7 @@ import {
   rosterStatusWhereForAdminFilter,
   type AthleteRosterStatus,
 } from "@/lib/athlete-roster-status";
+import { athleteListWhereForAdminRole } from "@/lib/youth-director-data-access";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -190,18 +191,27 @@ export default async function AdminAthletesPage({ searchParams }: AdminAthletesP
   const showDeletedSuccess = params.deleted === "1";
   const statusFilter = parseAdminAthleteStatusFilter(params.status);
   const rosterWhere = rosterStatusWhereForAdminFilter(statusFilter);
+  const roleScopeWhere = athleteListWhereForAdminRole(session.user.role);
+  if (!roleScopeWhere) {
+    redirect("/unauthorized");
+  }
 
   const athletes = await prisma.athlete.findMany({
     where: {
-      ...rosterWhere,
-      ...(q
-        ? {
-            OR: [
-              { firstName: { contains: q, mode: "insensitive" as const } },
-              { lastName: { contains: q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
+      AND: [
+        roleScopeWhere,
+        rosterWhere,
+        ...(q
+          ? [
+              {
+                OR: [
+                  { firstName: { contains: q, mode: "insensitive" as const } },
+                  { lastName: { contains: q, mode: "insensitive" as const } },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: {

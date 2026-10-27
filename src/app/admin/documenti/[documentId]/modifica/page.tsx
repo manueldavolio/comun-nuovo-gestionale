@@ -7,6 +7,10 @@ import { toDateInputValueUTC } from "@/lib/date-input";
 import { DOCUMENT_TYPE_CHOICES } from "@/lib/document-types";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  assertCanAccessArchiveDocumentData,
+  athleteListWhereForAdminRole,
+} from "@/lib/youth-director-data-access";
 
 type AdminDocumentEditPageProps = {
   params: Promise<{ documentId: string }>;
@@ -21,6 +25,20 @@ export default async function AdminDocumentEditPage({ params }: AdminDocumentEdi
   }
 
   if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
+    redirect(ROLE_HOME_PATH[session.user.role]);
+  }
+
+  const documentAccess = await assertCanAccessArchiveDocumentData({
+    userId: session.user.id,
+    role: session.user.role,
+    documentId,
+  });
+  if (!documentAccess.ok) {
+    redirect("/unauthorized");
+  }
+
+  const athleteScope = athleteListWhereForAdminRole(session.user.role);
+  if (!athleteScope) {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 
@@ -42,6 +60,7 @@ export default async function AdminDocumentEditPage({ params }: AdminDocumentEdi
   }
 
   const athletes = await prisma.athlete.findMany({
+    where: athleteScope,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: { id: true, firstName: true, lastName: true },
   });

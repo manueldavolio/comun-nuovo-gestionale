@@ -4,6 +4,10 @@ import { getAuthSession } from "@/lib/auth";
 import { upsertMedicalVisitSchema } from "@/lib/validation/medical-visits";
 import { parseDateInputToUTC } from "@/lib/date-input";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
+import {
+  assertCanAccessAthleteData,
+  assertCanAccessMedicalVisitData,
+} from "@/lib/youth-director-data-access";
 
 export async function PUT(
   request: Request,
@@ -36,22 +40,25 @@ export async function PUT(
     );
   }
 
-  const visit = await prisma.medicalVisit.findUnique({
-    where: { id: medicalVisitId },
-    select: { id: true },
+  const visitAccess = await assertCanAccessMedicalVisitData({
+    userId: session.user.id,
+    role: session.user.role,
+    medicalVisitId,
   });
-
-  if (!visit) {
-    return NextResponse.json({ error: "Visita non trovata." }, { status: 404 });
+  if (!visitAccess.ok) {
+    return NextResponse.json({ error: visitAccess.error }, { status: visitAccess.status });
   }
 
-  const athlete = await prisma.athlete.findUnique({
-    where: { id: parsed.data.athleteId },
-    select: { id: true },
+  const athleteAccess = await assertCanAccessAthleteData({
+    userId: session.user.id,
+    role: session.user.role,
+    athleteId: parsed.data.athleteId,
   });
-
-  if (!athlete) {
-    return NextResponse.json({ error: "Atleta non trovato." }, { status: 404 });
+  if (!athleteAccess.ok) {
+    return NextResponse.json(
+      { error: athleteAccess.error },
+      { status: athleteAccess.status },
+    );
   }
 
   const visitDate = parseDateInputToUTC(parsed.data.visitDate);

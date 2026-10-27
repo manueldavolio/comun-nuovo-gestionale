@@ -16,6 +16,8 @@ type CategoryOption = {
 
 type AnnouncementFormProps = {
   categories: CategoryOption[];
+  /** YD: only CATEGORY_ONLY + youth categories (server also enforces). */
+  youthDirectorMode?: boolean;
 };
 
 type AnnouncementFieldErrors = Partial<Record<keyof CreateAnnouncementInput, string>>;
@@ -25,12 +27,15 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-1 text-xs text-red-600">{message}</p>;
 }
 
-export function AnnouncementForm({ categories }: AnnouncementFormProps) {
+export function AnnouncementForm({ categories, youthDirectorMode = false }: AnnouncementFormProps) {
   const router = useRouter();
+  const audienceChoices = youthDirectorMode
+    ? ANNOUNCEMENT_AUDIENCE_CHOICES.filter((choice) => choice.value === "CATEGORY_ONLY")
+    : ANNOUNCEMENT_AUDIENCE_CHOICES;
   const [formData, setFormData] = useState({
     title: "",
     content: "",
-    audience: "ALL" as AnnouncementAudience,
+    audience: (youthDirectorMode ? "CATEGORY_ONLY" : "ALL") as AnnouncementAudience,
     categoryId: "",
     publishedAt: "",
     sendEmail: false,
@@ -101,7 +106,7 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
       setFormData({
         title: "",
         content: "",
-        audience: "ALL",
+        audience: youthDirectorMode ? "CATEGORY_ONLY" : "ALL",
         categoryId: "",
         publishedAt: "",
         sendEmail: false,
@@ -118,7 +123,9 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
     <form onSubmit={onSubmit} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-zinc-900">Nuova comunicazione</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Pubblica avvisi per tutti, solo genitori, solo mister o una categoria specifica.
+        {youthDirectorMode
+          ? "Pubblica avvisi solo per le categorie del settore giovanile."
+          : "Pubblica avvisi per tutti, solo genitori, solo mister o una categoria specifica."}
       </p>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -150,7 +157,7 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
             }
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
           >
-            {ANNOUNCEMENT_AUDIENCE_CHOICES.map((choice) => (
+            {audienceChoices.map((choice) => (
               <option key={choice.value} value={choice.value}>
                 {choice.label}
               </option>
@@ -161,7 +168,7 @@ export function AnnouncementForm({ categories }: AnnouncementFormProps) {
 
         <div>
           <label className="text-sm font-medium text-zinc-700" htmlFor="announcement-category">
-            Categoria (opzionale)
+            {youthDirectorMode ? "Categoria (obbligatoria)" : "Categoria (opzionale)"}
           </label>
           <select
             id="announcement-category"

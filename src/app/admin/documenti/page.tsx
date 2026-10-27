@@ -12,6 +12,7 @@ import {
 } from "@/lib/expiry-status";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { athleteListWhereForAdminRole } from "@/lib/youth-director-data-access";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -70,8 +71,13 @@ export default async function AdminAthleteDocumentsPage({
   const typeFilter = isDocumentType(params?.type ?? "") ? (params.type as DocumentType) : "";
 
   const now = new Date();
+  const athleteScope = athleteListWhereForAdminRole(session.user.role);
+  if (!athleteScope) {
+    redirect(ROLE_HOME_PATH[session.user.role]);
+  }
 
   const athletes = await prisma.athlete.findMany({
+    where: athleteScope,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: {
       id: true,

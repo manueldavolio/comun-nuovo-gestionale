@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { assertCanAccessCategoryData } from "@/lib/youth-director-data-access";
 
 type RouteContext = {
   params: Promise<{
@@ -39,6 +40,26 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   if (!announcement) {
     return NextResponse.json({ error: "Comunicazione non trovata." }, { status: 404 });
+  }
+
+  if (role === "YOUTH_DIRECTOR") {
+    if (!announcement.categoryId) {
+      return NextResponse.json(
+        { error: "Puoi eliminare solo comunicazioni del settore giovanile." },
+        { status: 403 },
+      );
+    }
+    const categoryAccess = await assertCanAccessCategoryData({
+      userId: session.user.id,
+      role: session.user.role,
+      categoryId: announcement.categoryId,
+    });
+    if (!categoryAccess.ok) {
+      return NextResponse.json(
+        { error: categoryAccess.error },
+        { status: categoryAccess.status },
+      );
+    }
   }
 
   if (canDeleteOwnCategory) {

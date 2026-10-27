@@ -7,6 +7,10 @@ import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { ANNOUNCEMENT_AUDIENCE_LABEL } from "@/lib/announcements";
 import { DeleteButton } from "@/components/common/delete-button";
+import {
+  categoryListWhereForAdminRole,
+  youthDirectorAnnouncementWhere,
+} from "@/lib/youth-director-data-access";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -25,13 +29,20 @@ export default async function AdminCommunicationsPage() {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 
+  const isYouthDirector = session.user.role === "YOUTH_DIRECTOR";
+  const categoryScope = categoryListWhereForAdminRole(session.user.role, true);
+  if (!categoryScope) {
+    redirect(ROLE_HOME_PATH[session.user.role]);
+  }
+
   const [categories, announcements] = await Promise.all([
     prisma.category.findMany({
-      where: { isActive: true },
+      where: categoryScope,
       orderBy: [{ name: "asc" }],
       select: { id: true, name: true },
     }),
     prisma.announcement.findMany({
+      where: isYouthDirector ? youthDirectorAnnouncementWhere() : undefined,
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       take: 80,
       select: {
@@ -70,7 +81,7 @@ export default async function AdminCommunicationsPage() {
           </Link>
         </div>
 
-        <AnnouncementForm categories={categories} />
+        <AnnouncementForm categories={categories} youthDirectorMode={isYouthDirector} />
 
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900">Comunicazioni pubblicate</h2>

@@ -67,8 +67,13 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
     }
 
     setIsUploadingCertificate(true);
+    if (!formData.athleteId) {
+      throw new Error("Seleziona un atleta prima di caricare il certificato.");
+    }
+
     const uploadForm = new FormData();
     uploadForm.append("certificate", selectedCertificateFile);
+    uploadForm.append("athleteId", formData.athleteId);
 
     const response = await fetch("/api/admin/medical-visits/upload-certificate", {
       method: "POST",

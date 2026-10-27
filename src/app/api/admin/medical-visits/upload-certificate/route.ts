@@ -7,6 +7,7 @@ import {
   saveMedicalVisitCertificate,
   validateMedicalVisitCertificateStorageEnv,
 } from "@/lib/medical-visit-certificates";
+import { assertCanAccessAthleteData } from "@/lib/youth-director-data-access";
 
 export const runtime = "nodejs";
 
@@ -86,6 +87,18 @@ export async function POST(request: Request) {
     return jsonError({ error: "Richiesta upload non valida.", errorCode: "UPLOAD_INVALID_FORM_DATA" }, 400);
   }
 
+  const athleteIdRaw = formData.get("athleteId");
+  const athleteId = typeof athleteIdRaw === "string" ? athleteIdRaw.trim() : "";
+  if (!athleteId) {
+    return jsonError(
+      {
+        error: "Atleta obbligatorio per caricare un certificato.",
+        errorCode: "UPLOAD_ATHLETE_REQUIRED",
+      },
+      400,
+    );
+  }
+
   const file = formData.get("certificate");
   if (!(file instanceof File)) {
     return jsonError({ error: "Seleziona un file certificato.", errorCode: "UPLOAD_FILE_MISSING" }, 400);
@@ -110,6 +123,19 @@ export async function POST(request: Request) {
         details: { maxBytes: MEDICAL_VISIT_CERTIFICATE_MAX_BYTES, receivedBytes: file.size },
       },
       400,
+    );
+  }
+
+  // Authz before any storage write — denied requests never create orphan files.
+  const athleteAccess = await assertCanAccessAthleteData({
+    userId: session.user.id,
+    role: session.user.role,
+    athleteId,
+  });
+  if (!athleteAccess.ok) {
+    return jsonError(
+      { error: athleteAccess.error, errorCode: "UPLOAD_ATHLETE_FORBIDDEN" },
+      athleteAccess.status,
     );
   }
 

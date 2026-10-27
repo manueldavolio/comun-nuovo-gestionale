@@ -6,6 +6,10 @@ import { MediaGallery } from "@/components/media/media-gallery";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
+import {
+  categoryListWhereForAdminRole,
+  youthDirectorMediaItemWhere,
+} from "@/lib/youth-director-data-access";
 
 export default async function AdminMediaPage() {
   const session = await getAuthSession();
@@ -18,8 +22,15 @@ export default async function AdminMediaPage() {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 
+  const isYouthDirector = session.user.role === "YOUTH_DIRECTOR";
+  const categoryScope = categoryListWhereForAdminRole(session.user.role, false);
+  if (!categoryScope) {
+    redirect(ROLE_HOME_PATH[session.user.role]);
+  }
+
   const [categories, mediaItems] = await Promise.all([
     prisma.category.findMany({
+      where: categoryScope,
       orderBy: [{ name: "asc" }],
       select: { id: true, name: true },
     }),
@@ -28,6 +39,7 @@ export default async function AdminMediaPage() {
         publishedAt: {
           not: null,
         },
+        ...(isYouthDirector ? youthDirectorMediaItemWhere() : {}),
       },
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       take: 120,

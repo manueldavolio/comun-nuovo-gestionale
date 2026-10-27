@@ -6,6 +6,7 @@ import {
   readMedicalVisitCertificate,
 } from "@/lib/medical-visit-certificates";
 import { prisma } from "@/lib/prisma";
+import { assertCanAccessMedicalVisitData } from "@/lib/youth-director-data-access";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,15 @@ export async function GET(_request: Request, context: RouteContext) {
   const { medicalVisitId } = await context.params;
   if (!medicalVisitId) {
     return NextResponse.json({ error: "Visita medica non valida." }, { status: 400 });
+  }
+
+  const visitAccess = await assertCanAccessMedicalVisitData({
+    userId: session.user.id,
+    role: session.user.role,
+    medicalVisitId,
+  });
+  if (!visitAccess.ok) {
+    return NextResponse.json({ error: visitAccess.error }, { status: visitAccess.status });
   }
 
   const medicalVisit = await prisma.medicalVisit.findUnique({

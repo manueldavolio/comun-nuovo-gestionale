@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { upsertDocumentSchema } from "@/lib/validation/documents";
 import { parseDateInputToUTC } from "@/lib/date-input";
+import { assertCanAccessAthleteData } from "@/lib/youth-director-data-access";
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
@@ -30,13 +31,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const athlete = await prisma.athlete.findUnique({
-    where: { id: parsed.data.athleteId },
-    select: { id: true },
+  const athleteAccess = await assertCanAccessAthleteData({
+    userId: session.user.id,
+    role: session.user.role,
+    athleteId: parsed.data.athleteId,
   });
-
-  if (!athlete) {
-    return NextResponse.json({ error: "Atleta non trovato." }, { status: 404 });
+  if (!athleteAccess.ok) {
+    return NextResponse.json(
+      { error: athleteAccess.error },
+      { status: athleteAccess.status },
+    );
   }
 
   const expiryDate =

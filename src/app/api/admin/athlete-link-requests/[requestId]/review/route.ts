@@ -5,6 +5,7 @@ import {
   rejectParentAthleteLinkRequest,
 } from "@/lib/parent-athletes";
 import { reviewParentAthleteLinkRequestSchema } from "@/lib/validation/parent-athlete-links";
+import { assertCanAccessParentAthleteLinkRequest } from "@/lib/youth-director-data-access";
 
 type RouteContext = {
   params: Promise<{ requestId: string }>;
@@ -22,6 +23,15 @@ export async function POST(request: Request, context: RouteContext) {
   const { requestId } = await context.params;
   if (!requestId) {
     return NextResponse.json({ error: "Richiesta non valida." }, { status: 400 });
+  }
+
+  const linkAccess = await assertCanAccessParentAthleteLinkRequest({
+    userId: session.user.id,
+    role: session.user.role,
+    requestId,
+  });
+  if (!linkAccess.ok) {
+    return NextResponse.json({ error: linkAccess.error }, { status: linkAccess.status });
   }
 
   let payload: unknown;

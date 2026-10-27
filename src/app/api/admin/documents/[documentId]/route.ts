@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { upsertDocumentSchema } from "@/lib/validation/documents";
 import { parseDateInputToUTC } from "@/lib/date-input";
+import {
+  assertCanAccessArchiveDocumentData,
+  assertCanAccessAthleteData,
+} from "@/lib/youth-director-data-access";
 
 export async function PUT(
   request: Request,
@@ -35,22 +39,28 @@ export async function PUT(
     );
   }
 
-  const doc = await prisma.document.findUnique({
-    where: { id: documentId },
-    select: { id: true },
+  const documentAccess = await assertCanAccessArchiveDocumentData({
+    userId: session.user.id,
+    role: session.user.role,
+    documentId,
   });
-
-  if (!doc) {
-    return NextResponse.json({ error: "Documento non trovato." }, { status: 404 });
+  if (!documentAccess.ok) {
+    return NextResponse.json(
+      { error: documentAccess.error },
+      { status: documentAccess.status },
+    );
   }
 
-  const athlete = await prisma.athlete.findUnique({
-    where: { id: parsed.data.athleteId },
-    select: { id: true },
+  const athleteAccess = await assertCanAccessAthleteData({
+    userId: session.user.id,
+    role: session.user.role,
+    athleteId: parsed.data.athleteId,
   });
-
-  if (!athlete) {
-    return NextResponse.json({ error: "Atleta non trovato." }, { status: 404 });
+  if (!athleteAccess.ok) {
+    return NextResponse.json(
+      { error: athleteAccess.error },
+      { status: athleteAccess.status },
+    );
   }
 
   const expiryDate =

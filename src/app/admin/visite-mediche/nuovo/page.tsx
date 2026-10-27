@@ -6,6 +6,10 @@ import { getAuthSession } from "@/lib/auth";
 import { toDateInputValueUTC } from "@/lib/date-input";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import {
+  assertCanAccessAthleteData,
+  athleteListWhereForAdminRole,
+} from "@/lib/youth-director-data-access";
 
 type AdminMedicalVisitNewPageProps = {
   searchParams: Promise<{ athleteId?: string }>;
@@ -23,8 +27,24 @@ export default async function AdminMedicalVisitNewPage({ searchParams }: AdminMe
   }
 
   const params = await searchParams;
+  const athleteScope = athleteListWhereForAdminRole(session.user.role);
+  if (!athleteScope) {
+    redirect(ROLE_HOME_PATH[session.user.role]);
+  }
+
+  if (params.athleteId) {
+    const preselectedAccess = await assertCanAccessAthleteData({
+      userId: session.user.id,
+      role: session.user.role,
+      athleteId: params.athleteId,
+    });
+    if (!preselectedAccess.ok) {
+      redirect("/unauthorized");
+    }
+  }
 
   const athletes = await prisma.athlete.findMany({
+    where: athleteScope,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: { id: true, firstName: true, lastName: true },
   });

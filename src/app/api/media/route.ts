@@ -4,6 +4,7 @@ import { getAuthSession } from "@/lib/auth";
 import { createMediaItemSchema } from "@/lib/validation/media";
 import { parseDateInputToUTC } from "@/lib/date-input";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { assertCanAccessCategoryData } from "@/lib/youth-director-data-access";
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
@@ -39,6 +40,20 @@ export async function POST(request: Request) {
   });
   if (!category) {
     return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
+  }
+
+  if (role === "YOUTH_DIRECTOR") {
+    const categoryAccess = await assertCanAccessCategoryData({
+      userId: session.user.id,
+      role: session.user.role,
+      categoryId: parsed.data.categoryId,
+    });
+    if (!categoryAccess.ok) {
+      return NextResponse.json(
+        { error: categoryAccess.error },
+        { status: categoryAccess.status },
+      );
+    }
   }
 
   if (role === "COACH") {
