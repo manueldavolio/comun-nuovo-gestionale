@@ -20,6 +20,10 @@ export async function middleware(request: NextRequest) {
     decision,
   });
 
+  if (decision.type === "block") {
+    return new NextResponse(null, { status: decision.status });
+  }
+
   if (decision.type === "redirect") {
     const target = decision.to.startsWith("http")
       ? decision.to
@@ -36,6 +40,8 @@ export const config = {
     "/genitore/:path*",
     "/mister/:path*",
     "/social/:path*",
+    "/receipts",
+    "/receipts/:path*",
     "/login",
     "/register",
   ],

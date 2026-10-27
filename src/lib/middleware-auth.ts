@@ -1,5 +1,6 @@
 import type { UserRole } from "@prisma/client";
 import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
+import { isPublicReceiptsStaticPath } from "@/lib/payments/mark-paid-disabled";
 
 const PROTECTED_PATHS = ["/admin", "/genitore", "/mister", "/social"];
 const VALID_ROLES: UserRole[] = [
@@ -12,7 +13,8 @@ const VALID_ROLES: UserRole[] = [
 
 export type MiddlewareAuthDecision =
   | { type: "next" }
-  | { type: "redirect"; to: string };
+  | { type: "redirect"; to: string }
+  | { type: "block"; status: 404 };
 
 export function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some(
@@ -36,6 +38,12 @@ export function decideMiddlewareAuth(input: {
   tokenRole: unknown;
   hasToken: boolean;
 }): MiddlewareAuthDecision {
+  // Legacy mark-paid wrote PDFs under public/receipts → /receipts/*.pdf.
+  // Block static exposure for every role (including anonymous). Auth download API is untouched.
+  if (isPublicReceiptsStaticPath(input.pathname)) {
+    return { type: "block", status: 404 };
+  }
+
   const role = resolveRoleFromToken(input.tokenRole);
   const isLoggedIn = Boolean(input.hasToken && role);
 
