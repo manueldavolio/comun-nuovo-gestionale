@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         balanceFee: new Prisma.Decimal("0"),
         isActive: parsed.data.isActive,
         playersPerSide: parsed.data.playersPerSide,
+        sector: parsed.data.sector,
       },
       select: { id: true },
     });

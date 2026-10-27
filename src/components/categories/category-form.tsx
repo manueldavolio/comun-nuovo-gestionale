@@ -3,6 +3,11 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PLAYERS_PER_SIDE_OPTIONS, type PlayersPerSide } from "@/lib/category-format";
+import {
+  CATEGORY_SECTOR_LABELS,
+  CATEGORY_SECTOR_VALUES,
+  type CategorySectorValue,
+} from "@/lib/category-sector";
 import { upsertCategorySchema, type UpsertCategoryInput } from "@/lib/validation/categories";
 
 type CategoryFormProps = {
@@ -13,6 +18,8 @@ type CategoryFormProps = {
     birthYearsLabel: string;
     isActive: boolean;
     playersPerSide: PlayersPerSide;
+    /** null = ancora da classificare (solo record legacy in edit). */
+    sector: CategorySectorValue | null;
   };
 };
 
@@ -28,7 +35,13 @@ const inputClass =
 
 export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormProps) {
   const router = useRouter();
-  const [formData, setFormData] = useState(initialValues);
+  const [formData, setFormData] = useState({
+    name: initialValues.name,
+    birthYearsLabel: initialValues.birthYearsLabel,
+    isActive: initialValues.isActive,
+    playersPerSide: initialValues.playersPerSide,
+    sector: (initialValues.sector ?? "") as CategorySectorValue | "",
+  });
   const [fieldErrors, setFieldErrors] = useState<CategoryFieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,7 +54,10 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
     setError(null);
     setFieldErrors({});
 
-    const parsed = upsertCategorySchema.safeParse(formData);
+    const parsed = upsertCategorySchema.safeParse({
+      ...formData,
+      sector: formData.sector === "" ? undefined : formData.sector,
+    });
     if (!parsed.success) {
       const nextErrors: CategoryFieldErrors = {};
       parsed.error.issues.forEach((issue) => {
@@ -84,7 +100,7 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
           {mode === "create" ? "Nuova categoria" : "Modifica categoria"}
         </h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Nome, annata/descrizione, formato partita e stato operativo.
+          Nome, annata/descrizione, formato partita, classificazione settore e stato operativo.
         </p>
 
         <div className="mt-5 grid gap-4">
@@ -142,6 +158,37 @@ export function CategoryForm({ mode, categoryId, initialValues }: CategoryFormPr
               Primi Calci 5 · Pulcini 7 · Esordienti 9 · altre 11
             </p>
             <FieldError message={fieldErrors.playersPerSide} />
+          </div>
+
+          <div>
+            <label className="text-sm font-bold text-blue-950" htmlFor="sector">
+              Settore
+            </label>
+            <select
+              id="sector"
+              value={formData.sector}
+              onChange={(event) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  sector: event.target.value as CategorySectorValue | "",
+                }))
+              }
+              className={inputClass}
+              required
+            >
+              <option value="" disabled>
+                Seleziona classificazione…
+              </option>
+              {CATEGORY_SECTOR_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {CATEGORY_SECTOR_LABELS[value]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs font-medium text-zinc-500">
+              Obbligatoria. Nessun valore predefinito: scegli esplicitamente giovanile o Prima Squadra.
+            </p>
+            <FieldError message={fieldErrors.sector} />
           </div>
 
           <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-sm font-semibold text-blue-950">

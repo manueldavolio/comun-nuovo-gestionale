@@ -4,6 +4,7 @@ import { LayoutGrid, Plus, Search, Users } from "lucide-react";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { CategoryStatusToggleButton } from "@/components/categories/category-status-toggle-button";
 import { getAuthSession } from "@/lib/auth";
+import { categorySectorLabel, normalizeCategorySector } from "@/lib/category-sector";
 import { prisma } from "@/lib/prisma";
 
 const statusLabelMap = {
@@ -62,6 +63,7 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
       birthYearsLabel: true,
       seasonLabel: true,
       isActive: true,
+      sector: true,
       _count: {
         select: {
           athletes: true,
@@ -193,6 +195,8 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
               const assignedCoaches = category.coachAssignments
                 .map((assignment) => assignment.coach.user.name.trim())
                 .filter(Boolean);
+              const sector = normalizeCategorySector(category.sector);
+              const sectorLabel = categorySectorLabel(sector);
 
               return (
                 <li key={category.id}>
@@ -207,15 +211,28 @@ export default async function AdminCategoriesPage({ searchParams }: AdminCategor
                           Stagione {category.seasonLabel}
                         </p>
                       </div>
-                      {category.isActive ? (
-                        <span className="shrink-0 rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-900 ring-1 ring-sky-200">
-                          Attiva
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        {category.isActive ? (
+                          <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-900 ring-1 ring-sky-200">
+                            Attiva
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-700 ring-1 ring-slate-200">
+                            Non attiva
+                          </span>
+                        )}
+                        <span
+                          className={
+                            sector == null
+                              ? "rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-900 ring-1 ring-amber-200"
+                              : sector === "FIRST_TEAM"
+                                ? "rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-indigo-900 ring-1 ring-indigo-200"
+                                : "rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-900 ring-1 ring-emerald-200"
+                          }
+                        >
+                          {sectorLabel}
                         </span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-700 ring-1 ring-slate-200">
-                          Non attiva
-                        </span>
-                      )}
+                      </div>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-2">

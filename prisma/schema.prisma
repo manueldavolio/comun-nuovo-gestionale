@@ -159,6 +159,13 @@ enum CompetitionKind {
   OTHER
 }
 
+/// Ambito operativo categoria: settore giovanile vs Prima Squadra.
+/// null = non ancora classificata (fail-closed per YOUTH_DIRECTOR).
+enum CategorySector {
+  YOUTH
+  FIRST_TEAM
+}
+
 enum DisciplinarySanctionType {
   YELLOW_CARD
   RED_CARD
@@ -251,6 +258,8 @@ model Category {
   isActive       Boolean  @default(true)
   /// Giocatori per squadra in campo (5/7/9/11). null = usare fallback da nome fino al backfill.
   playersPerSide Int?
+  /// YOUTH | FIRST_TEAM. null = non classificata (nessun default; ADMIN deve impostarla).
+  sector         CategorySector?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -270,6 +279,7 @@ model Category {
   @@unique([name, seasonLabel])
   @@index([isActive])
   @@index([seasonLabel])
+  @@index([sector])
 }
 
 model ParentProfile {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PLAYERS_PER_SIDE_VALUES } from "@/lib/category-format";
+import { CATEGORY_SECTOR_VALUES } from "@/lib/category-sector";
 
 export const upsertCategorySchema = z.object({
   name: z.string().trim().min(1, "Nome categoria obbligatorio.").max(80, "Nome categoria troppo lungo."),
@@ -17,6 +18,10 @@ export const upsertCategorySchema = z.object({
         (PLAYERS_PER_SIDE_VALUES as readonly number[]).includes(value),
       { message: "Formato partita non valido (5, 7, 9 o 11)." },
     ),
+  /** Obbligatoria in create/update ADMIN: nessun default YOUTH implicito. */
+  sector: z.enum(CATEGORY_SECTOR_VALUES, {
+    error: "Classificazione settore obbligatoria (giovanile o Prima Squadra).",
+  }),
 });
 
 export type UpsertCategoryInput = z.infer<typeof upsertCategorySchema>;

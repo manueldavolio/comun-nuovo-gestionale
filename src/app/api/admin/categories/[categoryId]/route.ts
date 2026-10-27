@@ -50,6 +50,7 @@ export async function PUT(
         birthYearsLabel: parsed.data.birthYearsLabel.trim(),
         isActive: parsed.data.isActive,
         playersPerSide: parsed.data.playersPerSide,
+        sector: parsed.data.sector,
       },
     });
 

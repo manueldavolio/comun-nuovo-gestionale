@@ -80,6 +80,8 @@ async function upsertCategory(params: {
   depositFee: string;
   balanceFee: string;
   playersPerSide: 5 | 7 | 9 | 11;
+  /** Seed locale: categorie di test giovanili esplicite (niente default implicito in schema). */
+  sector: "YOUTH" | "FIRST_TEAM";
 }) {
   return prisma.category.upsert({
     where: {
@@ -94,6 +96,7 @@ async function upsertCategory(params: {
       depositFee: params.depositFee,
       balanceFee: params.balanceFee,
       playersPerSide: params.playersPerSide,
+      sector: params.sector,
       isActive: true,
     },
     create: {
@@ -104,6 +107,7 @@ async function upsertCategory(params: {
       depositFee: params.depositFee,
       balanceFee: params.balanceFee,
       playersPerSide: params.playersPerSide,
+      sector: params.sector,
       isActive: true,
     },
   });
@@ -269,6 +273,7 @@ async function main() {
     depositFee: "120.00",
     balanceFee: "300.00",
     playersPerSide: 5,
+    sector: "YOUTH",
   });
 
   const pulciniCategory = await upsertCategory({
@@ -279,6 +284,7 @@ async function main() {
     depositFee: "170.00",
     balanceFee: "350.00",
     playersPerSide: 7,
+    sector: "YOUTH",
   });
 
   await upsertCategory({
@@ -289,6 +295,7 @@ async function main() {
     depositFee: "220.00",
     balanceFee: "400.00",
     playersPerSide: 9,
+    sector: "YOUTH",
   });
 
   await prisma.coachCategoryAssignment.upsert({

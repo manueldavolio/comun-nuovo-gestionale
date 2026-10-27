@@ -5,6 +5,7 @@ import { CategoryForm } from "@/components/categories/category-form";
 import { CategoryDeleteButton } from "@/components/categories/category-delete-button";
 import { getAuthSession } from "@/lib/auth";
 import { resolvePlayersPerSide } from "@/lib/category-format";
+import { normalizeCategorySector } from "@/lib/category-sector";
 import { prisma } from "@/lib/prisma";
 
 type AdminCategoryEditPageProps = {
@@ -31,6 +32,7 @@ export default async function AdminCategoryEditPage({ params }: AdminCategoryEdi
       birthYearsLabel: true,
       isActive: true,
       playersPerSide: true,
+      sector: true,
     },
   });
 
@@ -63,6 +65,7 @@ export default async function AdminCategoryEditPage({ params }: AdminCategoryEdi
             birthYearsLabel: category.birthYearsLabel,
             isActive: category.isActive,
             playersPerSide: resolvePlayersPerSide(category),
+            sector: normalizeCategorySector(category.sector),
           }}
         />
 

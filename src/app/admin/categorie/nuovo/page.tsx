@@ -40,6 +40,7 @@ export default async function AdminCategoryNewPage() {
             birthYearsLabel: "",
             isActive: true,
             playersPerSide: 11,
+            sector: null,
           }}
         />
       </div>
