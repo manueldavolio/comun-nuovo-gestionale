@@ -6,9 +6,19 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 type AdminDashboardHeroProps = {
   userName: string;
   seasonLabel?: string | null;
+  /** Defaults preserve ADMIN dashboard copy. */
+  title?: string;
+  subtitle?: string;
 };
 
-export function AdminDashboardHero({ userName, seasonLabel }: AdminDashboardHeroProps) {
+export function AdminDashboardHero({
+  userName,
+  seasonLabel,
+  title = "Centro di controllo",
+  subtitle,
+}: AdminDashboardHeroProps) {
+  const resolvedSubtitle = subtitle ?? `Panoramica operativa · ${userName}`;
+
   return (
     <header className="overflow-hidden rounded-3xl border border-blue-800/30 bg-gradient-to-br from-blue-950 via-blue-900 to-sky-700 text-white shadow-lg shadow-blue-950/20">
       <div className="relative p-5 sm:p-6">
@@ -42,11 +52,15 @@ export function AdminDashboardHero({ userName, seasonLabel }: AdminDashboardHero
               </div>
             </div>
 
-            <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
-              Centro di controllo
-            </h1>
+            <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">{title}</h1>
             <p className="mt-1 text-sm font-medium text-sky-100">
-              Panoramica operativa · {userName}
+              {resolvedSubtitle}
+              {subtitle ? (
+                <>
+                  {" "}
+                  · <span className="whitespace-nowrap">{userName}</span>
+                </>
+              ) : null}
             </p>
           </div>
 

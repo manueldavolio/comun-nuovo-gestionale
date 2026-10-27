@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   CalendarDays,
   ClipboardList,
+  FileText,
   FileWarning,
   HeartPulse,
   Users,
@@ -19,6 +20,11 @@ import { AdminDashboardHero } from "@/components/admin/admin-dashboard-hero";
 import { AdminEventForms } from "@/components/events/admin-event-forms";
 import { EventList } from "@/components/events/event-list";
 import { AdminMedicalVisitRemindersActions } from "@/components/medical-visits/admin-medical-visit-reminders-actions";
+import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import {
+  YD_QUICK_LINKS,
+  shouldRestrictYouthDirectorToAssignedCategories,
+} from "@/lib/admin-dashboard-yd";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
@@ -70,15 +76,30 @@ export default async function AdminDashboardPage() {
   }
 
   const now = new Date();
-  const canViewFinance = session.user.role === "ADMIN";
-  const isAdmin = session.user.role === "ADMIN";
+  const role = session.user.role;
+  const canViewFinance = role === "ADMIN";
+  const isAdmin = role === "ADMIN";
+  const isYouthDirector = role === "YOUTH_DIRECTOR";
   const seasonLabel = seasonLabelFromConfig(now);
+
+  const assignedCategoryIds = isYouthDirector
+    ? await getCoachCategoryIdsForUser(session.user.id)
+    : [];
+  // Stessa regola di /admin/calendario: restringi solo se YD ha categorie assegnate.
+  const restrictToAssigned = shouldRestrictYouthDirectorToAssignedCategories(
+    role,
+    assignedCategoryIds,
+  );
+  const eventCategoryFilter = restrictToAssigned
+    ? { categoryId: { in: assignedCategoryIds } }
+    : {};
 
   const [
     activeAthletes,
     withdrawnAthletes,
     activeCategories,
     activeStaff,
+    archiveDocumentsCount,
     categories,
     upcomingEvents,
     reminderTargets,
@@ -96,8 +117,13 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
+    // Archivio Document (metadati), non enrollment docs né certificati medici.
+    prisma.document.count(),
     prisma.category.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(restrictToAssigned ? { id: { in: assignedCategoryIds } } : {}),
+      },
       orderBy: [{ name: "asc" }],
       select: {
         id: true,
@@ -107,6 +133,7 @@ export default async function AdminDashboardPage() {
     }),
     prisma.event.findMany({
       where: {
+        ...eventCategoryFilter,
         startAt: {
           gte: now,
         },
@@ -213,145 +240,208 @@ export default async function AdminDashboardPage() {
   const medicalAlertCount =
     reminderTargets.expiring.length + reminderTargets.expired.length;
 
-  const kpiCards = [
-    {
-      title: "Atleti attivi",
-      value: activeAthletes,
-      description: "In rosa operativa",
-      href: "/admin/atleti",
-      tone: "border-blue-200 bg-gradient-to-br from-white to-blue-50/40",
-      valueTone: "text-blue-950",
-    },
-    {
-      title: "Atleti ritirati",
-      value: withdrawnAthletes,
-      description: "Fuori rosa, storico conservato",
-      href: "/admin/atleti?status=withdrawn",
-      tone: "border-sky-100 bg-gradient-to-br from-white to-slate-50",
-      valueTone: "text-slate-800",
-    },
-    {
-      title: "Categorie attive",
-      value: activeCategories,
-      description: "Squadre operative in stagione",
-      href: "/admin/categorie?filter=active",
-      tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50/50",
-      valueTone: "text-sky-950",
-    },
-    {
-      title: "Staff tecnico",
-      value: activeStaff,
-      description: "Admin, direzione e mister",
-      href: "/admin/staff",
-      tone: "border-blue-100 bg-gradient-to-br from-white to-blue-50/30",
-      valueTone: "text-blue-900",
-    },
-    ...(canViewFinance
-      ? [
-          {
-            title: "Pagamenti da verificare",
-            value: pendingPaymentsCount ?? 0,
-            description:
-              pendingPaymentsAmount != null
-                ? `In sospeso ${euroFormatter.format(pendingPaymentsAmount)}`
-                : "Pending e overdue",
-            href: "/admin/finanze",
-            tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50",
-            valueTone: "text-sky-950",
-          },
-        ]
-      : []),
-  ];
+  const kpiCards = isYouthDirector
+    ? [
+        {
+          title: "Atleti attivi",
+          value: activeAthletes,
+          description: "In rosa operativa",
+          href: "/admin/atleti",
+          tone: "border-blue-200 bg-gradient-to-br from-white to-blue-50/40",
+          valueTone: "text-blue-950",
+        },
+        {
+          title: "Atleti ritirati",
+          value: withdrawnAthletes,
+          description: "Fuori rosa, storico conservato",
+          href: "/admin/atleti?status=withdrawn",
+          tone: "border-sky-100 bg-gradient-to-br from-white to-slate-50",
+          valueTone: "text-slate-800",
+        },
+        {
+          title: "Visite da controllare",
+          value: medicalAlertCount,
+          description: "Scadute e in scadenza",
+          href: "/admin/visite-mediche",
+          tone: "border-red-200 bg-gradient-to-br from-white to-red-50/50",
+          valueTone: "text-red-900",
+        },
+        {
+          title: "Documenti in archivio",
+          value: archiveDocumentsCount,
+          description: "Archivio metadati Document",
+          href: "/admin/documenti",
+          tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50/50",
+          valueTone: "text-sky-950",
+        },
+      ]
+    : [
+        {
+          title: "Atleti attivi",
+          value: activeAthletes,
+          description: "In rosa operativa",
+          href: "/admin/atleti",
+          tone: "border-blue-200 bg-gradient-to-br from-white to-blue-50/40",
+          valueTone: "text-blue-950",
+        },
+        {
+          title: "Atleti ritirati",
+          value: withdrawnAthletes,
+          description: "Fuori rosa, storico conservato",
+          href: "/admin/atleti?status=withdrawn",
+          tone: "border-sky-100 bg-gradient-to-br from-white to-slate-50",
+          valueTone: "text-slate-800",
+        },
+        {
+          title: "Categorie attive",
+          value: activeCategories,
+          description: "Squadre operative in stagione",
+          href: "/admin/categorie?filter=active",
+          tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50/50",
+          valueTone: "text-sky-950",
+        },
+        {
+          title: "Staff tecnico",
+          value: activeStaff,
+          description: "Admin, direzione e mister",
+          href: "/admin/staff",
+          tone: "border-blue-100 bg-gradient-to-br from-white to-blue-50/30",
+          valueTone: "text-blue-900",
+        },
+        ...(canViewFinance
+          ? [
+              {
+                title: "Pagamenti da verificare",
+                value: pendingPaymentsCount ?? 0,
+                description:
+                  pendingPaymentsAmount != null
+                    ? `In sospeso ${euroFormatter.format(pendingPaymentsAmount)}`
+                    : "Pending e overdue",
+                href: "/admin/finanze",
+                tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50",
+                valueTone: "text-sky-950",
+              },
+            ]
+          : []),
+      ];
 
-  const quickLinks = [
-    {
-      href: "/admin/calendario",
-      label: "Calendario",
-      description: "Vista mensile eventi",
-      icon: CalendarDays,
-    },
-    {
-      href: "/admin/atleti",
-      label: "Atleti",
-      description: "Rose e anagrafiche",
-      icon: Users,
-    },
-    {
-      href: "/admin/categorie",
-      label: "Categorie",
-      description: "Fasce e moduli",
-      icon: LayoutGrid,
-    },
-    {
-      href: "/admin/staff",
-      label: "Staff",
-      description: "Ruoli tecnici",
-      icon: UserRound,
-    },
-    ...(canViewFinance
-      ? [
-          {
-            href: "/admin/finanze",
-            label: "Finanze",
-            description: "Pagamenti e ricevute",
-            icon: Wallet,
-          },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          {
-            href: "/admin/schedina",
-            label: "Schedina",
-            description: "Pronostici 1X2",
-            icon: Trophy,
-          },
-        ]
-      : []),
-    {
-      href: "/admin/associazioni-genitori",
-      label: "Associazioni",
-      description: "Secondo genitore",
-      icon: Link2,
-    },
-    {
-      href: "/admin/utenti",
-      label: "Utenti",
-      description: "Account e password",
-      icon: UserRound,
-    },
-    {
-      href: "/admin/comunicazioni",
-      label: "Comunicazioni",
-      description: "Bacheca avvisi",
-      icon: Megaphone,
-    },
-    {
-      href: "/admin/media",
-      label: "Media",
-      description: "Foto e video",
-      icon: Images,
-    },
-    {
-      href: "/admin/visite-mediche",
-      label: "Visite mediche",
-      description: "Scadenze sanitarie",
-      icon: HeartPulse,
-    },
-    {
-      href: "/admin/documenti",
-      label: "Documenti",
-      description: "Archivio pratiche",
-      icon: FileWarning,
-    },
-  ];
+  const quickLinkIcons: Record<string, typeof CalendarDays> = {
+    "/admin/calendario": CalendarDays,
+    "/admin/atleti": Users,
+    "/admin/categorie": LayoutGrid,
+    "/admin/staff": UserRound,
+    "/admin/finanze": Wallet,
+    "/admin/schedina": Trophy,
+    "/admin/associazioni-genitori": Link2,
+    "/admin/utenti": UserRound,
+    "/admin/comunicazioni": Megaphone,
+    "/admin/media": Images,
+    "/admin/visite-mediche": HeartPulse,
+    "/admin/documenti": FileText,
+  };
+
+  const quickLinks = isYouthDirector
+    ? YD_QUICK_LINKS.map((item) => ({
+        ...item,
+        icon: quickLinkIcons[item.href] ?? FileWarning,
+      }))
+    : [
+        {
+          href: "/admin/calendario",
+          label: "Calendario",
+          description: "Vista mensile eventi",
+          icon: CalendarDays,
+        },
+        {
+          href: "/admin/atleti",
+          label: "Atleti",
+          description: "Rose e anagrafiche",
+          icon: Users,
+        },
+        {
+          href: "/admin/categorie",
+          label: "Categorie",
+          description: "Fasce e moduli",
+          icon: LayoutGrid,
+        },
+        {
+          href: "/admin/staff",
+          label: "Staff",
+          description: "Ruoli tecnici",
+          icon: UserRound,
+        },
+        ...(canViewFinance
+          ? [
+              {
+                href: "/admin/finanze",
+                label: "Finanze",
+                description: "Pagamenti e ricevute",
+                icon: Wallet,
+              },
+            ]
+          : []),
+        ...(isAdmin
+          ? [
+              {
+                href: "/admin/schedina",
+                label: "Schedina",
+                description: "Pronostici 1X2",
+                icon: Trophy,
+              },
+            ]
+          : []),
+        {
+          href: "/admin/associazioni-genitori",
+          label: "Associazioni",
+          description: "Secondo genitore",
+          icon: Link2,
+        },
+        {
+          href: "/admin/utenti",
+          label: "Utenti",
+          description: "Account e password",
+          icon: UserRound,
+        },
+        {
+          href: "/admin/comunicazioni",
+          label: "Comunicazioni",
+          description: "Bacheca avvisi",
+          icon: Megaphone,
+        },
+        {
+          href: "/admin/media",
+          label: "Media",
+          description: "Foto e video",
+          icon: Images,
+        },
+        {
+          href: "/admin/visite-mediche",
+          label: "Visite mediche",
+          description: "Scadenze sanitarie",
+          icon: HeartPulse,
+        },
+        {
+          href: "/admin/documenti",
+          label: "Documenti",
+          description: "Archivio pratiche",
+          icon: FileWarning,
+        },
+      ];
 
   return (
     <main className="p-4 md:p-6 lg:p-8">
       <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 md:gap-5">
         <AdminDashboardHero
-          userName={session.user.name ?? "Amministratore"}
+          userName={
+            session.user.name ?? (isYouthDirector ? "Direttore settore" : "Amministratore")
+          }
           seasonLabel={seasonLabel}
+          title={isYouthDirector ? "Settore giovanile" : undefined}
+          subtitle={
+            isYouthDirector
+              ? "Gestisci atleti, attività e scadenze del settore giovanile."
+              : undefined
+          }
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
@@ -376,42 +466,46 @@ export default async function AdminDashboardPage() {
           <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-950 to-sky-800 px-4 py-3 text-white">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-[0.14em]">Da gestire</h2>
-              <p className="mt-0.5 text-xs text-sky-200">Priorità operative della società</p>
+              <p className="mt-0.5 text-xs text-sky-200">
+                {isYouthDirector
+                  ? "Priorità operative del settore giovanile"
+                  : "Priorità operative della società"}
+              </p>
             </div>
           </div>
 
-          <div className="grid gap-3 p-4 lg:grid-cols-2 xl:grid-cols-4">
-            <article className="flex flex-col rounded-2xl border border-sky-200 bg-sky-50/60 p-3.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-800 text-white">
-                    <Wallet className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <h3 className="text-sm font-bold text-zinc-900">Pagamenti aperti</h3>
-                    <p className="text-[11px] text-zinc-600">Pending e overdue</p>
+          <div
+            className={`grid gap-3 p-4 lg:grid-cols-2 ${
+              isYouthDirector ? "xl:grid-cols-3" : "xl:grid-cols-4"
+            }`}
+          >
+            {canViewFinance ? (
+              <article className="flex flex-col rounded-2xl border border-sky-200 bg-sky-50/60 p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-800 text-white">
+                      <Wallet className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold text-zinc-900">Pagamenti aperti</h3>
+                      <p className="text-[11px] text-zinc-600">Pending e overdue</p>
+                    </div>
                   </div>
+                  <Link
+                    href="/admin/finanze"
+                    className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-950 hover:bg-sky-50"
+                  >
+                    Apri
+                  </Link>
                 </div>
-                <Link
-                  href="/admin/finanze"
-                  className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-950 hover:bg-sky-50"
-                >
-                  Apri
-                </Link>
-              </div>
-              {canViewFinance ? (
                 <div className="mt-3 space-y-1.5">
                   <p className="text-2xl font-black text-blue-950">{pendingPaymentsCount}</p>
                   <p className="text-xs font-semibold text-sky-900">
                     Totale {euroFormatter.format(pendingPaymentsAmount ?? 0)}
                   </p>
                 </div>
-              ) : (
-                <p className="mt-3 text-sm text-zinc-600">
-                  Dati economici disponibili solo per admin.
-                </p>
-              )}
-            </article>
+              </article>
+            ) : null}
 
             <article className="flex flex-col rounded-2xl border border-red-200 bg-red-50/50 p-3.5">
               <div className="flex items-start justify-between gap-2">
