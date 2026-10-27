@@ -1,5 +1,6 @@
 import "server-only";
 import type { UserRole } from "@prisma/client";
+import { canManageEventForStaff } from "@/lib/category-event-access";
 import { prisma } from "@/lib/prisma";
 
 export async function getCoachCategoryIdsForUser(userId: string) {
@@ -22,44 +23,9 @@ export async function canManageEventAttendance(params: {
   role: UserRole;
   eventId: string;
 }) {
-  const event = await prisma.event.findUnique({
-    where: { id: params.eventId },
-    select: {
-      id: true,
-      categoryId: true,
-    },
+  return canManageEventForStaff({
+    userId: params.userId,
+    role: params.role,
+    eventId: params.eventId,
   });
-
-  if (!event) {
-    return false;
-  }
-
-  if (params.role === "ADMIN" || params.role === "YOUTH_DIRECTOR") {
-    return true;
-  }
-
-  if (params.role !== "COACH" || !event.categoryId) {
-    return false;
-  }
-
-  const coachProfile = await prisma.coachProfile.findUnique({
-    where: { userId: params.userId },
-    select: { id: true },
-  });
-
-  if (!coachProfile) {
-    return false;
-  }
-
-  const assignment = await prisma.coachCategoryAssignment.findUnique({
-    where: {
-      coachId_categoryId: {
-        coachId: coachProfile.id,
-        categoryId: event.categoryId,
-      },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(assignment);
 }

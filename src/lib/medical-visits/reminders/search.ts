@@ -6,6 +6,7 @@ export type MedicalVisitReminderTarget = {
   visitId: string;
   athleteId: string;
   athleteFullName: string;
+  categoryId: string;
   categoryName: string;
   expiryDate: Date;
   status: MedicalVisitStatus;
@@ -20,15 +21,24 @@ export type MedicalVisitReminderTargets = {
 
 export async function getMedicalVisitReminderTargets({
   now = new Date(),
+  categoryIds,
 }: {
   now?: Date;
+  /** Se impostato, solo atleti in queste categorie (es. YOUTH per YD). */
+  categoryIds?: string[];
 } = {}): Promise<MedicalVisitReminderTargets> {
+  if (categoryIds && categoryIds.length === 0) {
+    return { expiring: [], expired: [], all: [] };
+  }
+
   const athletes = await prisma.athlete.findMany({
+    where: categoryIds ? { categoryId: { in: categoryIds } } : undefined,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: {
       id: true,
       firstName: true,
       lastName: true,
+      categoryId: true,
       category: {
         select: {
           name: true,
@@ -67,6 +77,7 @@ export async function getMedicalVisitReminderTargets({
         visitId: latest.id,
         athleteId: athlete.id,
         athleteFullName: `${athlete.firstName} ${athlete.lastName}`.trim(),
+        categoryId: athlete.categoryId,
         categoryName: athlete.category.name,
         expiryDate: latest.expiryDate,
         status,
@@ -84,4 +95,3 @@ export async function getMedicalVisitReminderTargets({
 
   return { expiring, expired, all: targets };
 }
-

@@ -2,6 +2,12 @@
  * Decisioni di autorizzazione per API disciplina / valutazioni.
  * Pure functions: testabili senza Next.js / Prisma.
  */
+import {
+  decideEventCategoryAccess,
+  toCategorySectorLookup,
+  type CategorySectorLookup,
+} from "@/lib/category-event-access-policy";
+import type { CategorySector } from "@/lib/category-sector";
 
 export type DisciplineApiAccessResult =
   | { ok: true }
@@ -57,17 +63,39 @@ export function decideMatchRatingAccess(input: {
 }
 
 /**
- * ADMIN / YOUTH_DIRECTOR: accesso società-wide (canManageCategory = true lato caller).
- * COACH: solo categorie assegnate (canManageCategory risolto da CoachCategoryAssignment).
+ * ADMIN: qualsiasi categoria.
+ * YOUTH_DIRECTOR: solo sector YOUTH (fail-closed se sector assente/null/FIRST_TEAM).
+ * COACH: solo categorie in assignedCategoryIds.
  */
 export function resolveStaffCategoryManageability(input: {
   role: string | null | undefined;
   assignedCategoryIds: string[];
   targetCategoryId: string;
+  /**
+   * Settore della categoria target. Obbligatorio per YD (fail-closed):
+   * se omesso → trattato come MISSING → deny.
+   */
+  targetSector?: CategorySector | CategorySectorLookup | null;
 }): boolean {
-  if (input.role === "ADMIN" || input.role === "YOUTH_DIRECTOR") {
+  if (input.role === "ADMIN") {
     return true;
   }
+
+  if (input.role === "YOUTH_DIRECTOR") {
+    const sector: CategorySectorLookup =
+      input.targetSector === undefined
+        ? "MISSING"
+        : input.targetSector === "MISSING"
+          ? "MISSING"
+          : toCategorySectorLookup(input.targetSector);
+    return decideEventCategoryAccess({
+      role: "YOUTH_DIRECTOR",
+      categoryId: input.targetCategoryId,
+      sector,
+      coachAssignedToCategory: false,
+    }).allow;
+  }
+
   if (input.role !== "COACH") {
     return false;
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { assertCanManageCategoryForEvents } from "@/lib/category-event-access";
 import { createEventSchema } from "@/lib/validation/events";
 import {
   buildCompetitionPersistFields,
@@ -69,6 +70,15 @@ export async function POST(request: Request) {
       { error: parsed.error.issues[0]?.message ?? "Dati non validi." },
       { status: 400 },
     );
+  }
+
+  const categoryAccess = await assertCanManageCategoryForEvents({
+    userId: session.user.id,
+    role: session.user.role,
+    categoryId: parsed.data.categoryId,
+  });
+  if (!categoryAccess.ok) {
+    return NextResponse.json({ error: categoryAccess.error }, { status: categoryAccess.status });
   }
 
   const category = await prisma.category.findUnique({

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
-import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import {
+  assertCanManageEventForStaff,
+  assertCanManageEventMoveForStaff,
+} from "@/lib/category-event-access";
 import {
   buildCompetitionPersistFields,
   updateEventCompatible,
@@ -13,52 +16,6 @@ type RouteContext = {
     eventId: string;
   }>;
 };
-
-async function assertCanManageEvent(options: {
-  userId: string;
-  role: string;
-  eventCategoryId: string | null;
-  /** When updating category, also check the target category for coaches. */
-  targetCategoryId?: string;
-}) {
-  const canManageAny = options.role === "ADMIN" || options.role === "YOUTH_DIRECTOR";
-  const canManageOwnCategory = options.role === "COACH";
-
-  if (!canManageAny && !canManageOwnCategory) {
-    return { ok: false as const, status: 403, error: "Operazione non consentita." };
-  }
-
-  if (canManageAny) {
-    return { ok: true as const };
-  }
-
-  if (!options.eventCategoryId) {
-    return {
-      ok: false as const,
-      status: 403,
-      error: "Puoi gestire solo eventi collegati alle tue categorie.",
-    };
-  }
-
-  const coachCategoryIds = await getCoachCategoryIdsForUser(options.userId);
-  if (!coachCategoryIds.includes(options.eventCategoryId)) {
-    return {
-      ok: false as const,
-      status: 403,
-      error: "Puoi gestire solo eventi collegati alle tue categorie.",
-    };
-  }
-
-  if (options.targetCategoryId && !coachCategoryIds.includes(options.targetCategoryId)) {
-    return {
-      ok: false as const,
-      status: 403,
-      error: "Non puoi spostare l'evento in una categoria non assegnata.",
-    };
-  }
-
-  return { ok: true as const };
-}
 
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await getAuthSession();
@@ -87,22 +44,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: {
-      id: true,
-      categoryId: true,
-    },
-  });
-
-  if (!event) {
-    return NextResponse.json({ error: "Evento non trovato." }, { status: 404 });
-  }
-
-  const access = await assertCanManageEvent({
+  const access = await assertCanManageEventMoveForStaff({
     userId: session.user.id,
     role: session.user.role,
-    eventCategoryId: event.categoryId,
+    eventId,
     targetCategoryId: parsed.data.categoryId,
   });
 
@@ -128,7 +73,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     await updateEventCompatible({
-      eventId: event.id,
+      eventId,
       base: {
         title: parsed.data.title,
         type: parsed.data.type,
@@ -153,24 +98,25 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
   }
 
-  const role = session.user.role;
-  const canDeleteAny = role === "ADMIN" || role === "YOUTH_DIRECTOR";
-  const canDeleteOwnCategory = role === "COACH";
-
-  if (!canDeleteAny && !canDeleteOwnCategory) {
-    return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
-  }
-
   const { eventId } = await context.params;
   if (!eventId) {
     return NextResponse.json({ error: "ID evento non valido." }, { status: 400 });
+  }
+
+  const access = await assertCanManageEventForStaff({
+    userId: session.user.id,
+    role: session.user.role,
+    eventId,
+  });
+
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: {
       id: true,
-      categoryId: true,
       _count: {
         select: {
           attendances: true,
@@ -186,23 +132,6 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   if (!event) {
     return NextResponse.json({ error: "Evento non trovato." }, { status: 404 });
-  }
-
-  if (canDeleteOwnCategory) {
-    if (!event.categoryId) {
-      return NextResponse.json(
-        { error: "Puoi eliminare solo eventi collegati alle tue categorie." },
-        { status: 403 },
-      );
-    }
-
-    const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
-    if (!coachCategoryIds.includes(event.categoryId)) {
-      return NextResponse.json(
-        { error: "Puoi eliminare solo eventi collegati alle tue categorie." },
-        { status: 403 },
-      );
-    }
   }
 
   if (event._count.attendances > 0 || event.convocation) {

@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { EditEventForm } from "@/components/events/edit-event-form";
 import { getAuthSession } from "@/lib/auth";
+import {
+  assertCanManageEventForStaff,
+  listManageableCategoryIdsForEvents,
+} from "@/lib/category-event-access";
 import { toDateTimeLocalValueUTC } from "@/lib/date-input";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +27,21 @@ export default async function AdminEditEventPage({ params }: AdminEditEventPageP
     redirect(ROLE_HOME_PATH[session.user.role] ?? "/unauthorized");
   }
 
+  const access = await assertCanManageEventForStaff({
+    userId: session.user.id,
+    role: session.user.role,
+    eventId: id,
+  });
+  if (!access.ok) {
+    redirect("/unauthorized");
+  }
+
+  const manageableCategoryIds = await listManageableCategoryIdsForEvents({
+    userId: session.user.id,
+    role: session.user.role,
+    activeOnly: true,
+  });
+
   const [event, categories] = await Promise.all([
     prisma.event.findUnique({
       where: { id },
@@ -37,7 +56,12 @@ export default async function AdminEditEventPage({ params }: AdminEditEventPageP
       },
     }),
     prisma.category.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(session.user.role === "YOUTH_DIRECTOR"
+          ? { id: { in: manageableCategoryIds } }
+          : {}),
+      },
       orderBy: [{ name: "asc" }],
       select: {
         id: true,

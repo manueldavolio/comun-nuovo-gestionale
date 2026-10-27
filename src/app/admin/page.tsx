@@ -20,11 +20,12 @@ import { AdminDashboardHero } from "@/components/admin/admin-dashboard-hero";
 import { AdminEventForms } from "@/components/events/admin-event-forms";
 import { EventList } from "@/components/events/event-list";
 import { AdminMedicalVisitRemindersActions } from "@/components/medical-visits/admin-medical-visit-reminders-actions";
-import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import {
   YD_QUICK_LINKS,
-  shouldRestrictYouthDirectorToAssignedCategories,
+  youthDirectorAthleteCategoryFilter,
+  youthDirectorDocumentAthleteFilter,
 } from "@/lib/admin-dashboard-yd";
+import { listManageableCategoryIdsForEvents } from "@/lib/category-event-access";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
@@ -82,17 +83,25 @@ export default async function AdminDashboardPage() {
   const isYouthDirector = role === "YOUTH_DIRECTOR";
   const seasonLabel = seasonLabelFromConfig(now);
 
-  const assignedCategoryIds = isYouthDirector
-    ? await getCoachCategoryIdsForUser(session.user.id)
-    : [];
-  // Stessa regola di /admin/calendario: restringi solo se YD ha categorie assegnate.
-  const restrictToAssigned = shouldRestrictYouthDirectorToAssignedCategories(
-    role,
-    assignedCategoryIds,
-  );
-  const eventCategoryFilter = restrictToAssigned
-    ? { categoryId: { in: assignedCategoryIds } }
-    : {};
+  // YD: tutte le categorie YOUTH (non le sole assegnazioni coach). ADMIN: nessuna restrizione.
+  const manageableCategoryIds = isYouthDirector
+    ? await listManageableCategoryIdsForEvents({
+        userId: session.user.id,
+        role,
+        activeOnly: true,
+      })
+    : null;
+  const eventCategoryFilter =
+    manageableCategoryIds != null ? { categoryId: { in: manageableCategoryIds } } : {};
+
+  const youthAthleteFilter =
+    manageableCategoryIds != null
+      ? youthDirectorAthleteCategoryFilter(manageableCategoryIds)
+      : {};
+  const youthDocumentFilter =
+    manageableCategoryIds != null
+      ? youthDirectorDocumentAthleteFilter(manageableCategoryIds)
+      : {};
 
   const [
     activeAthletes,
@@ -107,8 +116,12 @@ export default async function AdminDashboardPage() {
     recentAnnouncements,
     pendingPaymentsAggregate,
   ] = await Promise.all([
-    prisma.athlete.count({ where: { rosterStatus: "ACTIVE" } }),
-    prisma.athlete.count({ where: { rosterStatus: "WITHDRAWN" } }),
+    prisma.athlete.count({
+      where: { rosterStatus: "ACTIVE", ...youthAthleteFilter },
+    }),
+    prisma.athlete.count({
+      where: { rosterStatus: "WITHDRAWN", ...youthAthleteFilter },
+    }),
     prisma.category.count({ where: { isActive: true } }),
     prisma.user.count({
       where: {
@@ -118,11 +131,12 @@ export default async function AdminDashboardPage() {
       },
     }),
     // Archivio Document (metadati), non enrollment docs né certificati medici.
-    prisma.document.count(),
+    // YD: solo documenti di atleti in categorie YOUTH.
+    prisma.document.count({ where: youthDocumentFilter }),
     prisma.category.findMany({
       where: {
         isActive: true,
-        ...(restrictToAssigned ? { id: { in: assignedCategoryIds } } : {}),
+        ...(manageableCategoryIds != null ? { id: { in: manageableCategoryIds } } : {}),
       },
       orderBy: [{ name: "asc" }],
       select: {
@@ -157,7 +171,10 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
-    getMedicalVisitReminderTargets({ now }),
+    getMedicalVisitReminderTargets({
+      now,
+      ...(manageableCategoryIds != null ? { categoryIds: manageableCategoryIds } : {}),
+    }),
     prisma.enrollment.findMany({
       where: {
         status: {
@@ -245,7 +262,7 @@ export default async function AdminDashboardPage() {
         {
           title: "Atleti attivi",
           value: activeAthletes,
-          description: "In rosa operativa",
+          description: "Rosa operativa settore giovanile",
           href: "/admin/atleti",
           tone: "border-blue-200 bg-gradient-to-br from-white to-blue-50/40",
           valueTone: "text-blue-950",
@@ -253,7 +270,7 @@ export default async function AdminDashboardPage() {
         {
           title: "Atleti ritirati",
           value: withdrawnAthletes,
-          description: "Fuori rosa, storico conservato",
+          description: "Fuori rosa giovanile, storico conservato",
           href: "/admin/atleti?status=withdrawn",
           tone: "border-sky-100 bg-gradient-to-br from-white to-slate-50",
           valueTone: "text-slate-800",
@@ -261,7 +278,7 @@ export default async function AdminDashboardPage() {
         {
           title: "Visite da controllare",
           value: medicalAlertCount,
-          description: "Scadute e in scadenza",
+          description: "Scadute/in scadenza — solo giovanili",
           href: "/admin/visite-mediche",
           tone: "border-red-200 bg-gradient-to-br from-white to-red-50/50",
           valueTone: "text-red-900",
@@ -269,7 +286,7 @@ export default async function AdminDashboardPage() {
         {
           title: "Documenti in archivio",
           value: archiveDocumentsCount,
-          description: "Archivio metadati Document",
+          description: "Metadati Document — atleti giovanili",
           href: "/admin/documenti",
           tone: "border-sky-200 bg-gradient-to-br from-white to-sky-50/50",
           valueTone: "text-sky-950",

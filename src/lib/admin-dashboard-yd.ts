@@ -1,6 +1,7 @@
 /**
  * Pure helpers for YOUTH_DIRECTOR dashboard composition (UI only).
  * Does not grant permissions — pages/APIs remain the source of truth.
+ * Event/category scope for YD is Category.sector === YOUTH (see category-event-access).
  */
 
 export const YD_FORBIDDEN_DASHBOARD_HREFS = [
@@ -65,12 +66,41 @@ export function isYouthDirectorDashboardRole(role: string | null | undefined): b
   return role === "YOUTH_DIRECTOR";
 }
 
-/** Same rule as admin calendario: restrict only when YD has assigned categories. */
+/** Prisma-style athlete filter for YD KPIs (only youth category ids). */
+export function youthDirectorAthleteCategoryFilter(youthCategoryIds: string[]) {
+  return { categoryId: { in: youthCategoryIds } };
+}
+
+/**
+ * Documenti archivio: conteggio coerente con categorie YOUTH via athlete.categoryId.
+ * Se non ci sono categorie YOUTH, il conteggio è 0 (fail-closed).
+ */
+export function youthDirectorDocumentAthleteFilter(youthCategoryIds: string[]) {
+  return {
+    athlete: {
+      categoryId: { in: youthCategoryIds },
+    },
+  };
+}
+
+/**
+ * @deprecated E0.1d Fase 2 — YD non è più limitato alle assegnazioni coach.
+ * Conservato come no-op false per evitare regressioni di import residui.
+ */
 export function shouldRestrictYouthDirectorToAssignedCategories(
   role: string | null | undefined,
   assignedCategoryIds: string[],
 ): boolean {
-  return role === "YOUTH_DIRECTOR" && assignedCategoryIds.length > 0;
+  void role;
+  void assignedCategoryIds;
+  return false;
+}
+
+/** YD event UI uses all youth sectors, never coach assignments. */
+export function youthDirectorUsesYouthSectorEventScope(
+  role: string | null | undefined,
+): boolean {
+  return role === "YOUTH_DIRECTOR";
 }
 
 export function youthDirectorDashboardHasForbiddenHref(href: string): boolean {

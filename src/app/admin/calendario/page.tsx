@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
-import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { listManageableCategoryIdsForEvents } from "@/lib/category-event-access";
 import { normalizeCalendarEventType } from "@/lib/calendar-event-type";
 import {
   calendarVisibleRangeForMonth,
@@ -27,15 +27,16 @@ export default async function AdminCalendarPage() {
   }
 
   const role = session.user.role;
-  const assignedCategoryIds =
-    role === "YOUTH_DIRECTOR" ? await getCoachCategoryIdsForUser(session.user.id) : [];
-
-  // ADMIN: tutte le categorie.
-  // YOUTH_DIRECTOR: se ha categorie assegnate le rispetta, altrimenti tutte (come in dashboard eventi).
-  const restrictToAssigned = role === "YOUTH_DIRECTOR" && assignedCategoryIds.length > 0;
-  const categoryFilter = restrictToAssigned
-    ? { categoryId: { in: assignedCategoryIds } }
-    : {};
+  const isYouthDirector = role === "YOUTH_DIRECTOR";
+  const manageableCategoryIds = isYouthDirector
+    ? await listManageableCategoryIdsForEvents({
+        userId: session.user.id,
+        role,
+        activeOnly: true,
+      })
+    : null;
+  const categoryFilter =
+    manageableCategoryIds != null ? { categoryId: { in: manageableCategoryIds } } : {};
 
   const currentMonth = currentCalendarMonthStart();
   const { start: rangeStart, end: rangeEnd } = calendarVisibleRangeForMonth(
@@ -47,7 +48,7 @@ export default async function AdminCalendarPage() {
     prisma.category.findMany({
       where: {
         isActive: true,
-        ...(restrictToAssigned ? { id: { in: assignedCategoryIds } } : {}),
+        ...(manageableCategoryIds != null ? { id: { in: manageableCategoryIds } } : {}),
       },
       orderBy: [{ name: "asc" }],
       select: {
@@ -101,8 +102,8 @@ export default async function AdminCalendarPage() {
     deleteEndpoint: canManageEvents ? `/api/events/${event.id}` : null,
   }));
 
-  const subtitle = restrictToAssigned
-    ? "Eventi delle categorie giovanili assegnate."
+  const subtitle = isYouthDirector
+    ? "Eventi di tutte le categorie del settore giovanile."
     : "Tutti gli eventi di tutte le categorie.";
 
   return (

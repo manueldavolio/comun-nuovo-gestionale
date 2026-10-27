@@ -6,7 +6,10 @@ import {
   assertYouthDirectorQuickLinksAreAllowed,
   isYouthDirectorDashboardRole,
   shouldRestrictYouthDirectorToAssignedCategories,
+  youthDirectorAthleteCategoryFilter,
   youthDirectorDashboardHasForbiddenHref,
+  youthDirectorDocumentAthleteFilter,
+  youthDirectorUsesYouthSectorEventScope,
 } from "./admin-dashboard-yd";
 
 describe("YOUTH_DIRECTOR dashboard composition", () => {
@@ -16,19 +19,17 @@ describe("YOUTH_DIRECTOR dashboard composition", () => {
     assert.equal(isYouthDirectorDashboardRole("COACH"), false);
   });
 
-  it("restricts to assigned categories with the same rule as calendario", () => {
+  it("no longer restricts YD events to coach assignments (E0.1d)", () => {
     assert.equal(
       shouldRestrictYouthDirectorToAssignedCategories("YOUTH_DIRECTOR", ["c1"]),
-      true,
+      false,
     );
     assert.equal(
       shouldRestrictYouthDirectorToAssignedCategories("YOUTH_DIRECTOR", []),
       false,
     );
-    assert.equal(
-      shouldRestrictYouthDirectorToAssignedCategories("ADMIN", ["c1"]),
-      false,
-    );
+    assert.equal(youthDirectorUsesYouthSectorEventScope("YOUTH_DIRECTOR"), true);
+    assert.equal(youthDirectorUsesYouthSectorEventScope("ADMIN"), false);
   });
 
   it("forbids finance/categories/staff and related admin-only destinations", () => {
@@ -40,6 +41,19 @@ describe("YOUTH_DIRECTOR dashboard composition", () => {
     assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/atleti"), false);
     assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/documenti"), false);
     assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/visite-mediche"), false);
+  });
+
+  it("KPI filters exclude first team by requiring youth category ids only", () => {
+    const youthIds = ["youth-a", "youth-b"];
+    assert.deepEqual(youthDirectorAthleteCategoryFilter(youthIds), {
+      categoryId: { in: youthIds },
+    });
+    assert.deepEqual(youthDirectorDocumentAthleteFilter(youthIds), {
+      athlete: { categoryId: { in: youthIds } },
+    });
+    assert.deepEqual(youthDirectorAthleteCategoryFilter([]), {
+      categoryId: { in: [] },
+    });
   });
 
   it("YD quick links stay within authorized destinations and exclude finance", () => {

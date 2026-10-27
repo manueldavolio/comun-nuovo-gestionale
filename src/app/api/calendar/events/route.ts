@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { listManageableCategoryIdsForEvents } from "@/lib/category-event-access";
 import { normalizeCalendarEventType } from "@/lib/calendar-event-type";
 import {
   calendarVisibleRangeForMonth,
@@ -56,9 +57,18 @@ export async function GET(request: Request) {
       });
     }
   } else if (role === "YOUTH_DIRECTOR") {
-    const assigned = await getCoachCategoryIdsForUser(session.user.id);
-    if (assigned.length > 0) {
-      categoryIds = assigned;
+    categoryIds = await listManageableCategoryIdsForEvents({
+      userId: session.user.id,
+      role,
+      activeOnly: true,
+    });
+    if (categoryIds.length === 0) {
+      return NextResponse.json({
+        month: formatYearMonth(
+          new Date(Date.UTC(parsedMonth.year, parsedMonth.monthIndex0, 1)),
+        ),
+        events: [] as CalendarEvent[],
+      });
     }
   }
 

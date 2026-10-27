@@ -1,6 +1,7 @@
 import "server-only";
 import type { UserRole } from "@prisma/client";
-import { canManageEventAttendance, getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { canManageEventAttendance } from "@/lib/attendance";
+import { listManageableCategoryIdsForEvents } from "@/lib/category-event-access";
 import { prisma } from "@/lib/prisma";
 
 export async function assertStaffCanManageEvent(params: {
@@ -47,15 +48,9 @@ export async function getStaffAllowedCategoryIds(params: {
   userId: string;
   role: UserRole;
 }): Promise<string[]> {
-  if (params.role === "ADMIN" || params.role === "YOUTH_DIRECTOR") {
-    const cats = await prisma.category.findMany({
-      where: { isActive: true },
-      select: { id: true },
-    });
-    return cats.map((c) => c.id);
-  }
-  if (params.role === "COACH") {
-    return getCoachCategoryIdsForUser(params.userId);
-  }
-  return [];
+  return listManageableCategoryIdsForEvents({
+    userId: params.userId,
+    role: params.role,
+    activeOnly: true,
+  });
 }

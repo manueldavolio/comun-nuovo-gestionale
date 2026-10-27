@@ -1,5 +1,9 @@
 import type { UserRole } from "@prisma/client";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import {
+  decideEventCategoryAccess,
+  toCategorySectorLookup,
+} from "@/lib/category-event-access-policy";
 import { prisma } from "@/lib/prisma";
 
 export async function canManageAthleteCategory(options: {
@@ -7,8 +11,21 @@ export async function canManageAthleteCategory(options: {
   role: UserRole;
   categoryId: string;
 }): Promise<boolean> {
-  if (options.role === "ADMIN" || options.role === "YOUTH_DIRECTOR") {
+  if (options.role === "ADMIN") {
     return true;
+  }
+
+  if (options.role === "YOUTH_DIRECTOR") {
+    const category = await prisma.category.findUnique({
+      where: { id: options.categoryId },
+      select: { sector: true },
+    });
+    return decideEventCategoryAccess({
+      role: "YOUTH_DIRECTOR",
+      categoryId: options.categoryId,
+      sector: category ? toCategorySectorLookup(category.sector) : "MISSING",
+      coachAssignedToCategory: false,
+    }).allow;
   }
 
   if (options.role !== "COACH") {

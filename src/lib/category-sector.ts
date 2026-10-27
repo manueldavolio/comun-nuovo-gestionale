@@ -1,7 +1,7 @@
 /**
  * Classificazione strutturata Category.sector (E0.1d).
  * Pure helpers — fail-closed per YOUTH_DIRECTOR su FIRST_TEAM e null.
- * Non collega ancora le API eventi (fase successiva).
+ * Policy eventi: vedi category-event-access-policy.ts / category-event-access.ts.
  */
 
 export const CATEGORY_SECTOR_VALUES = ["YOUTH", "FIRST_TEAM"] as const;
