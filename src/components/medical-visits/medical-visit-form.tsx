@@ -25,7 +25,7 @@ type MedicalVisitFormProps = {
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+  return <p className="mt-1 text-xs font-medium text-red-600">{message}</p>;
 }
 
 type MedicalVisitFieldErrors = Partial<Record<keyof UpsertMedicalVisitInput, string>>;
@@ -158,13 +158,14 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-900">
+    <form onSubmit={onSubmit} className="space-y-4">
+      <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
+        <h2 className="text-base font-black text-blue-950">
           {mode === "create" ? "Nuova visita medica" : "Modifica visita medica"}
         </h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Lo stato viene calcolato in base alla scadenza: `VALID`, `EXPIRING` (meno di 30 giorni), `EXPIRED`.
+          Lo stato in elenco è calcolato dalla scadenza: valido, in scadenza (meno di 30 giorni),
+          scaduto. Il giorno 30 resta valido in UI.
         </p>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -176,7 +177,7 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
               id="athleteId"
               value={formData.athleteId}
               onChange={(event) => setFormData((prev) => ({ ...prev, athleteId: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             >
               {athletes.map((athlete) => (
                 <option key={athlete.id} value={athlete.id}>
@@ -196,7 +197,7 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
               type="date"
               value={formData.visitDate}
               onChange={(event) => setFormData((prev) => ({ ...prev, visitDate: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.visitDate} />
           </div>
@@ -210,7 +211,7 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
               type="date"
               value={formData.expiryDate}
               onChange={(event) => setFormData((prev) => ({ ...prev, expiryDate: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.expiryDate} />
           </div>
@@ -221,12 +222,12 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
             </label>
             <p className="mt-1 text-xs text-zinc-500">Formati ammessi: PDF, JPG, PNG - massimo 10 MB.</p>
             {existingCertificateFileName ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                <span className="font-semibold">Certificato caricato</span>
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-blue-900">
+                <span className="font-bold">Certificato caricato</span>
                 {mode === "edit" && medicalVisitId ? (
                   <a
                     href={`/api/admin/medical-visits/${medicalVisitId}/certificate/download`}
-                    className="inline-flex items-center rounded-md border border-emerald-300 bg-white px-2 py-1 font-semibold text-emerald-800 hover:bg-emerald-100"
+                    className="inline-flex items-center rounded-lg border border-sky-300 bg-white px-2 py-1 font-bold text-blue-800 hover:bg-sky-100"
                   >
                     Scarica
                   </a>
@@ -236,7 +237,7 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
               <label
                 htmlFor="certificateFileUpload"
-                className="inline-flex w-fit cursor-pointer items-center justify-center rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-100"
+                className="inline-flex w-fit min-h-11 cursor-pointer items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-blue-800 transition hover:bg-blue-100"
               >
                 {selectedCertificateFile ? "Sostituisci file" : "Carica certificato"}
               </label>
@@ -251,12 +252,12 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
                 }}
                 className="sr-only"
               />
-              <span className="text-sm text-zinc-700">
+              <span className="text-sm font-medium text-zinc-700">
                 {selectedCertificateFile?.name ?? existingCertificateFileName ?? "Nessun file selezionato"}
               </span>
             </div>
             {certificateError ? (
-              <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
                 {certificateError}
               </p>
             ) : null}
@@ -272,18 +273,20 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
               rows={3}
               value={formData.notes}
               onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
+              className="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-blue-950 outline-none ring-blue-500 focus:ring-2"
             />
             <FieldError message={fieldErrors.notes} />
           </div>
         </div>
 
         {error ? (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {error}
+          </p>
         ) : null}
 
         {ok ? (
-          <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-blue-900">
             {ok}
           </p>
         ) : null}
@@ -291,7 +294,7 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
         <button
           type="submit"
           disabled={isSubmitting || isUploadingCertificate}
-          className="mt-4 w-full rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isUploadingCertificate
             ? "Caricamento certificato..."
@@ -305,4 +308,3 @@ export function MedicalVisitForm({ mode, medicalVisitId, athletes, initialValues
     </form>
   );
 }
-
