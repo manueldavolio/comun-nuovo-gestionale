@@ -286,6 +286,7 @@ model Category {
   disciplinaryIncidents DisciplinaryIncident[]
   disciplinarySuspensions DisciplinarySuspension[]
   disciplinaryOpeningBalances DisciplinaryOpeningBalance[]
+  competitionSource CategoryCompetitionSource?
 
   @@unique([name, seasonLabel])
   @@index([isActive])
@@ -1138,6 +1139,75 @@ model SiteSettings {
   membersCount   String   @default("200+")
   fieldsCount    String   @default("4")
   updatedAt      DateTime @updatedAt
+}
+
+enum FamilyBenefitAudience {
+  ALL
+  YOUTH
+  FIRST_TEAM
+  BASE_ACTIVITY
+}
+
+/// Convenzioni / vantaggi famiglie (gestite da admin, visibili in area genitori).
+model FamilyBenefit {
+  id            String                @id @default(cuid())
+  name          String
+  businessName  String?
+  description   String
+  discountLabel String?
+  promoCode     String?
+  conditions    String?
+  logoUrl       String?
+  websiteUrl    String?
+  contactInfo   String?
+  expiresAt     DateTime?
+  audience      FamilyBenefitAudience @default(ALL)
+  isPublished   Boolean               @default(false)
+  isActive      Boolean               @default(true)
+  sortOrder     Int                   @default(0)
+  priority      Int                   @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([isPublished, isActive, priority, sortOrder])
+  @@index([audience])
+  @@index([expiresAt])
+}
+
+enum CompetitionSourceType {
+  NONE
+  TUTTOCAMPO
+  CRL_LND
+  MANUAL
+}
+
+/// Fonte classifica/risultati per categoria (widget esterni solo se URL verificati/inseriti da admin).
+model CategoryCompetitionSource {
+  id                   String                 @id @default(cuid())
+  categoryId           String                 @unique
+  seasonLabel          String
+  competitionName      String
+  groupLabel           String?
+  sourceType           CompetitionSourceType  @default(NONE)
+  /// Pagina pubblica della fonte (es. Tuttocampo classifica girone).
+  sourcePageUrl        String?
+  /// iframe src ufficiale WidgetV2 (solo se generato/verificato; non inventare ID).
+  widgetStandingsUrl   String?
+  widgetResultsUrl     String?
+  widgetNextMatchUrl   String?
+  /// Tabella classifica manuale (JSON array {pos,team,points,...}) come fallback.
+  manualStandingsJson  String?
+  sourceNotes          String?
+  lastVerifiedAt       DateTime?
+  lastManualUpdateAt   DateTime?
+  isActive             Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([seasonLabel, isActive])
+  @@index([sourceType])
 }
 
 model AccountingEntry {

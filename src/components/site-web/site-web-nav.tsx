@@ -14,6 +14,8 @@ const SITE_WEB_NAV_ITEMS: SiteWebNavItem[] = [
   { href: "/admin/sito-web/staff", label: "Staff" },
   { href: "/admin/sito-web/news", label: "News" },
   { href: "/admin/sito-web/sponsor", label: "Sponsor" },
+  { href: "/admin/sito-web/convenzioni", label: "Convenzioni" },
+  { href: "/admin/sito-web/fonti-classifica", label: "Fonti classifica" },
   { href: "/admin/sito-web/galleria", label: "Galleria" },
   { href: "/admin/sito-web/video", label: "Video" },
   { href: "/admin/sito-web/impostazioni", label: "Impostazioni" },

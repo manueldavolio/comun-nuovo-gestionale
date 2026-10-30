@@ -10,6 +10,7 @@ export const SITE_IMAGE_FOLDERS = [
   "news",
   "sponsors",
   "gallery",
+  "convenzioni",
 ] as const;
 
 export type SiteImageFolder = (typeof SITE_IMAGE_FOLDERS)[number];

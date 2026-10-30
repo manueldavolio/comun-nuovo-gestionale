@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 
 type ImageUploadFieldProps = {
   label: string;
-  folder: "players" | "staff" | "news" | "sponsors" | "gallery";
+  folder: "players" | "staff" | "news" | "sponsors" | "gallery" | "convenzioni";
   value: string;
   onChange: (url: string) => void;
   helperText?: string;

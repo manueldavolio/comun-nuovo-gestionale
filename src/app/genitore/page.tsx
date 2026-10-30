@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   HeartPulse,
+  Shirt,
   Trophy,
   Wallet,
 } from "lucide-react";
@@ -24,9 +25,14 @@ import { ParentAdminPanel } from "@/components/parent-dashboard/parent-admin-pan
 import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
 import { ParentChildSwitcher } from "@/components/parent-dashboard/child-switcher";
 import { ParentGoalsCard } from "@/components/parent-dashboard/parent-goals-card";
+import { ParentServiceCards } from "@/components/parent-dashboard/parent-service-cards";
 import { PredictionSlipDashboardCard } from "@/components/parent-dashboard/prediction-slip-dashboard-card";
 import { UpcomingCommitments } from "@/components/parent-dashboard/upcoming-commitments";
 import { getAuthSession } from "@/lib/auth";
+import {
+  isFamilyBenefitVisibleToAudience,
+  sortFamilyBenefits,
+} from "@/lib/family-benefits";
 import { formatCoachNoteAuthorLabel } from "@/lib/coach-note-tags";
 import {
   formatConvocationWallClockDate,
@@ -281,6 +287,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         select: {
           id: true,
           name: true,
+          sector: true,
           depositFee: true,
           balanceFee: true,
           annualFee: true,
@@ -855,6 +862,33 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       ? adminSummaryParts.join(" · ")
       : "Tutto in ordine. Tocca per dettagli.";
 
+  const familyBenefits = await prisma.familyBenefit.findMany({
+    select: {
+      id: true,
+      name: true,
+      audience: true,
+      isPublished: true,
+      isActive: true,
+      expiresAt: true,
+      priority: true,
+      sortOrder: true,
+    },
+  });
+  const visibleBenefitsCount = sortFamilyBenefits(
+    familyBenefits.filter((benefit) =>
+      isFamilyBenefitVisibleToAudience({
+        audience: benefit.audience,
+        isPublished: benefit.isPublished,
+        isActive: benefit.isActive,
+        expiresAt: benefit.expiresAt,
+        viewer: {
+          categoryName: selectedAthlete.category.name,
+          sector: selectedAthlete.category.sector,
+        },
+      }),
+    ),
+  ).length;
+
   const quickActions = [
     {
       href: "/genitore/convocazioni",
@@ -863,6 +897,14 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
       tone: "border-sky-200 bg-sky-50 text-sky-950",
       iconWrap: "bg-sky-600 text-white",
       badge: pendingConvocationsCount > 0 ? pendingConvocationsCount : null,
+    },
+    {
+      href: `/genitore/squadra?athleteId=${selectedAthlete.id}`,
+      label: "La mia squadra",
+      icon: Shirt,
+      tone: "border-sky-200 bg-sky-50 text-sky-950",
+      iconWrap: "bg-sky-700 text-white",
+      badge: null,
     },
     {
       href: "/genitore/partite",
@@ -1090,6 +1132,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
         ) : null}
 
         <AthleteRecentMatchesStrip chips={recentMatchChips} />
+
+        <ParentServiceCards
+          athleteId={selectedAthlete.id}
+          benefitsCount={visibleBenefitsCount}
+          teamLabel={selectedAthlete.category.name}
+        />
 
         {recentMedia.length > 0 ? (
           <section className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5">
