@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { generateReceiptPdf } from "@/lib/pdf";
 import { sendReceiptMail } from "@/lib/mail";
 import { saveReceiptPdf } from "@/lib/receipt-storage";
+import { supersedeOpenBankTransfersForPayment } from "@/lib/bank-transfer";
 import { isEnrollmentPaymentCheckoutRetryable } from "@/lib/stripe-checkout-expiry-policy";
 import { getStripeClient } from "@/lib/stripe";
 
@@ -515,6 +516,11 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
   if (!payment) {
     return null;
   }
+
+  await supersedeOpenBankTransfersForPayment({
+    paymentId: payment.id,
+    reason: "Pagamento completato online con Stripe.",
+  });
 
   const filePath = await ensureReceiptFile(payment as PaymentWithRelations);
   return {

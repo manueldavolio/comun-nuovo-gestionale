@@ -35,6 +35,14 @@ enum PaymentStatus {
   CANCELLED
 }
 
+enum BankTransferRequestStatus {
+  AWAITING_PROOF
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
 enum EventType {
   TRAINING
   LEAGUE_MATCH
@@ -242,6 +250,9 @@ model User {
   socialGraphicsCreated SocialGraphic[] @relation("SocialGraphicCreatedBy")
   socialGraphicsUpdated SocialGraphic[] @relation("SocialGraphicUpdatedBy")
   socialAssetsCreated   SocialAsset[]   @relation("SocialAssetCreatedBy")
+  bankTransferRequestsCreated BankTransferRequest[] @relation("BankTransferRequestCreatedBy")
+  bankTransferRequestsReviewed BankTransferRequest[] @relation("BankTransferRequestReviewedBy")
+  clubBankSettingsUpdated ClubBankSettings[] @relation("ClubBankSettingsUpdatedBy")
 
   @@index([role])
   @@index([isActive])
@@ -479,9 +490,47 @@ model Payment {
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   receipt    Receipt?
   accountingEntry AccountingEntry?
+  bankTransferRequests BankTransferRequest[]
 
   @@index([enrollmentId])
   @@index([status, dueDate])
+}
+
+/// Coordinate bancarie club (configurabili da admin; non inventare valori).
+model ClubBankSettings {
+  id          String   @id @default("main")
+  beneficiary String   @default("")
+  iban        String   @default("")
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  updatedBy User? @relation("ClubBankSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model BankTransferRequest {
+  id              String                    @id @default(cuid())
+  paymentId       String
+  amount          Decimal                   @db.Decimal(10, 2)
+  causal          String                    @unique
+  status          BankTransferRequestStatus @default(AWAITING_PROOF)
+  proofFilePath   String?
+  proofMimeType   String?
+  proofUploadedAt DateTime?
+  rejectionReason String?
+  reviewedAt      DateTime?
+  reviewedById    String?
+  createdById     String
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  payment    Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("BankTransferRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy User?   @relation("BankTransferRequestReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([paymentId, status])
+  @@index([status, createdAt])
+  @@index([createdById])
+  @@index([reviewedById])
 }
 
 model Receipt {

@@ -3,6 +3,8 @@
  * Nessun fallback che inventa importi da 0.
  */
 
+import { isEnrollmentPaymentCheckoutRetryable } from "@/lib/stripe-checkout-expiry-policy";
+
 export class EnrollmentFeesConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -229,8 +231,12 @@ export function buildParentPaymentDisplay(input: {
       displayAmount = toMoneyString(parseMoney(deposit.amount) ?? Number(input.fees.deposit));
     }
 
-    // DEPOSIT CANCELLED: non riprovabile automaticamente (solo PENDING/OVERDUE).
-    const depositCanCheckout = deposit.status === "PENDING" || deposit.status === "OVERDUE";
+    const depositCanCheckout = isEnrollmentPaymentCheckoutRetryable({
+      type: "DEPOSIT",
+      status: deposit.status,
+      hasStripePaymentIntent: Boolean(deposit.stripePaymentIntentId?.trim()),
+      hasStripeCheckoutSessionId: Boolean(deposit.stripeCheckoutSessionId?.trim()),
+    });
 
     rows.push({
       paymentId: deposit.id,
@@ -248,14 +254,12 @@ export function buildParentPaymentDisplay(input: {
     const depositPaid = deposit?.status === "PAID";
     let displayAmount = depositPaid ? input.fees.balance : input.fees.annual;
     let label = depositPaid ? "Saldo" : "Quota completa";
-    const balanceHasPi = Boolean(balance.stripePaymentIntentId?.trim());
-    const balanceHasSession = Boolean(
-      (balance as { stripeCheckoutSessionId?: string | null }).stripeCheckoutSessionId?.trim(),
-    );
-    const balanceRetryable =
-      balance.status === "PENDING" ||
-      balance.status === "OVERDUE" ||
-      (balance.status === "CANCELLED" && !balanceHasPi && balanceHasSession);
+    const balanceRetryable = isEnrollmentPaymentCheckoutRetryable({
+      type: "BALANCE",
+      status: balance.status,
+      hasStripePaymentIntent: Boolean(balance.stripePaymentIntentId?.trim()),
+      hasStripeCheckoutSessionId: Boolean(balance.stripeCheckoutSessionId?.trim()),
+    });
 
     if (balance.status === "PAID") {
       displayAmount = toMoneyString(parseMoney(balance.amount) ?? Number(displayAmount));

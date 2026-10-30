@@ -59,6 +59,7 @@ import {
   formatEuroAmount,
   resolveCategoryEnrollmentFees,
 } from "@/lib/enrollment-fees";
+import { getClubBankSettings } from "@/lib/bank-transfer";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import {
   evaluatePredictionEntry,
@@ -318,7 +319,21 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
               type: true,
               status: true,
               amount: true,
+              stripeCheckoutSessionId: true,
+              stripePaymentIntentId: true,
               receipt: { select: { id: true, filePath: true } },
+              bankTransferRequests: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: {
+                  id: true,
+                  status: true,
+                  amount: true,
+                  causal: true,
+                  proofUploadedAt: true,
+                  rejectionReason: true,
+                },
+              },
             },
           },
         },
@@ -392,6 +407,16 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
 
   let paymentDisplayRows: ReturnType<typeof buildParentPaymentDisplay> = [];
   let paymentFeesError: string | null = null;
+  const clubBankSettings = await getClubBankSettings();
+  const bankTransferConfigured = Boolean(
+    clubBankSettings?.beneficiary.trim() && clubBankSettings?.iban.trim(),
+  );
+  const bankTransferByPaymentId = new Map(
+    (latestEnrollment?.payments ?? []).map((payment) => [
+      payment.id,
+      payment.bankTransferRequests[0] ?? null,
+    ]),
+  );
   if (latestEnrollment && (deposit || balance)) {
     try {
       const fees = resolveCategoryEnrollmentFees({
@@ -407,6 +432,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           status: payment.status,
           amount: payment.amount,
           receiptId: payment.receipt?.id ?? null,
+          stripeCheckoutSessionId: payment.stripeCheckoutSessionId,
+          stripePaymentIntentId: payment.stripePaymentIntentId,
         })),
       });
     } catch (error) {
@@ -1181,7 +1208,11 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                 {paymentDisplayRows.length === 0 && !paymentFeesError ? (
                   <p className="text-sm text-zinc-600">Nessuna scadenza di pagamento generata.</p>
                 ) : null}
-                {paymentDisplayRows.map((row) => (
+                {paymentDisplayRows.map((row) => {
+                  const displayStatus =
+                    row.status === "CANCELLED" && row.canCheckout ? "PENDING" : row.status;
+                  const activeBt = bankTransferByPaymentId.get(row.paymentId);
+                  return (
                   <div
                     key={row.paymentId}
                     className="rounded-2xl border border-sky-100 bg-sky-50/60 p-3"
@@ -1191,10 +1222,12 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                       <span
                         className={[
                           "inline-flex rounded-full border px-2 py-0.5 text-xs font-bold",
-                          statusClass(PAYMENT_STATUS_COLORS, row.status),
+                          statusClass(PAYMENT_STATUS_COLORS, displayStatus),
                         ].join(" ")}
                       >
-                        {PAYMENT_STATUS_LABEL[row.status] ?? row.status}
+                        {row.status === "CANCELLED" && row.canCheckout
+                          ? "Da pagare"
+                          : PAYMENT_STATUS_LABEL[row.status] ?? row.status}
                       </span>
                     </div>
                     <div className="mt-2">
@@ -1214,10 +1247,27 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
                         displayAmountLabel={formatEuroAmount(row.displayAmount)}
                         checkoutLabel={row.checkoutLabel}
                         canCheckout={row.canCheckout}
+                        bankTransferConfigured={bankTransferConfigured}
+                        activeBankTransfer={
+                          activeBt &&
+                          (activeBt.status === "AWAITING_PROOF" ||
+                            activeBt.status === "UNDER_REVIEW" ||
+                            activeBt.status === "REJECTED")
+                            ? {
+                                id: activeBt.id,
+                                status: activeBt.status,
+                                amount: activeBt.amount.toFixed(2),
+                                causal: activeBt.causal,
+                                proofUploadedAt: activeBt.proofUploadedAt?.toISOString() ?? null,
+                                rejectionReason: activeBt.rejectionReason,
+                              }
+                            : null
+                        }
                       />
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : (

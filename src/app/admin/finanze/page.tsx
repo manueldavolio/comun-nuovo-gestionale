@@ -3,12 +3,16 @@ import { redirect } from "next/navigation";
 import type { PaymentStatus } from "@prisma/client";
 import { Search, Wallet } from "lucide-react";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
+import { BankSettingsForm } from "@/components/finance/bank-settings-form";
+import { BankTransferReviewActions } from "@/components/finance/bank-transfer-review-actions";
 import { FinanceEntryForm } from "@/components/finance/finance-entry-form";
 import { RegenerateCheckoutButton } from "@/components/finance/regenerate-checkout-button";
 import { RegenerateReceiptButton } from "@/components/finance/regenerate-receipt-button";
+import { formatIbanForDisplay, getClubBankSettings } from "@/lib/bank-transfer";
 import { FINANCE_CATEGORY_LABEL, euroFormatter } from "@/lib/finance";
 import { getAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isEnrollmentPaymentCheckoutRetryable } from "@/lib/stripe-checkout-expiry-policy";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
@@ -53,8 +57,18 @@ function paymentStatusBadgeClass(status: PaymentStatus) {
   }
 }
 
-function canRegenerateCheckout(status: PaymentStatus) {
-  return status === "PENDING" || status === "OVERDUE";
+function canRegenerateCheckout(input: {
+  type: string;
+  status: PaymentStatus;
+  stripeCheckoutSessionId: string | null;
+  stripePaymentIntentId: string | null;
+}) {
+  return isEnrollmentPaymentCheckoutRetryable({
+    type: input.type,
+    status: input.status,
+    hasStripePaymentIntent: Boolean(input.stripePaymentIntentId?.trim()),
+    hasStripeCheckoutSessionId: Boolean(input.stripeCheckoutSessionId?.trim()),
+  });
 }
 
 type AdminFinanzePageProps = {
@@ -76,8 +90,14 @@ export default async function AdminFinanzePage({ searchParams }: AdminFinanzePag
   const q = (params?.q ?? "").trim();
   const statusFilter = isPaymentStatus(params?.status ?? "") ? (params.status as PaymentStatus) : "";
 
-  const [entries, enrollmentPayments, enrollmentPaymentsDetail, pendingToCollect] =
-    await Promise.all([
+  const [
+    entries,
+    enrollmentPayments,
+    enrollmentPaymentsDetail,
+    pendingToCollect,
+    bankSettings,
+    bankTransfersToReview,
+  ] = await Promise.all([
       prisma.accountingEntry.findMany({
         orderBy: [{ date: "desc" }, { createdAt: "desc" }],
         take: 300,
@@ -111,6 +131,8 @@ export default async function AdminFinanzePage({ searchParams }: AdminFinanzePag
           status: true,
           paidAt: true,
           dueDate: true,
+          stripeCheckoutSessionId: true,
+          stripePaymentIntentId: true,
           receipt: {
             select: {
               id: true,
@@ -141,6 +163,35 @@ export default async function AdminFinanzePage({ searchParams }: AdminFinanzePag
         },
         _count: { id: true },
         _sum: { amount: true },
+      }),
+      getClubBankSettings(),
+      prisma.bankTransferRequest.findMany({
+        where: { status: "UNDER_REVIEW" },
+        orderBy: { proofUploadedAt: "asc" },
+        take: 100,
+        select: {
+          id: true,
+          amount: true,
+          causal: true,
+          proofUploadedAt: true,
+          createdAt: true,
+          createdBy: { select: { name: true, email: true } },
+          payment: {
+            select: {
+              id: true,
+              type: true,
+              enrollment: {
+                select: {
+                  seasonLabel: true,
+                  category: { select: { name: true } },
+                  athlete: {
+                    select: { firstName: true, lastName: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
     ]);
 
@@ -308,6 +359,77 @@ export default async function AdminFinanzePage({ searchParams }: AdminFinanzePag
                 {euroFormatter.format(toCollectAmount)}
               </p>
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-black text-blue-950">Bonifici da verificare</h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Approva solo dopo controllo dell&apos;accredito sul conto. Contatore richieste in
+                verifica:{" "}
+                <span className="font-black text-indigo-900">{bankTransfersToReview.length}</span>
+              </p>
+            </div>
+            <span className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full bg-indigo-700 px-3 text-lg font-black text-white">
+              {bankTransfersToReview.length}
+            </span>
+          </div>
+          {bankTransfersToReview.length === 0 ? (
+            <p className="mt-4 text-sm text-zinc-600">Nessun bonifico in attesa di verifica.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {bankTransfersToReview.map((row) => {
+                const athlete = row.payment.enrollment.athlete;
+                return (
+                  <li
+                    key={row.id}
+                    className="rounded-2xl border border-indigo-100 bg-white p-3 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1 text-sm">
+                        <p className="font-bold text-blue-950">
+                          {athlete.lastName} {athlete.firstName} ·{" "}
+                          {row.payment.enrollment.category.name}
+                        </p>
+                        <p className="text-zinc-600">
+                          Stagione {row.payment.enrollment.seasonLabel} · Genitore{" "}
+                          {row.createdBy.name} ({row.createdBy.email})
+                        </p>
+                        <p className="font-semibold tabular-nums text-blue-950">
+                          {euroFormatter.format(toAmountNumber(row.amount))}
+                        </p>
+                        <p className="font-mono text-xs text-zinc-600">Causale: {row.causal}</p>
+                        <p className="text-xs text-zinc-500">
+                          Caricata:{" "}
+                          {row.proofUploadedAt
+                            ? dateFormatter.format(row.proofUploadedAt)
+                            : dateFormatter.format(row.createdAt)}
+                        </p>
+                      </div>
+                      <BankTransferReviewActions requestId={row.id} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="text-base font-black text-blue-950">Coordinate bancarie club</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Visibili ai genitori solo se beneficiario e IBAN sono entrambi compilati.
+            {bankSettings?.iban
+              ? ` Attuale: ${formatIbanForDisplay(bankSettings.iban)}.`
+              : " Non ancora configurate."}
+          </p>
+          <div className="mt-4 max-w-xl">
+            <BankSettingsForm
+              initialBeneficiary={bankSettings?.beneficiary ?? ""}
+              initialIban={bankSettings?.iban ?? ""}
+            />
           </div>
         </section>
 
@@ -524,6 +646,8 @@ type PaymentRow = {
   status: PaymentStatus;
   paidAt: Date | null;
   dueDate: Date;
+  stripeCheckoutSessionId: string | null;
+  stripePaymentIntentId: string | null;
   receipt: { id: string; receiptNumber: string; filePath: string | null } | null;
   enrollment: {
     seasonLabel: string;
@@ -584,7 +708,7 @@ function PaymentTable({ payments }: { payments: PaymentRow[] }) {
                 {euroFormatter.format(toAmountNumber(payment.amount))}
               </td>
               <td className="px-4 py-3">
-                {canRegenerateCheckout(payment.status) ? (
+                {canRegenerateCheckout(payment) ? (
                   <RegenerateCheckoutButton paymentId={payment.id} />
                 ) : (
                   <span className="text-xs font-medium text-zinc-500">Checkout non disponibile</span>
@@ -651,7 +775,7 @@ function PaymentCard({ payment, priority = false }: { payment: PaymentRow; prior
         Scadenza quota: {dateFormatter.format(new Date(payment.dueDate))} (informativa)
       </p>
       <div className="mt-4 flex flex-col gap-2 border-t border-sky-100 pt-3">
-        {canRegenerateCheckout(payment.status) ? (
+        {canRegenerateCheckout(payment) ? (
           <RegenerateCheckoutButton paymentId={payment.id} />
         ) : null}
         {payment.status === "PAID" ? (
@@ -667,7 +791,7 @@ function PaymentCard({ payment, priority = false }: { payment: PaymentRow; prior
             <RegenerateReceiptButton paymentId={payment.id} />
           </div>
         ) : null}
-        {!canRegenerateCheckout(payment.status) && payment.status !== "PAID" ? (
+        {!canRegenerateCheckout(payment) && payment.status !== "PAID" ? (
           <p className="text-xs font-medium text-zinc-500">Nessuna azione checkout</p>
         ) : null}
       </div>
