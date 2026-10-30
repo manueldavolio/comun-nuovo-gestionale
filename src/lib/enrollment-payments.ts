@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { generateReceiptPdf } from "@/lib/pdf";
 import { sendReceiptMail } from "@/lib/mail";
 import { saveReceiptPdf } from "@/lib/receipt-storage";
+import { isEnrollmentPaymentCheckoutRetryable } from "@/lib/stripe-checkout-expiry-policy";
 import { getStripeClient } from "@/lib/stripe";
 
 const CLUB_DATA = {
@@ -293,6 +294,7 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
         status: true,
         paidAt: true,
         paymentMethod: true,
+        stripeCheckoutSessionId: true,
         receipt: {
           select: { id: true, receiptNumber: true, filePath: true },
         },
@@ -334,6 +336,73 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
       return null;
     }
 
+    const paymentSelect = {
+      id: true,
+      amount: true,
+      type: true,
+      status: true,
+      paidAt: true,
+      paymentMethod: true,
+      receipt: {
+        select: { id: true, receiptNumber: true, filePath: true },
+      },
+      enrollment: {
+        select: {
+          seasonLabel: true,
+          receiptFirstName: true,
+          receiptLastName: true,
+          receiptTaxCode: true,
+          receiptAddress: true,
+          receiptEmail: true,
+          category: { select: { name: true } },
+          athlete: {
+            select: {
+              firstName: true,
+              lastName: true,
+              taxCode: true,
+              birthDate: true,
+            },
+          },
+        },
+      },
+    } as const;
+
+    // Idempotent PAID: never rewrite session/PI from a late/duplicate event; may still create receipt.
+    if (existing.status === "PAID") {
+      if (!existing.receipt) {
+        const receiptNumber = await getNextReceiptNumber(tx);
+        await tx.receipt.create({
+          data: {
+            paymentId: existing.id,
+            receiptNumber,
+            issueDate: existing.paidAt ?? now,
+            amount: existing.amount,
+            causal: buildCausal(existing.type, existing.enrollment.seasonLabel),
+            paymentProvider: "Stripe",
+            headerName: `${existing.enrollment.receiptFirstName} ${existing.enrollment.receiptLastName}`.trim(),
+            headerTaxCode: existing.enrollment.receiptTaxCode,
+          },
+        });
+      }
+      return tx.payment.findUnique({
+        where: { id: existing.id },
+        select: paymentSelect,
+      });
+    }
+
+    // Stale completed for an older session must not win over a newer checkout.
+    if (
+      existing.stripeCheckoutSessionId &&
+      existing.stripeCheckoutSessionId !== input.stripeCheckoutSessionId
+    ) {
+      console.warn("[stripe] ignoring completed for stale checkout session", {
+        paymentId: existing.id,
+        currentSession: existing.stripeCheckoutSessionId,
+        completedSession: input.stripeCheckoutSessionId,
+      });
+      return null;
+    }
+
     const paidAt = existing.paidAt ?? now;
     const updatedPayment = await tx.payment.update({
       where: { id: existing.id },
@@ -344,36 +413,7 @@ export async function markEnrollmentPaymentPaidFromStripe(input: {
         stripeCheckoutSessionId: input.stripeCheckoutSessionId,
         stripePaymentIntentId: input.stripePaymentIntentId,
       },
-      select: {
-        id: true,
-        amount: true,
-        type: true,
-        status: true,
-        paidAt: true,
-        paymentMethod: true,
-        receipt: {
-          select: { id: true, receiptNumber: true, filePath: true },
-        },
-        enrollment: {
-          select: {
-            seasonLabel: true,
-            receiptFirstName: true,
-            receiptLastName: true,
-            receiptTaxCode: true,
-            receiptAddress: true,
-            receiptEmail: true,
-            category: { select: { name: true } },
-            athlete: {
-              select: {
-                firstName: true,
-                lastName: true,
-                taxCode: true,
-                birthDate: true,
-              },
-            },
-          },
-        },
-      },
+      select: paymentSelect,
     });
 
     // Pagamento unico / saldo che chiude il dovuto: annulla acconto ancora aperto (non PAID, non CANCELLED).
@@ -501,6 +541,8 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
       status: true,
       amount: true,
       enrollmentId: true,
+      stripePaymentIntentId: true,
+      stripeCheckoutSessionId: true,
       enrollment: {
         select: {
           seasonLabel: true,
@@ -547,7 +589,14 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
     return { error: "PAYMENT_ALREADY_PAID" as const };
   }
 
-  if (payment.status !== "PENDING" && payment.status !== "OVERDUE") {
+  if (
+    !isEnrollmentPaymentCheckoutRetryable({
+      type: payment.type,
+      status: payment.status,
+      hasStripePaymentIntent: Boolean(payment.stripePaymentIntentId?.trim()),
+      hasStripeCheckoutSessionId: Boolean(payment.stripeCheckoutSessionId?.trim()),
+    })
+  ) {
     return { error: "PAYMENT_STATUS_NOT_RETRYABLE" as const };
   }
 
@@ -570,7 +619,7 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
     chargeAmount = resolveCheckoutChargeAmount({
       paymentType: payment.type,
       paymentAmount: payment.amount,
-      paymentStatus: payment.status,
+      paymentStatus: payment.status === "CANCELLED" ? "PENDING" : payment.status,
       annualFee: fees.annual,
       enrollmentPayments: payment.enrollment.payments,
     });
@@ -582,9 +631,12 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
   }
 
   const chargeDecimal = new Prisma.Decimal(chargeAmount);
+  if (chargeDecimal.lte(0)) {
+    return { error: "ENROLLMENT_FEES_CONFIG" as const, message: "Nessun importo da addebitare." };
+  }
   if (!payment.amount.equals(chargeDecimal)) {
-    await prisma.payment.update({
-      where: { id: payment.id },
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: { not: "PAID" } },
       data: { amount: chargeDecimal },
     });
   }
@@ -623,14 +675,28 @@ export async function regenerateEnrollmentPaymentCheckout(params: RegenerateChec
     },
   });
 
-  await prisma.payment.update({
-    where: { id: payment.id },
+  // Never overwrite a payment that became PAID while Stripe session was created.
+  const attached = await prisma.payment.updateMany({
+    where: {
+      id: payment.id,
+      status: { not: "PAID" },
+    },
     data: {
       status: "PENDING",
       stripeCheckoutSessionId: checkoutSession.id,
+      // Keep existing PI if somehow present; only clear when retrying unpaid.
       stripePaymentIntentId: null,
     },
   });
+
+  if (attached.count === 0) {
+    try {
+      await stripe.checkout.sessions.expire(checkoutSession.id);
+    } catch {
+      // best-effort: payment already PAID by concurrent webhook
+    }
+    return { error: "PAYMENT_ALREADY_PAID" as const };
+  }
 
   return { ok: true as const, checkoutUrl: checkoutSession.url, checkoutSessionId: checkoutSession.id };
 }

@@ -133,9 +133,8 @@ export function resolveCheckoutChargeAmount(input: {
   if (input.paymentStatus === "PAID") {
     throw new EnrollmentFeesConfigError("Pagamento già completato.");
   }
-  if (input.paymentStatus === "CANCELLED") {
-    throw new EnrollmentFeesConfigError("Pagamento annullato: non addebitabile.");
-  }
+  // CANCELLED without a successful charge is treated as unpaid for amount math
+  // (expired checkout bug). Callers must gate DEPOSIT CANCELLED separately.
 
   if (input.paymentType === "DEPOSIT") {
     const amount = parseMoney(input.paymentAmount);
@@ -192,6 +191,7 @@ export type ParentPaymentDisplayRow = {
  * - DEPOSIT non PAID → Acconto = depositFee
  * - BALANCE con DEPOSIT PAID → Saldo = residuo (200/190)
  * - BALANCE senza DEPOSIT PAID → Quota completa = residuo annuale (250/240)
+ * - BALANCE CANCELLED (sessione scaduta, senza PI) → ancora addebitabile come residuo
  */
 export function buildParentPaymentDisplay(input: {
   fees: ResolvedEnrollmentFees;
@@ -201,6 +201,8 @@ export function buildParentPaymentDisplay(input: {
     status: string;
     amount: unknown;
     receiptId?: string | null;
+    stripePaymentIntentId?: string | null;
+    stripeCheckoutSessionId?: string | null;
   }>;
 }): ParentPaymentDisplayRow[] {
   const deposit = input.payments.find((row) => row.type === "DEPOSIT") ?? null;
@@ -227,13 +229,16 @@ export function buildParentPaymentDisplay(input: {
       displayAmount = toMoneyString(parseMoney(deposit.amount) ?? Number(input.fees.deposit));
     }
 
+    // DEPOSIT CANCELLED: non riprovabile automaticamente (solo PENDING/OVERDUE).
+    const depositCanCheckout = deposit.status === "PENDING" || deposit.status === "OVERDUE";
+
     rows.push({
       paymentId: deposit.id,
       paymentType: "DEPOSIT",
       status: deposit.status,
       label: "Acconto",
       displayAmount,
-      canCheckout: deposit.status === "PENDING" || deposit.status === "OVERDUE",
+      canCheckout: depositCanCheckout,
       checkoutLabel: deposit.status === "OVERDUE" ? "Riprova acconto" : "Paga acconto",
       receiptId: deposit.receiptId ?? null,
     });
@@ -243,16 +248,24 @@ export function buildParentPaymentDisplay(input: {
     const depositPaid = deposit?.status === "PAID";
     let displayAmount = depositPaid ? input.fees.balance : input.fees.annual;
     let label = depositPaid ? "Saldo" : "Quota completa";
+    const balanceHasPi = Boolean(balance.stripePaymentIntentId?.trim());
+    const balanceHasSession = Boolean(
+      (balance as { stripeCheckoutSessionId?: string | null }).stripeCheckoutSessionId?.trim(),
+    );
+    const balanceRetryable =
+      balance.status === "PENDING" ||
+      balance.status === "OVERDUE" ||
+      (balance.status === "CANCELLED" && !balanceHasPi && balanceHasSession);
 
     if (balance.status === "PAID") {
       displayAmount = toMoneyString(parseMoney(balance.amount) ?? Number(displayAmount));
       label = depositPaid ? "Saldo" : "Quota completa";
-    } else if (balance.status === "PENDING" || balance.status === "OVERDUE") {
+    } else if (balanceRetryable) {
       try {
         displayAmount = resolveCheckoutChargeAmount({
           paymentType: "BALANCE",
           paymentAmount: balance.amount,
-          paymentStatus: balance.status,
+          paymentStatus: balance.status === "CANCELLED" ? "PENDING" : balance.status,
           annualFee: input.fees.annual,
           enrollmentPayments: input.payments,
         });
@@ -263,9 +276,10 @@ export function buildParentPaymentDisplay(input: {
       } catch {
         // keep defaults
       }
-    } else if (balance.status === "CANCELLED") {
-      displayAmount = toMoneyString(parseMoney(balance.amount) ?? Number(displayAmount));
     }
+
+    const residualOk = Number(displayAmount) > 0;
+    const balanceCanCheckout = balanceRetryable && residualOk;
 
     rows.push({
       paymentId: balance.id,
@@ -273,9 +287,9 @@ export function buildParentPaymentDisplay(input: {
       status: balance.status,
       label,
       displayAmount,
-      canCheckout: balance.status === "PENDING" || balance.status === "OVERDUE",
+      canCheckout: balanceCanCheckout,
       checkoutLabel:
-        balance.status === "OVERDUE"
+        balance.status === "OVERDUE" || balance.status === "CANCELLED"
           ? label === "Quota completa"
             ? "Riprova quota completa"
             : "Riprova saldo"

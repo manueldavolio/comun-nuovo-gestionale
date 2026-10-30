@@ -64,7 +64,7 @@ export function PaymentActions({
       {status === "PAID" ? (
         <span className="text-xs text-zinc-500">Pagamento chiuso</span>
       ) : null}
-      {status === "CANCELLED" ? (
+      {status === "CANCELLED" && !canCheckout ? (
         <span className="text-xs text-zinc-500">Annullato — non addebitabile</span>
       ) : null}
 

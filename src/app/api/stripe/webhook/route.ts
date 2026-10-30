@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { markEnrollmentPaymentPaidFromStripe } from "@/lib/enrollment-payments";
+import { applyCheckoutSessionExpired } from "@/lib/stripe-checkout-expiry";
 import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe";
 
 async function findPaymentForCheckoutSession(stripeCheckoutSessionId: string, fallbackPaymentId?: string) {
@@ -140,27 +141,28 @@ export async function POST(request: Request) {
   if (event.type === "checkout.session.expired") {
     const session = event.data.object;
     const paymentId = session.metadata?.paymentId;
-    if (paymentId) {
-      await prisma.payment.updateMany({
-        where: {
-          id: paymentId,
-          status: { not: "PAID" },
-        },
-        data: {
-          status: "CANCELLED",
-        },
-      });
-    }
+    const result = await applyCheckoutSessionExpired({
+      expiredSessionId: session.id,
+      paymentIdFromMetadata: paymentId,
+    });
+    console.log("[stripe webhook] checkout.session.expired handled", {
+      eventId: event.id,
+      sessionId: session.id,
+      ...result,
+    });
   }
 
   if (event.type === "checkout.session.async_payment_failed") {
     const session = event.data.object;
     const paymentId = session.metadata?.paymentId;
+    const sessionId = session.id;
     if (paymentId) {
+      // Never touch PAID; only mark overdue when this session is still the active one.
       await prisma.payment.updateMany({
         where: {
           id: paymentId,
           status: { not: "PAID" },
+          OR: [{ stripeCheckoutSessionId: sessionId }, { stripeCheckoutSessionId: null }],
         },
         data: {
           status: "OVERDUE",
