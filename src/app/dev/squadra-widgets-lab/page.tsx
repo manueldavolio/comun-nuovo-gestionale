@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { SquadraTuttocampoWidgets } from "@/components/parent-dashboard/squadra-tuttocampo-widgets";
 import {
   ESORDIENTI_TUTTOCAMPO_WIDGET,
@@ -6,7 +7,13 @@ import {
   filterWidgetsByCategoryPolicy,
 } from "@/lib/team-competition";
 
+/**
+ * Lab locale SOLO development. Fuori dal matcher middleware.
+ * In production → 404 (non esporre widget UUID in chiaro).
+ */
 export default function SquadraWidgetsLabPage() {
+  if (process.env.NODE_ENV === "production") notFound();
+
   const raw = buildTuttocampoWidgetUrls(
     ESORDIENTI_TUTTOCAMPO_WIDGET_UUID,
     ESORDIENTI_TUTTOCAMPO_WIDGET.widgetSeasonParam,
