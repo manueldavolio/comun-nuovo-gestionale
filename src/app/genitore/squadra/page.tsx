@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ParentAreaHeader } from "@/components/parent-dashboard/parent-area-header";
+import { SquadraTuttocampoWidgets } from "@/components/parent-dashboard/squadra-tuttocampo-widgets";
 import { getAuthSession } from "@/lib/auth";
 import { formatConvocationWallClockDate, formatConvocationWallClockTime } from "@/lib/convocation-times";
 import { athletesAssociatedToParentWhere } from "@/lib/parent-athletes";
 import { MATCH_EVENT_TYPES } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 import {
+  filterWidgetsByCategoryPolicy,
+  hasVisibleTuttocampoWidgets,
   isBaseActivityCategory,
   parseManualStandingsJson,
+  resolveCompetitionWidgetUrls,
   showsCompetitiveStandings,
   sourceTypeLabel,
 } from "@/lib/team-competition";
@@ -64,7 +68,10 @@ export default async function ParentSquadraPage({ searchParams }: Props) {
     selected.category.sector,
   );
   const baseActivity = isBaseActivityCategory(selected.category.name);
-  const source = selected.category.competitionSource;
+  const source =
+    selected.category.competitionSource?.isActive === false
+      ? null
+      : selected.category.competitionSource;
 
   const [nextMatch, recentResults, seasonEvents, announcements] = await Promise.all([
     prisma.event.findFirst({
@@ -139,12 +146,34 @@ export default async function ParentSquadraPage({ searchParams }: Props) {
     source?.manualStandingsJson != null
       ? parseManualStandingsJson(source.manualStandingsJson)
       : null;
+  const rawWidgets = source ? resolveCompetitionWidgetUrls(source) : null;
+  const widgets = rawWidgets
+    ? filterWidgetsByCategoryPolicy(
+        rawWidgets,
+        selected.category.name,
+        selected.category.sector,
+      )
+    : null;
+  const hasAnyWidget = hasVisibleTuttocampoWidgets(widgets);
 
   const back = `/genitore?athleteId=${selected.id}`;
+  const competitionLabel = source
+    ? [
+        source.competitionName,
+        source.groupLabel,
+        sourceTypeLabel(source.sourceType),
+        source.lastVerifiedAt
+          ? `verificata ${source.lastVerifiedAt.toISOString().slice(0, 10)}`
+          : null,
+        source.widgetSeasonParam ? `stagione widget ${source.widgetSeasonParam}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
-      <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-slate-50 to-blue-100/60 p-4 pb-10 md:p-8">
+      <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4 overflow-x-hidden">
         <ParentAreaHeader
           title="La mia squadra"
           subtitle={`${selected.firstName} ${selected.lastName} · ${selected.category.name}`}
@@ -152,9 +181,58 @@ export default async function ParentSquadraPage({ searchParams }: Props) {
           backHref={back}
         />
 
+        {athletes.length > 1 ? (
+          <div className="flex flex-wrap gap-2">
+            {athletes.map((athlete) => {
+              const active = athlete.id === selected.id;
+              return (
+                <Link
+                  key={athlete.id}
+                  href={`/genitore/squadra?athleteId=${athlete.id}`}
+                  className={
+                    active
+                      ? "rounded-full bg-blue-800 px-3 py-1.5 text-xs font-bold text-white"
+                      : "rounded-full border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-900"
+                  }
+                >
+                  {athlete.firstName} · {athlete.category.name}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {hasAnyWidget && widgets ? (
+          <SquadraTuttocampoWidgets
+            widgets={widgets}
+            competitionLabel={competitionLabel}
+            sourcePageUrl={source?.sourcePageUrl ?? null}
+            allowCompetitiveWidgets={competitive}
+          />
+        ) : null}
+
+        {!hasAnyWidget ? (
+          <section
+            className={
+              baseActivity
+                ? "rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-emerald-950 shadow-sm"
+                : "rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-950 shadow-sm"
+            }
+          >
+            <p className="font-bold">Widget Tuttocampo non ancora collegati a questa categoria</p>
+            <p className="mt-1">
+              {baseActivity
+                ? "Per l’attività di base, una volta configurato l’UUID, vedrai risultati e partite (senza classifica/marcatori)."
+                : "L’amministrazione può inserire l’UUID in Sito web → Fonti classifica (U15, U17, U19, Prima — ciascuno con UUID proprio)."}{" "}
+              Intanto restano i dati del gestionale.
+            </p>
+            {competitionLabel ? <p className="mt-2 text-xs">{competitionLabel}</p> : null}
+          </section>
+        ) : null}
+
         <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
-            Prossima partita
+            Prossima partita (gestionale)
           </p>
           {nextMatch ? (
             <div className="mt-2">
@@ -181,7 +259,7 @@ export default async function ParentSquadraPage({ searchParams }: Props) {
 
         <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
-            Ultimi risultati
+            Ultimi risultati (gestionale)
           </p>
           {recentResults.length === 0 ? (
             <p className="mt-2 text-sm text-zinc-600">Nessun risultato registrato.</p>
@@ -199,90 +277,35 @@ export default async function ParentSquadraPage({ searchParams }: Props) {
               ))}
             </ul>
           )}
-          {source?.widgetResultsUrl ? (
-            <div className="mt-4 overflow-hidden rounded-xl border border-sky-100">
-              <iframe
-                title="Risultati esterni"
-                src={source.widgetResultsUrl}
-                className="h-[420px] w-full max-w-full"
-                loading="lazy"
-              />
-            </div>
-          ) : null}
         </section>
 
-        {competitive ? (
+        {competitive && !widgets?.standings && manualStandings && manualStandings.length > 0 ? (
           <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-800">
-              Classifica del girone
+              Classifica manuale (fallback)
             </p>
-            {source ? (
-              <p className="mt-1 text-xs text-zinc-500">
-                {source.competitionName}
-                {source.groupLabel ? ` · ${source.groupLabel}` : ""} ·{" "}
-                {sourceTypeLabel(source.sourceType)}
-                {source.lastVerifiedAt
-                  ? ` · verificata ${source.lastVerifiedAt.toISOString().slice(0, 10)}`
-                  : ""}
-                {source.lastManualUpdateAt
-                  ? ` · aggiornamento manuale ${source.lastManualUpdateAt.toISOString().slice(0, 10)}`
-                  : ""}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-zinc-600">
-                Fonte classifica non ancora configurata dall&apos;amministrazione. I risultati del
-                gestionale restano disponibili sopra.
-              </p>
-            )}
-            {source?.widgetStandingsUrl ? (
-              <div className="mt-3 overflow-hidden rounded-xl border border-sky-100">
-                <iframe
-                  title="Classifica esterna"
-                  src={source.widgetStandingsUrl}
-                  className="h-[520px] w-full max-w-full"
-                  loading="lazy"
-                />
-              </div>
-            ) : null}
-            {!source?.widgetStandingsUrl && manualStandings && manualStandings.length > 0 ? (
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase text-blue-800">
-                      <th className="py-1 pr-2">#</th>
-                      <th className="py-1 pr-2">Squadra</th>
-                      <th className="py-1">Pt</th>
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-blue-800">
+                    <th className="py-1 pr-2">#</th>
+                    <th className="py-1 pr-2">Squadra</th>
+                    <th className="py-1">Pt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manualStandings.map((row) => (
+                    <tr key={`${row.pos}-${row.team}`} className="border-t border-sky-50">
+                      <td className="py-1.5 pr-2 font-bold">{row.pos}</td>
+                      <td className="py-1.5 pr-2">{row.team}</td>
+                      <td className="py-1.5 font-black tabular-nums">{row.points}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {manualStandings.map((row) => (
-                      <tr key={`${row.pos}-${row.team}`} className="border-t border-sky-50">
-                        <td className="py-1.5 pr-2 font-bold">{row.pos}</td>
-                        <td className="py-1.5 pr-2">{row.team}</td>
-                        <td className="py-1.5 font-black tabular-nums">{row.points}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-            {source?.sourcePageUrl ? (
-              <a
-                href={source.sourcePageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex text-xs font-bold text-blue-800 underline"
-              >
-                Apri fonte originale
-              </a>
-            ) : null}
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
-        ) : (
-          <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-emerald-950 shadow-sm">
-            Per l&apos;attività di base non mostriamo classifiche competitive. Qui trovi calendario,
-            attività e comunicazioni della categoria.
-          </section>
-        )}
+        ) : null}
 
         {baseActivity && announcements.length > 0 ? (
           <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -331,17 +354,6 @@ export default async function ParentSquadraPage({ searchParams }: Props) {
             </ul>
           )}
         </section>
-
-        {source?.widgetNextMatchUrl ? (
-          <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white p-2 shadow-sm">
-            <iframe
-              title="Prossima partita esterna"
-              src={source.widgetNextMatchUrl}
-              className="h-[360px] w-full"
-              loading="lazy"
-            />
-          </section>
-        ) : null}
 
         <Link href={back} className="text-sm font-bold text-blue-800">
           ← Torna alla dashboard

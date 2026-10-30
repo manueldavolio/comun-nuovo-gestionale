@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSiteWebAdminApi } from "@/lib/site-cms-server";
 import {
+  ESORDIENTI_TUTTOCAMPO_WIDGET_UUID,
+  buildTuttocampoWidgetUrls,
   isAllowedTuttocampoWidgetUrl,
+  isEsordientiCategory,
+  isValidTuttocampoWidgetUuid,
   parseManualStandingsJson,
 } from "@/lib/team-competition";
 import { upsertCompetitionSourceSchema } from "@/lib/validation/family-benefits";
@@ -33,72 +37,130 @@ export async function PUT(request: Request) {
     );
   }
 
-  for (const url of [
-    parsed.data.widgetStandingsUrl,
-    parsed.data.widgetResultsUrl,
-    parsed.data.widgetNextMatchUrl,
-  ]) {
-    if (!isAllowedTuttocampoWidgetUrl(url)) {
+  const data = parsed.data;
+  const uuid = data.tuttocampoWidgetUuid;
+
+  const category = await prisma.category.findUnique({
+    where: { id: data.categoryId },
+    select: { id: true, name: true, seasonLabel: true },
+  });
+  if (!category) {
+    return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
+  }
+
+  if (uuid && isValidTuttocampoWidgetUuid(uuid)) {
+    const isEsordientiUuid =
+      uuid.toLowerCase() === ESORDIENTI_TUTTOCAMPO_WIDGET_UUID.toLowerCase();
+    if (isEsordientiUuid && !isEsordientiCategory(category.name) && !data.allowSharedUuid) {
       return NextResponse.json(
         {
           error:
-            "URL widget non valido. Usa solo iframe ufficiali https://www.tuttocampo.it/WidgetV2/… generati da Tuttocampo.",
+            "L’UUID 99f6f12c-… appartiene agli Esordienti. Seleziona la categoria Esordienti, oppure abilita esplicitamente la condivisione UUID.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const duplicate = await prisma.categoryCompetitionSource.findFirst({
+      where: {
+        tuttocampoWidgetUuid: uuid,
+        NOT: { categoryId: data.categoryId },
+      },
+      select: {
+        id: true,
+        category: { select: { name: true, seasonLabel: true } },
+      },
+    });
+    if (duplicate && !data.allowSharedUuid) {
+      return NextResponse.json(
+        {
+          error: `Questo UUID è già collegato a «${duplicate.category.name}» (${duplicate.category.seasonLabel}). Ogni categoria dovrebbe avere un UUID proprio, salvo scelta esplicita di condivisione.`,
         },
         { status: 400 },
       );
     }
   }
 
-  if (
-    parsed.data.manualStandingsJson &&
-    parseManualStandingsJson(parsed.data.manualStandingsJson) === null
-  ) {
+  let widgetStandingsUrl = data.widgetStandingsUrl;
+  let widgetResultsUrl = data.widgetResultsUrl;
+  let widgetScorersUrl = data.widgetScorersUrl;
+  let widgetLastMatchUrl = data.widgetLastMatchUrl;
+  let widgetNextMatchUrl = data.widgetNextMatchUrl;
+
+  if (uuid && isValidTuttocampoWidgetUuid(uuid)) {
+    const built = buildTuttocampoWidgetUrls(uuid, data.widgetSeasonParam);
+    widgetResultsUrl = built.results;
+    widgetStandingsUrl = built.standings;
+    widgetScorersUrl = built.scorers;
+    widgetLastMatchUrl = built.lastMatch;
+    widgetNextMatchUrl = built.nextMatch;
+  }
+
+  for (const url of [
+    widgetStandingsUrl,
+    widgetResultsUrl,
+    widgetScorersUrl,
+    widgetLastMatchUrl,
+    widgetNextMatchUrl,
+  ]) {
+    if (!isAllowedTuttocampoWidgetUrl(url)) {
+      return NextResponse.json(
+        {
+          error:
+            "URL widget non valido. Solo https://www.tuttocampo.it/WidgetV2/{Risultati|Classifica|Marcatori|Partita|ProssimaPartita}/{uuid}[+?y=].",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (data.manualStandingsJson && parseManualStandingsJson(data.manualStandingsJson) === null) {
     return NextResponse.json(
       { error: "JSON classifica manuale non valido (atteso array di {pos,team,points})." },
       { status: 400 },
     );
   }
 
-  const category = await prisma.category.findUnique({
-    where: { id: parsed.data.categoryId },
-    select: { id: true },
-  });
-  if (!category) {
-    return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
-  }
-
   const saved = await prisma.categoryCompetitionSource.upsert({
-    where: { categoryId: parsed.data.categoryId },
+    where: { categoryId: data.categoryId },
     create: {
-      categoryId: parsed.data.categoryId,
-      seasonLabel: parsed.data.seasonLabel,
-      competitionName: parsed.data.competitionName,
-      groupLabel: parsed.data.groupLabel,
-      sourceType: parsed.data.sourceType,
-      sourcePageUrl: parsed.data.sourcePageUrl,
-      widgetStandingsUrl: parsed.data.widgetStandingsUrl,
-      widgetResultsUrl: parsed.data.widgetResultsUrl,
-      widgetNextMatchUrl: parsed.data.widgetNextMatchUrl,
-      manualStandingsJson: parsed.data.manualStandingsJson,
-      sourceNotes: parsed.data.sourceNotes,
-      lastVerifiedAt: parsed.data.lastVerifiedAt ? new Date(parsed.data.lastVerifiedAt) : null,
-      lastManualUpdateAt: parsed.data.manualStandingsJson ? new Date() : null,
-      isActive: parsed.data.isActive,
+      categoryId: data.categoryId,
+      seasonLabel: data.seasonLabel,
+      competitionName: data.competitionName,
+      groupLabel: data.groupLabel,
+      sourceType: data.sourceType,
+      sourcePageUrl: data.sourcePageUrl,
+      tuttocampoWidgetUuid: uuid,
+      widgetSeasonParam: data.widgetSeasonParam,
+      widgetStandingsUrl,
+      widgetResultsUrl,
+      widgetScorersUrl,
+      widgetLastMatchUrl,
+      widgetNextMatchUrl,
+      manualStandingsJson: data.manualStandingsJson,
+      sourceNotes: data.sourceNotes,
+      lastVerifiedAt: data.lastVerifiedAt ? new Date(data.lastVerifiedAt) : null,
+      lastManualUpdateAt: data.manualStandingsJson ? new Date() : null,
+      isActive: data.isActive,
     },
     update: {
-      seasonLabel: parsed.data.seasonLabel,
-      competitionName: parsed.data.competitionName,
-      groupLabel: parsed.data.groupLabel,
-      sourceType: parsed.data.sourceType,
-      sourcePageUrl: parsed.data.sourcePageUrl,
-      widgetStandingsUrl: parsed.data.widgetStandingsUrl,
-      widgetResultsUrl: parsed.data.widgetResultsUrl,
-      widgetNextMatchUrl: parsed.data.widgetNextMatchUrl,
-      manualStandingsJson: parsed.data.manualStandingsJson,
-      sourceNotes: parsed.data.sourceNotes,
-      lastVerifiedAt: parsed.data.lastVerifiedAt ? new Date(parsed.data.lastVerifiedAt) : null,
-      lastManualUpdateAt: parsed.data.manualStandingsJson ? new Date() : undefined,
-      isActive: parsed.data.isActive,
+      seasonLabel: data.seasonLabel,
+      competitionName: data.competitionName,
+      groupLabel: data.groupLabel,
+      sourceType: data.sourceType,
+      sourcePageUrl: data.sourcePageUrl,
+      tuttocampoWidgetUuid: uuid,
+      widgetSeasonParam: data.widgetSeasonParam,
+      widgetStandingsUrl,
+      widgetResultsUrl,
+      widgetScorersUrl,
+      widgetLastMatchUrl,
+      widgetNextMatchUrl,
+      manualStandingsJson: data.manualStandingsJson,
+      sourceNotes: data.sourceNotes,
+      lastVerifiedAt: data.lastVerifiedAt ? new Date(data.lastVerifiedAt) : null,
+      lastManualUpdateAt: data.manualStandingsJson ? new Date() : undefined,
+      isActive: data.isActive,
     },
     select: { id: true },
   });

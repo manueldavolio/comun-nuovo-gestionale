@@ -1191,9 +1191,15 @@ model CategoryCompetitionSource {
   sourceType           CompetitionSourceType  @default(NONE)
   /// Pagina pubblica della fonte (es. Tuttocampo classifica girone).
   sourcePageUrl        String?
-  /// iframe src ufficiale WidgetV2 (solo se generato/verificato; non inventare ID).
+  /// UUID ufficiale WidgetV2 Tuttocampo (genera i cinque URL; non inventare).
+  tuttocampoWidgetUuid String?
+  /// Parametro stagione widget (?y=), es. 2026-27. Null = default Tuttocampo.
+  widgetSeasonParam    String?
+  /// iframe src ufficiale WidgetV2 (derivati da UUID o inseriti; validati server-side).
   widgetStandingsUrl   String?
   widgetResultsUrl     String?
+  widgetScorersUrl     String?
+  widgetLastMatchUrl   String?
   widgetNextMatchUrl   String?
   /// Tabella classifica manuale (JSON array {pos,team,points,...}) come fallback.
   manualStandingsJson  String?

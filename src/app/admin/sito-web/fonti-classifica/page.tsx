@@ -2,7 +2,12 @@ import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { CompetitionSourceForm } from "@/components/family-benefits/competition-source-form";
 import { AreaHeader } from "@/components/layout/area-header";
 import { SiteWebNav } from "@/components/site-web/site-web-nav";
-import { sourceTypeLabel, VERIFIED_2026_27_COMPETITION_HINTS } from "@/lib/team-competition";
+import {
+  ESORDIENTI_TUTTOCAMPO_WIDGET,
+  TUTTOCAMPO_CATEGORY_UUID_SLOTS,
+  sourceTypeLabel,
+  VERIFIED_2026_27_COMPETITION_HINTS,
+} from "@/lib/team-competition";
 import { prisma } from "@/lib/prisma";
 import { requireSiteWebAdminPage } from "@/lib/site-cms-server";
 
@@ -31,12 +36,27 @@ export default async function AdminFontiClassificaPage() {
         <AdminBackLink href="/admin/sito-web" label="← Torna a Sito web" />
         <SiteWebNav />
 
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <p className="font-bold">Hint verificati 2026/27 (senza UUID widget inventati)</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
+        <section className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+          <p className="font-bold">UUID Tuttocampo per categoria (modificabili qui, senza codice)</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+            {TUTTOCAMPO_CATEGORY_UUID_SLOTS.map((slot) => (
+              <li key={slot.key}>
+                {slot.label}:{" "}
+                {slot.uuidKnown ? (
+                  <span className="font-mono">{slot.uuidKnown}</span>
+                ) : (
+                  "da inserire"
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs">{ESORDIENTI_TUTTOCAMPO_WIDGET.note}</p>
+          <p className="mt-2 font-bold">Hint campionati 2026/27</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
             {VERIFIED_2026_27_COMPETITION_HINTS.map((hint) => (
               <li key={hint.competitionName}>
-                {hint.competitionName} · {hint.groupLabel} · verificato {hint.verifiedAt}
+                {hint.competitionName}
+                {hint.groupLabel ? ` · ${hint.groupLabel}` : ""} · verificato {hint.verifiedAt}
                 {hint.sourcePageUrl ? (
                   <>
                     {" "}
@@ -50,9 +70,7 @@ export default async function AdminFontiClassificaPage() {
                       pagina fonte
                     </a>
                   </>
-                ) : (
-                  " · pagina Tuttocampo non ancora verificata"
-                )}
+                ) : null}
               </li>
             ))}
           </ul>
@@ -67,8 +85,12 @@ export default async function AdminFontiClassificaPage() {
             groupLabel: "",
             sourceType: "NONE",
             sourcePageUrl: "",
+            tuttocampoWidgetUuid: "",
+            widgetSeasonParam: "2026-27",
             widgetStandingsUrl: "",
             widgetResultsUrl: "",
+            widgetScorersUrl: "",
+            widgetLastMatchUrl: "",
             widgetNextMatchUrl: "",
             manualStandingsJson: "",
             sourceNotes: "",
@@ -94,7 +116,12 @@ export default async function AdminFontiClassificaPage() {
                     {s.lastVerifiedAt
                       ? `verificata ${s.lastVerifiedAt.toISOString().slice(0, 10)}`
                       : "data verifica assente"}
-                    {s.widgetStandingsUrl ? " · widget classifica OK" : " · senza widget"}
+                    {s.tuttocampoWidgetUuid
+                      ? ` · UUID ${s.tuttocampoWidgetUuid.slice(0, 8)}…`
+                      : s.widgetStandingsUrl
+                        ? " · widget classifica OK"
+                        : " · senza widget"}
+                    {s.widgetSeasonParam ? ` · y=${s.widgetSeasonParam}` : ""}
                   </p>
                 </li>
               ))}
