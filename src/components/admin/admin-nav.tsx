@@ -57,6 +57,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: "/admin/visite-mediche",
     label: "Visite mediche",
     icon: HeartPulse,
+    adminOnly: true,
     group: "admin",
   },
   {

@@ -4,11 +4,9 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConvocationResponseStatus } from "@prisma/client";
 import {
-  isUnavailableOperationalStatus,
-  OPERATIONAL_STATUS_LABEL,
-  operationalStatusPillClass,
-  type OperationalStatusType,
-} from "@/lib/athlete-operational-status";
+  PARTICIPATION_CAN_LABEL,
+  PARTICIPATION_CANNOT_LABEL,
+} from "@/lib/health-data-access";
 import {
   CONVOCATION_RESPONSE_BADGE_CLASS,
   CONVOCATION_RESPONSE_LABEL,
@@ -20,7 +18,7 @@ type AthleteRow = {
   lastName: string;
   isSelected: boolean;
   responseStatus: ConvocationResponseStatus;
-  operationalStatus: OperationalStatusType;
+  canParticipate: boolean;
   /** Avviso non bloccante: giornate di squalifica residue. */
   remainingSuspensions?: number;
 };
@@ -314,7 +312,7 @@ export function ConvocationManager({
         {athletes.map((athlete) => {
           const selected = selectedByAthlete[athlete.id] ?? false;
           const status = responseByAthlete[athlete.id] ?? "PENDING";
-          const operational = athlete.operationalStatus;
+          const canParticipate = athlete.canParticipate;
           return (
             <li key={athlete.id} className="rounded-lg border border-blue-100 p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -324,13 +322,9 @@ export function ConvocationManager({
                     checked={selected}
                     onChange={(event) => {
                       const nextChecked = event.target.checked;
-                      if (
-                        nextChecked &&
-                        !selected &&
-                        isUnavailableOperationalStatus(operational)
-                      ) {
+                      if (nextChecked && !selected && !canParticipate) {
                         const ok = window.confirm(
-                          `${athlete.firstName} ${athlete.lastName} risulta attualmente ${OPERATIONAL_STATUS_LABEL[operational]}. Vuoi convocarlo comunque?`,
+                          `${athlete.firstName} ${athlete.lastName} risulta «${PARTICIPATION_CANNOT_LABEL}». Vuoi convocarlo comunque?`,
                         );
                         if (!ok) return;
                       }
@@ -347,9 +341,13 @@ export function ConvocationManager({
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${operationalStatusPillClass(operational)}`}
+                    className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                      canParticipate
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                        : "border-slate-200 bg-slate-100 text-slate-800"
+                    }`}
                   >
-                    {OPERATIONAL_STATUS_LABEL[operational]}
+                    {canParticipate ? PARTICIPATION_CAN_LABEL : PARTICIPATION_CANNOT_LABEL}
                   </span>
                   <span
                     className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-semibold ${CONVOCATION_RESPONSE_BADGE_CLASS[status]}`}
@@ -358,11 +356,6 @@ export function ConvocationManager({
                   </span>
                 </div>
               </div>
-              {operational === "TO_CHECK" ? (
-                <p className="mt-2 text-xs font-semibold text-amber-800">
-                  Da verificare prima della partita.
-                </p>
-              ) : null}
               {(athlete.remainingSuspensions ?? 0) > 0 ? (
                 <p className="mt-2 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-900">
                   Attenzione: {athlete.remainingSuspensions} giornata

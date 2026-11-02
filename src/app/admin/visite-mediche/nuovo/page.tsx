@@ -22,7 +22,7 @@ export default async function AdminMedicalVisitNewPage({ searchParams }: AdminMe
     redirect("/login?callbackUrl=/admin/visite-mediche/nuovo");
   }
 
-  if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
+  if (session.user.role !== "ADMIN") {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 

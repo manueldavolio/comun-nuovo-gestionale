@@ -58,7 +58,7 @@ export default async function AdminMedicalVisitsPage({ searchParams }: AdminMedi
     redirect("/login?callbackUrl=/admin/visite-mediche");
   }
 
-  if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
+  if (session.user.role !== "ADMIN") {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 

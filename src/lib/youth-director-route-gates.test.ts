@@ -125,34 +125,36 @@ describe("athlete-scoped medical/documents/enrollment", () => {
 });
 
 describe("certificate upload gate (no write when denied)", () => {
-  it("requires athleteId and denies FIRST_TEAM for YD without write", () => {
-    const noAthlete = decideMedicalCertificateUploadAccess({
+  it("is ADMIN-only; YD/COACH denied before storage write", () => {
+    const noAthleteAdmin = decideMedicalCertificateUploadAccess({
       authenticated: true,
-      role: "YOUTH_DIRECTOR",
+      role: "ADMIN",
       athleteId: null,
       athleteExists: false,
       categoryId: null,
       categorySector: "MISSING",
     });
-    assert.equal(noAthlete.ok, false);
-    if (!noAthlete.ok) {
-      assert.equal(noAthlete.status, 400);
-      assert.equal(noAthlete.write, false);
+    assert.equal(noAthleteAdmin.ok, false);
+    if (!noAthleteAdmin.ok) {
+      assert.equal(noAthleteAdmin.status, 400);
+      assert.equal(noAthleteAdmin.write, false);
     }
 
-    const ft = decideMedicalCertificateUploadAccess({
-      authenticated: true,
-      role: "YOUTH_DIRECTOR",
-      athleteId: "a-ft",
-      athleteExists: true,
-      categoryId: "ft",
-      categorySector: "FIRST_TEAM",
-    });
-    assert.equal(ft.ok, false);
-    if (!ft.ok) {
-      assert.equal(ft.status, 403);
-      assert.equal(ft.write, false);
-      assert.equal(gateAllowsWrite(ft), false);
+    for (const role of ["YOUTH_DIRECTOR", "COACH"] as const) {
+      const denied = decideMedicalCertificateUploadAccess({
+        authenticated: true,
+        role,
+        athleteId: "a-y",
+        athleteExists: true,
+        categoryId: "y1",
+        categorySector: "YOUTH",
+      });
+      assert.equal(denied.ok, false);
+      if (!denied.ok) {
+        assert.equal(denied.status, 403);
+        assert.equal(denied.write, false);
+        assert.equal(gateAllowsWrite(denied), false);
+      }
     }
 
     assert.equal(
@@ -163,18 +165,6 @@ describe("certificate upload gate (no write when denied)", () => {
         athleteExists: true,
         categoryId: "ft",
         categorySector: "FIRST_TEAM",
-      }).ok,
-      true,
-    );
-
-    assert.equal(
-      decideMedicalCertificateUploadAccess({
-        authenticated: true,
-        role: "YOUTH_DIRECTOR",
-        athleteId: "a-y",
-        athleteExists: true,
-        categoryId: "y1",
-        categorySector: "YOUTH",
       }).ok,
       true,
     );

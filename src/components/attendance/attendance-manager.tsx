@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import type { AttendanceStatus } from "@prisma/client";
 import { AlertTriangle, CheckCircle2, MapPin } from "lucide-react";
 import { TouchStepper } from "@/components/mister/touch-stepper";
-import { ATTENDANCE_STATUS_CHOICES, ATTENDANCE_STATUS_LABEL } from "@/lib/attendance-status";
+import {
+  ATTENDANCE_STATUS_CHOICES,
+  ATTENDANCE_STATUS_CHOICES_NON_HEALTH,
+  ATTENDANCE_STATUS_LABEL,
+  ATTENDANCE_STATUS_LABEL_NON_HEALTH,
+} from "@/lib/attendance-status";
 import {
   formatConvocationWallClockDate,
   formatConvocationWallClockTime,
@@ -54,6 +59,8 @@ type AttendanceManagerProps = {
   eventLocation: string | null;
   athletes: AthleteRow[];
   matchMode?: boolean;
+  /** Solo ADMIN: consente stato «Infortunato». Default false. */
+  allowHealthAttendanceStatuses?: boolean;
   initialMatchResult?: {
     opponentName: string | null;
     homeScore: number | null;
@@ -83,11 +90,26 @@ const SHORT_LABEL: Record<AttendanceStatus, string> = {
   INJURED: "Infortunato",
 };
 
+const SHORT_LABEL_NON_HEALTH: Record<AttendanceStatus, string> = {
+  PRESENT: "Presente",
+  ABSENT: "Assente",
+  JUSTIFIED_ABSENCE: "Giustificato",
+  INJURED: "Assente",
+};
+
 const PERIOD_LABELS = ["", "1° tempo", "2° tempo", "3° tempo", "4° tempo"];
 
-function buildInitialStatus(athletes: AthleteRow[]) {
+function buildInitialStatus(
+  athletes: AthleteRow[],
+  allowHealthAttendanceStatuses: boolean,
+) {
   return athletes.reduce<Record<string, StatusDraft>>((acc, athlete) => {
-    acc[athlete.id] = athlete.status;
+    const status = athlete.status;
+    if (!allowHealthAttendanceStatuses && status === "INJURED") {
+      acc[athlete.id] = "ABSENT";
+      return acc;
+    }
+    acc[athlete.id] = status;
     return acc;
   }, {});
 }
@@ -196,9 +218,17 @@ export function AttendanceManager({
   eventLocation,
   athletes,
   matchMode = false,
+  allowHealthAttendanceStatuses = false,
   initialMatchResult,
   initialPeriodScores,
 }: AttendanceManagerProps) {
+  const statusChoices = allowHealthAttendanceStatuses
+    ? ATTENDANCE_STATUS_CHOICES
+    : ATTENDANCE_STATUS_CHOICES_NON_HEALTH;
+  const statusLabel = allowHealthAttendanceStatuses
+    ? ATTENDANCE_STATUS_LABEL
+    : ATTENDANCE_STATUS_LABEL_NON_HEALTH;
+  const shortLabel = allowHealthAttendanceStatuses ? SHORT_LABEL : SHORT_LABEL_NON_HEALTH;
   const startAt = typeof eventStartAt === "string" ? new Date(eventStartAt) : eventStartAt;
   const opponent = resolveMatchDayOpponentName({
     opponentName: initialMatchResult?.opponentName,
@@ -206,7 +236,7 @@ export function AttendanceManager({
   });
   const fourPeriodMode = usesFourPeriodScoring(eventCategoryName);
 
-  const initialStatus = buildInitialStatus(athletes);
+  const initialStatus = buildInitialStatus(athletes, allowHealthAttendanceStatuses);
   const initialGoals = buildInitialGoals(athletes);
   const initialAssists = buildInitialAssists(athletes);
   const initialConceded = buildInitialGoalsConceded(athletes);
@@ -499,9 +529,17 @@ export function AttendanceManager({
     { id: "ALL", label: "Tutti", count: athletes.length },
     { id: "UNSET", label: "Da gestire", count: summary.unset },
     { id: "PRESENT", label: "Presenti", count: summary.PRESENT },
-    { id: "ABSENT", label: "Assenti", count: summary.ABSENT },
+    {
+      id: "ABSENT",
+      label: "Assenti",
+      count: allowHealthAttendanceStatuses
+        ? summary.ABSENT
+        : summary.ABSENT + summary.INJURED,
+    },
     { id: "JUSTIFIED_ABSENCE", label: "Giustificati", count: summary.JUSTIFIED_ABSENCE },
-    { id: "INJURED", label: "Infortunati", count: summary.INJURED },
+    ...(allowHealthAttendanceStatuses
+      ? ([{ id: "INJURED", label: "Infortunati", count: summary.INJURED }] as const)
+      : []),
   ];
 
   return (
@@ -608,7 +646,7 @@ export function AttendanceManager({
                     </span>
                     {status ? (
                       <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase text-zinc-600">
-                        {SHORT_LABEL[status]}
+                        {shortLabel[status]}
                       </span>
                     ) : null}
                   </li>
@@ -946,14 +984,14 @@ export function AttendanceManager({
                                 : "border-slate-300 bg-slate-100 text-slate-800"
                         }`}
                       >
-                        {ATTENDANCE_STATUS_LABEL[status]}
+                        {statusLabel[status]}
                       </span>
                     )}
                   </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {ATTENDANCE_STATUS_CHOICES.map((choice) => {
+                  {statusChoices.map((choice) => {
                     const active = status === choice.value;
                     return (
                       <button
@@ -964,7 +1002,7 @@ export function AttendanceManager({
                           active ? CHIP_CLASS[choice.value] : CHIP_IDLE
                         }`}
                       >
-                        {SHORT_LABEL[choice.value]}
+                        {shortLabel[choice.value]}
                       </button>
                     );
                   })}

@@ -74,6 +74,11 @@ export async function assertCanAccessMedicalVisitData(options: {
   | { ok: true; athleteId: string; categoryId: string }
   | { ok: false; status: 403 | 404; error: string }
 > {
+  // Dati sanitari: solo ADMIN (genitori usano route dedicate con assert parent).
+  if (options.role !== "ADMIN") {
+    return { ok: false, status: 403, error: "Operazione non consentita." };
+  }
+
   const visit = await prisma.medicalVisit.findUnique({
     where: { id: options.medicalVisitId },
     select: { athleteId: true },
@@ -102,10 +107,14 @@ export async function assertCanAccessArchiveDocumentData(options: {
 > {
   const doc = await prisma.document.findUnique({
     where: { id: options.documentId },
-    select: { athleteId: true },
+    select: { athleteId: true, type: true },
   });
   if (!doc) {
     return { ok: false, status: 404, error: "Documento non trovato." };
+  }
+  // Certificati medici in archivio: solo ADMIN.
+  if (doc.type === "MEDICAL_CERTIFICATE" && options.role !== "ADMIN") {
+    return { ok: false, status: 403, error: "Operazione non consentita." };
   }
   const athleteAccess = await assertCanAccessAthleteData({
     userId: options.userId,

@@ -90,17 +90,20 @@ export default async function AdminAthleteDocumentsPage({
     },
   });
 
+  const hideMedicalCertificates = session.user.role !== "ADMIN";
   const rows: DocumentRow[] = athletes.flatMap((athlete) => {
     const athleteFullName = `${athlete.firstName} ${athlete.lastName}`.trim();
-    return athlete.documents.map((doc) => ({
-      id: doc.id,
-      athleteId: athlete.id,
-      athleteFullName,
-      type: doc.type,
-      title: doc.title,
-      expiryDate: doc.expiryDate,
-      status: computeExpiryBadgeStatus(doc.expiryDate, now),
-    }));
+    return athlete.documents
+      .filter((doc) => !(hideMedicalCertificates && doc.type === "MEDICAL_CERTIFICATE"))
+      .map((doc) => ({
+        id: doc.id,
+        athleteId: athlete.id,
+        athleteFullName,
+        type: doc.type,
+        title: doc.title,
+        expiryDate: doc.expiryDate,
+        status: computeExpiryBadgeStatus(doc.expiryDate, now),
+      }));
   });
 
   const validCount = rows.filter((r) => r.status === "VALID").length;

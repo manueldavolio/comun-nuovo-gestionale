@@ -2,24 +2,20 @@
 
 import { useState } from "react";
 import {
-  OPERATIONAL_STATUS_LABEL,
-  OPERATIONAL_STATUS_NOTE_MAX,
-  OPERATIONAL_STATUS_TYPES,
-  operationalStatusPillClass,
-  type OperationalStatusType,
-  validUntilDateInputValue,
-} from "@/lib/athlete-operational-status";
+  PARTICIPATION_CAN_LABEL,
+  PARTICIPATION_CANNOT_LABEL,
+} from "@/lib/health-data-access";
+import { validUntilDateInputValue } from "@/lib/athlete-operational-status";
 import { nowAsEuropeRomeWallClockUtc, toDateInputValueUTC } from "@/lib/date-input";
 
 type OperationalStatusEditorProps = {
   athleteId: string;
   athleteName: string;
-  initialStatus: OperationalStatusType;
-  initialNote: string | null;
+  /** Solo partecipazione: true = può, false = non può. */
+  initialCanParticipate: boolean;
   initialValidUntil: string | null;
   onSaved?: (next: {
-    status: OperationalStatusType;
-    note: string | null;
+    canParticipate: boolean;
     validUntilDate: string | null;
   }) => void;
 };
@@ -40,17 +36,21 @@ function dateInputFromOffset(dayOffset: number): string {
   return toDateInputValueUTC(day);
 }
 
+function pillClass(canParticipate: boolean): string {
+  return canParticipate
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+    : "border-slate-200 bg-slate-100 text-slate-800";
+}
+
 export function OperationalStatusEditor({
   athleteId,
   athleteName,
-  initialStatus,
-  initialNote,
+  initialCanParticipate,
   initialValidUntil,
   onSaved,
 }: OperationalStatusEditorProps) {
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<OperationalStatusType>(initialStatus);
-  const [note, setNote] = useState(initialNote ?? "");
+  const [canParticipate, setCanParticipate] = useState(initialCanParticipate);
   const [validUntilDate, setValidUntilDate] = useState(initialValidUntil ?? "");
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -63,33 +63,29 @@ export function OperationalStatusEditor({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status,
-          note: note.trim() || null,
-          validUntilDate: status === "AVAILABLE" ? null : validUntilDate || null,
+          status: canParticipate ? "AVAILABLE" : "ABSENT",
+          note: null,
+          validUntilDate: canParticipate ? null : validUntilDate || null,
         }),
       });
       const data = (await response.json().catch(() => null)) as {
         error?: string;
-        status?: OperationalStatusType;
-        note?: string | null;
+        canParticipate?: boolean;
         validUntil?: string | Date | null;
       } | null;
       if (!response.ok) {
         setFeedback(data?.error ?? "Salvataggio non riuscito.");
         return;
       }
-      const nextStatus = data?.status ?? status;
-      const nextNote = data?.note ?? null;
+      const nextCan = data?.canParticipate ?? canParticipate;
       const nextValid =
-        data?.validUntil != null
+        !nextCan && data?.validUntil != null
           ? validUntilDateInputValue(new Date(data.validUntil))
           : null;
-      setStatus(nextStatus);
-      setNote(nextNote ?? "");
+      setCanParticipate(nextCan);
       setValidUntilDate(nextValid ?? "");
       onSaved?.({
-        status: nextStatus,
-        note: nextNote,
+        canParticipate: nextCan,
         validUntilDate: nextValid,
       });
       setOpen(false);
@@ -101,41 +97,53 @@ export function OperationalStatusEditor({
     }
   }
 
+  const label = canParticipate ? PARTICIPATION_CAN_LABEL : PARTICIPATION_CANNOT_LABEL;
+
   return (
     <div className="mt-2">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-bold ${operationalStatusPillClass(status)}`}
-        aria-label={`Disponibilità di ${athleteName}`}
+        className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-bold ${pillClass(canParticipate)}`}
+        aria-label={`Partecipazione di ${athleteName}`}
       >
-        {OPERATIONAL_STATUS_LABEL[status]}
+        {label}
       </button>
 
       {open ? (
         <div className="mt-3 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-blue-900">Stato</p>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {OPERATIONAL_STATUS_TYPES.map((option) => {
-              const active = status === option;
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-900">
+            Stato operativo
+          </p>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Nessuna informazione sanitaria: solo se l&apos;atleta può partecipare o meno.
+          </p>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {(
+              [
+                { value: true, text: PARTICIPATION_CAN_LABEL },
+                { value: false, text: PARTICIPATION_CANNOT_LABEL },
+              ] as const
+            ).map((option) => {
+              const active = canParticipate === option.value;
               return (
                 <button
-                  key={option}
+                  key={option.text}
                   type="button"
-                  onClick={() => setStatus(option)}
+                  onClick={() => setCanParticipate(option.value)}
                   className={`min-h-11 rounded-xl border px-2 text-xs font-bold ${
                     active
-                      ? `${operationalStatusPillClass(option)} ring-2 ring-blue-500`
+                      ? `${pillClass(option.value)} ring-2 ring-blue-500`
                       : "border-zinc-200 bg-white text-zinc-700"
                   }`}
                 >
-                  {OPERATIONAL_STATUS_LABEL[option]}
+                  {option.text}
                 </button>
               );
             })}
           </div>
 
-          {status !== "AVAILABLE" ? (
+          {!canParticipate ? (
             <>
               <p className="mt-4 text-xs font-bold uppercase tracking-wide text-blue-900">
                 Fino a
@@ -172,22 +180,10 @@ export function OperationalStatusEditor({
                   className="mt-1 block min-h-11 w-full rounded-xl border border-zinc-300 px-3 text-sm outline-none ring-blue-500 focus:ring-2"
                 />
               </label>
-
-              <label className="mt-3 block text-xs font-medium text-zinc-700">
-                Nota organizzativa — non inserire informazioni mediche.
-                <textarea
-                  value={note}
-                  maxLength={OPERATIONAL_STATUS_NOTE_MAX}
-                  rows={2}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="Es. Non disponibile martedì"
-                  className="mt-1 block w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-                />
-              </label>
             </>
           ) : (
             <p className="mt-3 text-xs text-zinc-600">
-              Segnando Disponibile lo stato operativo viene azzerato.
+              Segnando «Può partecipare» lo stato operativo viene azzerato.
             </p>
           )}
 

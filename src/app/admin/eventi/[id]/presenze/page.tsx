@@ -126,6 +126,7 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
             eventLocation={event.location}
             athletes={athletes}
             matchMode={matchMode}
+            allowHealthAttendanceStatuses={session.user.role === "ADMIN"}
             initialMatchResult={
               matchMode
                 ? {

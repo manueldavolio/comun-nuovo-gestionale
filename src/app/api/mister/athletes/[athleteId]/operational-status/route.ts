@@ -9,6 +9,12 @@ import {
   resolveOperationalStatus,
 } from "@/lib/athlete-operational-status";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
+import {
+  canStaffAccessAthleteHealthData,
+  coachOperationalStatusApiPayload,
+  denyHealthOperationalWriteForNonAdmin,
+  normalizeOperationalStatusForCoachWrite,
+} from "@/lib/health-data-access";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -51,10 +57,8 @@ async function assertCanManageAthlete(options: {
 
 /**
  * PUT body:
- * { status, note?, validUntilDate?: string | null }
- * - status AVAILABLE => delete record
- * - validUntilDate YYYY-MM-DD => end of that Rome wall-clock day
- * - validUntilDate null/omit with non-AVAILABLE => no expiry (if field omitted keep existing on upsert create uses null)
+ * ADMIN: { status, note?, validUntilDate?: string | null } — stati operativi completi
+ * COACH/YD: { status: AVAILABLE|ABSENT, validUntilDate? } — solo partecipazione, note ignorate
  */
 export async function PUT(request: Request, context: RouteContext) {
   const session = await getAuthSession();
@@ -93,23 +97,40 @@ export async function PUT(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Stato non valido." }, { status: 400 });
   }
 
-  const noteResult = normalizeOperationalNote(body.note);
+  const healthWrite = denyHealthOperationalWriteForNonAdmin({
+    role: session.user.role,
+    status: body.status,
+  });
+  if (!healthWrite.ok) {
+    return NextResponse.json({ error: healthWrite.error }, { status: 403 });
+  }
+
+  const isAdminHealth = canStaffAccessAthleteHealthData(session.user.role);
+  const effectiveStatus = isAdminHealth
+    ? body.status
+    : normalizeOperationalStatusForCoachWrite(body.status);
+  if (!effectiveStatus) {
+    return NextResponse.json({ error: "Stato non valido." }, { status: 400 });
+  }
+
+  const noteResult = isAdminHealth
+    ? normalizeOperationalNote(body.note)
+    : ({ ok: true as const, note: null });
   if (!noteResult.ok) {
     return NextResponse.json({ error: noteResult.error }, { status: 400 });
   }
 
   const wallNow = nowAsEuropeRomeWallClockUtc();
 
-  // AVAILABLE => delete (assenza record = disponibile)
-  if (body.status === "AVAILABLE") {
+  if (effectiveStatus === "AVAILABLE") {
     await prisma.athleteOperationalStatus.deleteMany({ where: { athleteId } });
     const resolved = resolveOperationalStatus({ record: null, wallNow });
-    return NextResponse.json({
-      success: true,
-      status: resolved.status,
-      note: null,
-      validUntil: null,
-    });
+    return NextResponse.json(
+      coachOperationalStatusApiPayload({
+        role: session.user.role,
+        resolved,
+      }),
+    );
   }
 
   let validUntil: Date | null = null;
@@ -129,13 +150,13 @@ export async function PUT(request: Request, context: RouteContext) {
     where: { athleteId },
     create: {
       athleteId,
-      status: body.status as AthleteOperationalStatusType,
+      status: effectiveStatus as AthleteOperationalStatusType,
       note: noteResult.note,
       setById: session.user.id,
       validUntil,
     },
     update: {
-      status: body.status as AthleteOperationalStatusType,
+      status: effectiveStatus as AthleteOperationalStatusType,
       note: noteResult.note,
       setById: session.user.id,
       ...(body.validUntilDate !== undefined ? { validUntil } : {}),
@@ -148,12 +169,12 @@ export async function PUT(request: Request, context: RouteContext) {
   });
 
   const resolved = resolveOperationalStatus({ record: row, wallNow });
-  return NextResponse.json({
-    success: true,
-    status: resolved.status,
-    note: resolved.note,
-    validUntil: resolved.validUntil,
-  });
+  return NextResponse.json(
+    coachOperationalStatusApiPayload({
+      role: session.user.role,
+      resolved,
+    }),
+  );
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
@@ -177,5 +198,14 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
 
   await prisma.athleteOperationalStatus.deleteMany({ where: { athleteId } });
-  return NextResponse.json({ success: true, status: "AVAILABLE" });
+  const resolved = resolveOperationalStatus({
+    record: null,
+    wallNow: nowAsEuropeRomeWallClockUtc(),
+  });
+  return NextResponse.json(
+    coachOperationalStatusApiPayload({
+      role: session.user.role,
+      resolved,
+    }),
+  );
 }

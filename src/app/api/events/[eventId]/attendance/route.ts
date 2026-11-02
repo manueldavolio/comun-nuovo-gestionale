@@ -9,6 +9,7 @@ import {
 } from "@/lib/four-period-scoring";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
+import { assertNonAdminCannotWriteInjuredAttendance } from "@/lib/health-data-access";
 import { updateAttendanceSchema } from "@/lib/validation/attendance";
 
 export async function PUT(
@@ -45,6 +46,16 @@ export async function PUT(
       { error: parsed.error.issues[0]?.message ?? "Dati non validi." },
       { status: 400 },
     );
+  }
+
+  for (const entry of parsed.data.entries) {
+    const healthGate = assertNonAdminCannotWriteInjuredAttendance({
+      role: session.user.role,
+      status: entry.status,
+    });
+    if (!healthGate.ok) {
+      return NextResponse.json({ error: healthGate.error }, { status: 403 });
+    }
   }
 
   const event = await prisma.event.findUnique({

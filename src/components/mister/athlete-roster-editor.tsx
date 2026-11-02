@@ -16,7 +16,6 @@ import {
   personalGoalStatusLabel,
   type PersonalGoalStatus,
 } from "@/lib/athlete-personal-goals";
-import type { OperationalStatusType } from "@/lib/athlete-operational-status";
 import {
   MAX_POSITIVE_COACH_TAGS,
   POSITIVE_COACH_TAG_LABEL,
@@ -42,8 +41,7 @@ type AthleteRosterEditorProps = {
     noteContent: string | null;
     positiveTags: PositiveCoachTagCode[];
     goals: GoalRow[];
-    operationalStatus: OperationalStatusType;
-    operationalNote: string | null;
+    canParticipate: boolean;
     operationalValidUntilDate: string | null;
     remainingSuspensions?: number;
   }>;
@@ -372,8 +370,7 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                     <OperationalStatusEditor
                       athleteId={athlete.id}
                       athleteName={`${athlete.firstName} ${athlete.lastName}`}
-                      initialStatus={athlete.operationalStatus}
-                      initialNote={athlete.operationalNote}
+                      initialCanParticipate={athlete.canParticipate}
                       initialValidUntil={athlete.operationalValidUntilDate}
                       onSaved={(next) => {
                         setRows((prev) =>
@@ -381,8 +378,7 @@ export function AthleteRosterEditor({ athletes, noteYear, noteMonth }: AthleteRo
                             row.id === athlete.id
                               ? {
                                   ...row,
-                                  operationalStatus: next.status,
-                                  operationalNote: next.note,
+                                  canParticipate: next.canParticipate,
                                   operationalValidUntilDate: next.validUntilDate,
                                 }
                               : row,

@@ -39,6 +39,10 @@ export async function PUT(
     );
   }
 
+  if (parsed.data.type === "MEDICAL_CERTIFICATE" && session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
+  }
+
   const documentAccess = await assertCanAccessArchiveDocumentData({
     userId: session.user.id,
     role: session.user.role,

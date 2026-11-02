@@ -16,6 +16,7 @@ export const YD_FORBIDDEN_DASHBOARD_HREFS = [
   "/admin/schedina",
   "/admin/sito-web",
   "/social/studio",
+  "/admin/visite-mediche",
 ] as const;
 
 export type DashboardQuickLinkSpec = {
@@ -49,11 +50,6 @@ export const YD_QUICK_LINKS: DashboardQuickLinkSpec[] = [
     href: "/admin/documenti",
     label: "Documenti",
     description: "Archivio metadati",
-  },
-  {
-    href: "/admin/visite-mediche",
-    label: "Visite mediche",
-    description: "Scadenze sanitarie",
   },
   {
     href: "/admin/comunicazioni",

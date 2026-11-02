@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return jsonError({ error: "Sessione non valida.", errorCode: "AUTH_INVALID_SESSION" }, 401);
   }
 
-  if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
+  if (session.user.role !== "ADMIN") {
     return jsonError({ error: "Operazione non consentita.", errorCode: "AUTH_FORBIDDEN_ROLE" }, 403);
   }
 

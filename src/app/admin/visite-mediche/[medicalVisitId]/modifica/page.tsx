@@ -23,7 +23,7 @@ export default async function AdminMedicalVisitEditPage({ params }: AdminMedical
     redirect(`/login?callbackUrl=/admin/visite-mediche/${medicalVisitId}/modifica`);
   }
 
-  if (session.user.role !== "ADMIN" && session.user.role !== "YOUTH_DIRECTOR") {
+  if (session.user.role !== "ADMIN") {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 

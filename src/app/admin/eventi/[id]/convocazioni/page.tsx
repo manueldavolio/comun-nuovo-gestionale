@@ -4,7 +4,6 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { ConvocationManager } from "@/components/convocations/convocation-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
-import { resolveOperationalStatus } from "@/lib/athlete-operational-status";
 import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
@@ -15,6 +14,7 @@ import {
 } from "@/lib/convocation-times";
 import { nowAsEuropeRomeWallClockUtc, toDateTimeLocalValueUTC } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
+import { resolveParticipationFromRecord } from "@/lib/health-data-access";
 import { prisma } from "@/lib/prisma";
 
 type AdminConvocationPageProps = {
@@ -111,7 +111,7 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
     convocation?.athletes.map((entry) => [entry.athleteId, entry.responseStatus]) ?? [],
   );
   const athletes = event.category.athletes.map((athlete) => {
-    const resolved = resolveOperationalStatus({
+    const { participation } = resolveParticipationFromRecord({
       record: athlete.operationalStatus,
       wallNow,
     });
@@ -121,7 +121,7 @@ export default async function AdminConvocationPage({ params }: AdminConvocationP
       lastName: athlete.lastName,
       isSelected: selectedByAthleteId.has(athlete.id),
       responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
-      operationalStatus: resolved.status,
+      canParticipate: participation.canParticipate,
     };
   });
 

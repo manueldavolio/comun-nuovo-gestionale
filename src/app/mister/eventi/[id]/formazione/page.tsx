@@ -2,12 +2,9 @@ import { redirect } from "next/navigation";
 import { MatchFormationEditor } from "@/components/mister/match-formation-editor";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
-import {
-  resolveOperationalStatus,
-  OPERATIONAL_STATUS_LABEL,
-} from "@/lib/athlete-operational-status";
 import { resolvePlayersPerSide } from "@/lib/category-format";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
+import { resolveParticipationFromRecord } from "@/lib/health-data-access";
 import {
   athleteNotInConvocationWarning,
   buildStarterSlotsForModule,
@@ -125,7 +122,7 @@ export default async function MisterFormationPage({ params }: PageProps) {
         position: true,
         shirtNumber: true,
         operationalStatus: {
-          select: { status: true, note: true, validUntil: true },
+          select: { status: true, validUntil: true },
         },
       },
     }),
@@ -145,7 +142,7 @@ export default async function MisterFormationPage({ params }: PageProps) {
         position: true,
         shirtNumber: true,
         operationalStatus: {
-          select: { status: true, note: true, validUntil: true },
+          select: { status: true, validUntil: true },
         },
       },
     }),
@@ -155,7 +152,7 @@ export default async function MisterFormationPage({ params }: PageProps) {
     athlete: (typeof rosterAthletes)[number],
     inConvocation: boolean | null,
   ) => {
-    const resolved = resolveOperationalStatus({
+    const { participation } = resolveParticipationFromRecord({
       record: athlete.operationalStatus,
       wallNow,
     });
@@ -165,7 +162,7 @@ export default async function MisterFormationPage({ params }: PageProps) {
       lastName: athlete.lastName,
       position: athlete.position,
       shirtNumber: athlete.shirtNumber,
-      operationalLabel: OPERATIONAL_STATUS_LABEL[resolved.status],
+      operationalLabel: participation.label,
       inConvocation,
       notInConvocationWarning:
         hasConvocation && inConvocation === false

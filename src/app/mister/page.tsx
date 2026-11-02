@@ -8,14 +8,11 @@ import { NextCommitmentCard } from "@/components/mister/next-commitment-card";
 import { WeekTimeline } from "@/components/mister/week-timeline";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
-import {
-  resolveOperationalStatus,
-  summarizeAvailability,
-} from "@/lib/athlete-operational-status";
 import { ACTIVE_PERSONAL_GOAL_STATUSES } from "@/lib/athlete-personal-goals";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
 import { computeFourPeriodBreakdown } from "@/lib/four-period-scoring";
+import { resolveParticipationFromRecord } from "@/lib/health-data-access";
 import {
   isSameWallClockDay,
   selectTodaysMatchDayEvent,
@@ -163,7 +160,7 @@ export default async function CoachDashboardPage() {
               select: { id: true },
             },
             operationalStatus: {
-              select: { status: true, note: true, validUntil: true },
+              select: { status: true, validUntil: true },
             },
           },
         }),
@@ -259,14 +256,17 @@ export default async function CoachDashboardPage() {
   const actionableTodos = todos.filter((todo) => todo.priority !== "suggestion");
   const suggestionTodos = todos.filter((todo) => todo.priority === "suggestion");
 
-  const availabilitySummary = summarizeAvailability(
-    rosterAthletes.map((athlete) => ({
-      status: resolveOperationalStatus({
-        record: athlete.operationalStatus,
-        wallNow,
-      }).status,
-    })),
+  const participationRows = rosterAthletes.map((athlete) =>
+    resolveParticipationFromRecord({
+      record: athlete.operationalStatus,
+      wallNow,
+    }).participation,
   );
+  const availabilitySummary = {
+    total: participationRows.length,
+    canParticipate: participationRows.filter((row) => row.canParticipate).length,
+    cannotParticipate: participationRows.filter((row) => !row.canParticipate).length,
+  };
 
   const weekDays = buildMisterWeekTimeline(weekEvents, wallNow);
 

@@ -54,6 +54,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
   }
 
   const canManageAthleteCategory = session.user.role === "ADMIN";
+  const canAccessHealthData = session.user.role === "ADMIN";
   if (!canManageAthleteCategory && session.user.role !== "YOUTH_DIRECTOR") {
     redirect("/unauthorized");
   }
@@ -84,7 +85,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
         postalCode: true,
         province: true,
         clothingSize: true,
-        medicalNotes: true,
+        ...(canAccessHealthData ? { medicalNotes: true as const } : {}),
         rosterStatus: true,
         withdrawnAt: true,
         withdrawReason: true,
@@ -153,16 +154,20 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
             },
           },
         },
-        medicalVisits: {
-          orderBy: { visitDate: "desc" },
-          select: {
-            id: true,
-            visitDate: true,
-            expiryDate: true,
-            notes: true,
-            certificateFilePath: true,
-          },
-        },
+        ...(canAccessHealthData
+          ? {
+              medicalVisits: {
+                orderBy: { visitDate: "desc" as const },
+                select: {
+                  id: true,
+                  visitDate: true,
+                  expiryDate: true,
+                  notes: true,
+                  certificateFilePath: true,
+                },
+              },
+            }
+          : {}),
       },
     }),
     prisma.category.findMany({
@@ -387,11 +392,16 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
           </p>
           <AthleteEnrollmentDocuments documents={latestEnrollmentDocuments} />
 
-          {athlete.documents.length > 0 ? (
+          {(() => {
+            const archiveDocs = athlete.documents.filter(
+              (doc) => canAccessHealthData || doc.type !== "MEDICAL_CERTIFICATE",
+            );
+            if (archiveDocs.length === 0) return null;
+            return (
             <div className="mt-6 border-t border-sky-100 pt-4">
               <h3 className="text-sm font-black text-blue-950">Altri documenti in archivio</h3>
               <ul className="mt-3 grid gap-2 md:hidden">
-                {athlete.documents.map((doc) => (
+                {archiveDocs.map((doc) => (
                   <li
                     key={doc.id}
                     className="rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-3 text-sm"
@@ -415,7 +425,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
                     </tr>
                   </thead>
                   <tbody>
-                    {athlete.documents.map((doc) => (
+                    {archiveDocs.map((doc) => (
                       <tr key={doc.id} className="border-b border-sky-50 last:border-0">
                         <td className="px-3 py-2.5 font-semibold text-blue-950">
                           {DOCUMENT_TYPE_LABEL[doc.type] ?? doc.type}
@@ -429,9 +439,11 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
                 </table>
               </div>
             </div>
-          ) : null}
+            );
+          })()}
         </section>
 
+        {canAccessHealthData && "medicalVisits" in athlete ? (
         <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
@@ -522,6 +534,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
             </>
           )}
         </section>
+        ) : null}
 
         {canManageAthleteCategory ? (
           <section className="rounded-3xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5">

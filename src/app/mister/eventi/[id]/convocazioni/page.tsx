@@ -14,10 +14,10 @@ import {
 } from "@/lib/convocation-times";
 import { toDateTimeLocalValueUTC, nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
-import { resolveOperationalStatus } from "@/lib/athlete-operational-status";
 import { defaultCompetitionKindFromEventType } from "@/lib/competition-kind";
 import { seasonLabelFromDate } from "@/lib/discipline";
 import { loadRemainingSuspensionsByAthleteIds } from "@/lib/discipline-queries";
+import { resolveParticipationFromRecord } from "@/lib/health-data-access";
 import { prisma } from "@/lib/prisma";
 
 type MisterConvocationPageProps = {
@@ -69,7 +69,7 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
             lastName: string;
             operationalStatus?: {
               status: string;
-              note: string | null;
+              note?: string | null;
               validUntil: Date | null;
             } | null;
           }>;
@@ -115,7 +115,7 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
                 firstName: true,
                 lastName: true,
                 operationalStatus: {
-                  select: { status: true, note: true, validUntil: true },
+                  select: { status: true, validUntil: true },
                 },
               },
             },
@@ -208,10 +208,10 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
   }
 
   const athletes = event.category.athletes.map((athlete) => {
-    const resolved = resolveOperationalStatus({
+    const { participation } = resolveParticipationFromRecord({
       record:
         "operationalStatus" in athlete
-          ? (athlete as { operationalStatus?: { status: string; note: string | null; validUntil: Date | null } | null })
+          ? (athlete as { operationalStatus?: { status: string; validUntil: Date | null } | null })
               .operationalStatus
           : null,
       wallNow,
@@ -222,7 +222,7 @@ export default async function MisterConvocationPage({ params }: MisterConvocatio
       lastName: athlete.lastName,
       isSelected: selectedByAthleteId.has(athlete.id),
       responseStatus: responseByAthleteId.get(athlete.id) ?? "PENDING",
-      operationalStatus: resolved.status,
+      canParticipate: participation.canParticipate,
       remainingSuspensions: remainingByAthlete.get(athlete.id) ?? 0,
     };
   });

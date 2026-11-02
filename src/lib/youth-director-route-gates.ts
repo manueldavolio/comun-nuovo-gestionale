@@ -50,8 +50,9 @@ export function decideAdminOnlyAthleteMutation(input: {
 }
 
 /**
- * Athlete-scoped admin data (medical visit, archive document, enrollment download).
+ * Athlete-scoped admin data (archive document non sanitario, enrollment download).
  * athleteExists false → 404; sector via categorySectorLookup.
+ * Per visite mediche / certificati usare decideAdminOnlyHealthDataAccess.
  */
 export function decideAthleteScopedAdminDataAccess(input: {
   authenticated: boolean;
@@ -82,6 +83,14 @@ export function decideAthleteScopedAdminDataAccess(input: {
   return { ok: true };
 }
 
+/** Dati sanitari (visite, certificati, note): solo ADMIN. */
+export function decideAdminOnlyHealthDataAccess(input: {
+  authenticated: boolean;
+  role: string | null | undefined;
+}): RouteGateResult {
+  return decideAdminOnlyAthleteMutation(input);
+}
+
 /** Medical visit / document by resource id → resolve athlete then same gate. */
 export function decideResourceOwnedByAthleteAccess(input: {
   authenticated: boolean;
@@ -106,9 +115,8 @@ export function decideResourceOwnedByAthleteAccess(input: {
 }
 
 /**
- * Certificate upload: requires athleteId; deny before storage write.
- * missingAthleteId → 400-equivalent mapped as 403 write:false for gate clarity;
- * callers use 400 in the real route.
+ * Certificate upload: ADMIN only; requires athleteId; deny before storage write.
+ * missingAthleteId → 400 (callers mirror this).
  */
 export function decideMedicalCertificateUploadAccess(input: {
   authenticated: boolean;
@@ -118,7 +126,7 @@ export function decideMedicalCertificateUploadAccess(input: {
   categoryId: string | null;
   categorySector: CategorySectorLookup;
 }): RouteGateResult | { ok: false; status: 400; error: string; write: false } {
-  const auth = decideAuthenticatedAdminOrYouthDirector(input);
+  const auth = decideAdminOnlyHealthDataAccess(input);
   if (!auth.ok) return auth;
 
   if (!input.athleteId) {
@@ -130,13 +138,14 @@ export function decideMedicalCertificateUploadAccess(input: {
     };
   }
 
-  return decideAthleteScopedAdminDataAccess({
-    authenticated: true,
-    role: input.role,
-    athleteExists: input.athleteExists,
-    categoryId: input.categoryId,
-    categorySector: input.categorySector,
-  });
+  if (!input.athleteExists) {
+    return deny(404, "Atleta non trovato.");
+  }
+
+  // ADMIN: categorySector unused (full access). Keep signature for callers/tests.
+  void input.categoryId;
+  void input.categorySector;
+  return { ok: true };
 }
 
 export function decideAnnouncementCreateAccess(input: {

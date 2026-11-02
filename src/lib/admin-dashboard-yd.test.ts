@@ -72,7 +72,7 @@ describe("YOUTH_DIRECTOR dashboard composition", () => {
     assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/categorie?filter=active"), true);
     assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/atleti"), false);
     assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/documenti"), false);
-    assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/visite-mediche"), false);
+    assert.equal(youthDirectorDashboardHasForbiddenHref("/admin/visite-mediche"), true);
   });
 
   it("KPI filters exclude first team by requiring youth category ids only", () => {
@@ -100,7 +100,7 @@ describe("YOUTH_DIRECTOR dashboard composition", () => {
     assert.ok(hrefs.includes("/admin/associazioni-genitori"));
     assert.ok(hrefs.includes("/admin/utenti"));
     assert.ok(hrefs.includes("/admin/documenti"));
-    assert.ok(hrefs.includes("/admin/visite-mediche"));
+    assert.equal(hrefs.includes("/admin/visite-mediche"), false);
     const utenti = YD_QUICK_LINKS.find((l) => l.href === "/admin/utenti");
     assert.ok(utenti);
     assert.match(utenti.description.toLowerCase(), /consultazione/);

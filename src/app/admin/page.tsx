@@ -132,9 +132,13 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
-    // Archivio Document (metadati), non enrollment docs né certificati medici.
-    // YD: solo documenti di atleti in categorie YOUTH.
-    prisma.document.count({ where: youthDocumentFilter }),
+    // Archivio Document (metadati). YD: YOUTH + esclusi certificati medici.
+    prisma.document.count({
+      where: {
+        ...youthDocumentFilter,
+        ...(isYouthDirector ? { type: { not: "MEDICAL_CERTIFICATE" as const } } : {}),
+      },
+    }),
     prisma.category.findMany({
       where: {
         isActive: true,
@@ -173,10 +177,9 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
-    getMedicalVisitReminderTargets({
-      now,
-      ...(manageableCategoryIds != null ? { categoryIds: manageableCategoryIds } : {}),
-    }),
+    isAdmin
+      ? getMedicalVisitReminderTargets({ now })
+      : Promise.resolve({ expiring: [], expired: [] }),
     prisma.enrollment.findMany({
       where: enrollmentWidgetWhereForRole(role),
       orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
@@ -273,14 +276,6 @@ export default async function AdminDashboardPage() {
           href: "/admin/atleti?status=withdrawn",
           tone: "border-sky-100 bg-gradient-to-br from-white to-slate-50",
           valueTone: "text-slate-800",
-        },
-        {
-          title: "Visite da controllare",
-          value: medicalAlertCount,
-          description: "Scadute/in scadenza — solo giovanili",
-          href: "/admin/visite-mediche",
-          tone: "border-red-200 bg-gradient-to-br from-white to-red-50/50",
-          valueTone: "text-red-900",
         },
         {
           title: "Documenti in archivio",
@@ -431,12 +426,6 @@ export default async function AdminDashboardPage() {
           icon: Images,
         },
         {
-          href: "/admin/visite-mediche",
-          label: "Visite mediche",
-          description: "Scadenze sanitarie",
-          icon: HeartPulse,
-        },
-        {
           href: "/admin/documenti",
           label: "Documenti",
           description: "Archivio pratiche",
@@ -523,6 +512,7 @@ export default async function AdminDashboardPage() {
               </article>
             ) : null}
 
+            {isAdmin ? (
             <article className="flex flex-col rounded-2xl border border-red-200 bg-red-50/50 p-3.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -562,19 +552,14 @@ export default async function AdminDashboardPage() {
               <p className="mt-2 text-[11px] text-zinc-500">
                 Totale alert: {medicalAlertCount}
               </p>
-              {isAdmin ? (
-                <div className="mt-3">
-                  <AdminMedicalVisitRemindersActions
-                    expiringCount={reminderTargets.expiring.length}
-                    expiredCount={reminderTargets.expired.length}
-                  />
-                </div>
-              ) : (
-                <p className="mt-3 text-xs text-zinc-500">
-                  Invio promemoria disponibile solo per admin.
-                </p>
-              )}
+              <div className="mt-3">
+                <AdminMedicalVisitRemindersActions
+                  expiringCount={reminderTargets.expiring.length}
+                  expiredCount={reminderTargets.expired.length}
+                />
+              </div>
             </article>
+            ) : null}
 
             <article className="flex flex-col rounded-2xl border border-blue-200 bg-blue-50/60 p-3.5">
               <div className="flex items-start justify-between gap-2">

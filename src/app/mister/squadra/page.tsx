@@ -4,13 +4,11 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { AthleteRosterEditor } from "@/components/mister/athlete-roster-editor";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
-import {
-  resolveOperationalStatus,
-  validUntilDateInputValue,
-} from "@/lib/athlete-operational-status";
+import { validUntilDateInputValue } from "@/lib/athlete-operational-status";
 import { seasonLabelFromDate } from "@/lib/discipline";
 import { loadRemainingSuspensionsByAthleteIds } from "@/lib/discipline-queries";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
+import { resolveParticipationFromRecord } from "@/lib/health-data-access";
 import { prisma } from "@/lib/prisma";
 
 type MisterSquadraPageProps = {
@@ -90,7 +88,6 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
       operationalStatus: {
         select: {
           status: true,
-          note: true,
           validUntil: true,
         },
       },
@@ -111,7 +108,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
   }
 
   const rosterAthletes = athletes.map((athlete) => {
-    const resolved = resolveOperationalStatus({
+    const { participation } = resolveParticipationFromRecord({
       record: athlete.operationalStatus,
       wallNow,
     });
@@ -128,22 +125,17 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
         text: goal.text,
         status: goal.status,
       })),
-      operationalStatus: resolved.status,
-      operationalNote: resolved.note,
-      operationalValidUntilDate: resolved.validUntil
-        ? validUntilDateInputValue(resolved.validUntil)
+      canParticipate: participation.canParticipate,
+      operationalValidUntilDate: participation.validUntil
+        ? validUntilDateInputValue(participation.validUntil)
         : null,
       remainingSuspensions: remainingByAthlete.get(athlete.id) ?? 0,
     };
   });
 
   const availabilitySummary = {
-    available: rosterAthletes.filter((row) => row.operationalStatus === "AVAILABLE").length,
-    absent: rosterAthletes.filter((row) => row.operationalStatus === "ABSENT").length,
-    injured: rosterAthletes.filter(
-      (row) => row.operationalStatus === "INJURED" || row.operationalStatus === "ILL",
-    ).length,
-    toCheck: rosterAthletes.filter((row) => row.operationalStatus === "TO_CHECK").length,
+    canParticipate: rosterAthletes.filter((row) => row.canParticipate).length,
+    cannotParticipate: rosterAthletes.filter((row) => !row.canParticipate).length,
     suspended: rosterAthletes.filter((row) => (row.remainingSuspensions ?? 0) > 0).length,
   };
 
@@ -191,12 +183,10 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
           </form>
         ) : null}
 
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {[
-            { label: "Disponibile", value: availabilitySummary.available, tone: "bg-emerald-50 border-emerald-200 text-emerald-900" },
-            { label: "Assente", value: availabilitySummary.absent, tone: "bg-zinc-50 border-zinc-200 text-zinc-800" },
-            { label: "Infortunato", value: availabilitySummary.injured, tone: "bg-slate-100 border-slate-300 text-slate-800" },
-            { label: "Da verificare", value: availabilitySummary.toCheck, tone: "bg-amber-50 border-amber-200 text-amber-900" },
+            { label: "Può partecipare", value: availabilitySummary.canParticipate, tone: "bg-emerald-50 border-emerald-200 text-emerald-900" },
+            { label: "Non può partecipare", value: availabilitySummary.cannotParticipate, tone: "bg-slate-100 border-slate-300 text-slate-800" },
             { label: "Squalificato", value: availabilitySummary.suspended, tone: "bg-violet-50 border-violet-200 text-violet-900" },
           ].map((item) => (
             <div
