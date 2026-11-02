@@ -99,6 +99,24 @@ enum MediaType {
   VIDEO
 }
 
+enum LegalDocumentKind {
+  PRIVACY_NOTICE
+  SOCIETY_REGULATION
+  IMAGE_MEDIA_CONSENT
+}
+
+enum ConsentAuditStatus {
+  COMPLETE
+  LEGACY_UNAVAILABLE
+}
+
+enum MediaReviewStatus {
+  DRAFT
+  READY
+  NEEDS_REVIEW
+  BLOCKED_CONSENT
+}
+
 enum EvaluationPeriodType {
   FIRST_TRIMESTER
   END_OF_SEASON
@@ -253,6 +271,7 @@ model User {
   bankTransferRequestsCreated BankTransferRequest[] @relation("BankTransferRequestCreatedBy")
   bankTransferRequestsReviewed BankTransferRequest[] @relation("BankTransferRequestReviewedBy")
   clubBankSettingsUpdated ClubBankSettings[] @relation("ClubBankSettingsUpdatedBy")
+  imageConsentEventsActed AthleteImageConsentEvent[] @relation("AthleteImageConsentEventActedBy")
 
   @@index([role])
   @@index([isActive])
@@ -397,6 +416,8 @@ model Athlete {
   disciplinarySuspensions DisciplinarySuspension[]
   disciplinaryOpeningBalances DisciplinaryOpeningBalance[]
   matchPlayerRatings   MatchPlayerRating[]
+  imageConsentEvents   AthleteImageConsentEvent[]
+  mediaSubjects        MediaItemSubject[]
 
   @@index([lastName, firstName])
   @@index([parentId])
@@ -457,6 +478,19 @@ model Enrollment {
   privacyConsent   Boolean
   regulationConsent Boolean
   imageConsent     Boolean      @default(false)
+  /// Presa visione informativa — metadati solo per nuove iscrizioni (legacy = null).
+  privacyNoticeVersion           String?
+  privacyNoticeContentSha256     String?
+  privacyNoticeAcknowledgedAt    DateTime?
+  /// Accettazione regolamento — metadati solo per nuove iscrizioni (legacy = null).
+  regulationVersion              String?
+  regulationContentSha256        String?
+  regulationAcceptedAt           DateTime?
+  /// Consenso immagini — valorizzati solo se imageConsent=true sulle nuove iscrizioni.
+  imageConsentVersion            String?
+  imageConsentContentSha256      String?
+  imageConsentRecordedAt         DateTime?
+  consentAuditStatus             ConsentAuditStatus?
   status      EnrollmentStatus @default(DRAFT)
   submittedAt DateTime?
   notes       String?
@@ -471,6 +505,7 @@ model Enrollment {
   @@unique([athleteId, categoryId, seasonLabel])
   @@index([status])
   @@index([seasonLabel])
+  @@index([consentAuditStatus])
 }
 
 model Payment {
@@ -954,16 +989,21 @@ model MediaItem {
   categoryId  String
   createdById String
   publishedAt DateTime?
+  /// Soggetti dichiarati come identificabili; senza dichiarazione → NEEDS_REVIEW.
+  subjectsDeclaredComplete Boolean @default(false)
+  reviewStatus             MediaReviewStatus @default(NEEDS_REVIEW)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   category  Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   createdBy User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  subjects  MediaItemSubject[]
 
   @@index([categoryId])
   @@index([createdById])
   @@index([publishedAt])
   @@index([mediaType])
+  @@index([reviewStatus])
 }
 
 model MonthlyCoachReport {
@@ -1545,4 +1585,65 @@ model SocialAsset {
   @@unique([kind, normalizedKey])
   @@index([kind, label])
   @@index([createdById])
+}
+
+/// Catalogo versionato di informative / regolamenti / testi consenso.
+model LegalDocument {
+  id             String            @id @default(cuid())
+  kind           LegalDocumentKind
+  version        String
+  title          String
+  bodyText       String
+  contentSha256  String
+  /// Null fino al go-live ufficiale (niente date inventate).
+  effectiveFrom  DateTime?
+  retiredAt      DateTime?
+  isCurrent      Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([kind, version])
+  @@index([kind, isCurrent])
+}
+
+/// Storico grant/revoke consenso immagini per atleta (non altera Enrollment storici).
+model AthleteImageConsentEvent {
+  id                 String   @id @default(cuid())
+  athleteId          String
+  granted            Boolean
+  documentVersion    String
+  documentContentSha256 String
+  recordedAt         DateTime @default(now())
+  actedByUserId      String
+  source             String?
+  note               String?
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  actedBy User    @relation("AthleteImageConsentEventActedBy", fields: [actedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([athleteId, recordedAt])
+  @@index([actedByUserId])
+}
+
+/// Soggetti identificabili dichiarati in un media (non tutta la categoria).
+model MediaItemSubject {
+  id          String   @id @default(cuid())
+  mediaItemId String
+  athleteId   String
+  createdAt   DateTime @default(now())
+
+  mediaItem MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  athlete   Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaItemId, athleteId])
+  @@index([athleteId])
+}
+
+/// Rate limit login/register multi-istanza (Vercel) via DB.
+model AuthRateLimitBucket {
+  id              String   @id @default(cuid())
+  bucketKey       String   @unique
+  windowStartedAt DateTime
+  hitCount        Int      @default(0)
+  updatedAt       DateTime @updatedAt
 }

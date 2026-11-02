@@ -741,14 +741,16 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
               className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
             />
             <span>
-              Confermo di aver letto e accettato l&apos;
+              Dichiaro di aver preso visione dell&apos;
               <Link
                 href="/privacy"
                 className="underline underline-offset-2 hover:text-blue-900"
               >
                 informativa privacy
               </Link>
-              . (obbligatorio)
+              {" "}
+              (obbligatorio). La presa visione non equivale a un consenso generico a tutti i
+              trattamenti.
               <FieldError message={fieldErrors.privacyConsent} />
             </span>
           </label>
@@ -761,14 +763,15 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
               className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
             />
             <span>
-              Confermo di aver letto e accettato il{" "}
+              Dichiaro di aver letto e accettato il{" "}
               <Link
                 href="/regolamento"
                 className="underline underline-offset-2 hover:text-blue-900"
               >
-                regolamento societario
+                regolamento societario 2026/2027 (versione 1.0)
               </Link>
-              . (obbligatorio)
+              {" "}
+              (obbligatorio).
               <FieldError message={fieldErrors.regulationConsent} />
             </span>
           </label>
@@ -780,7 +783,11 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
               onChange={(event) => updateField("imageConsent", event.target.checked)}
               className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
             />
-            <span>Autorizzo l&apos;utilizzo di immagini e video dell&apos;atleta per fini istituzionali.</span>
+            <span>
+              Autorizzo l&apos;utilizzo di immagini e video dell&apos;atleta per fini
+              istituzionali. (facoltativo — l&apos;iscrizione è possibile anche senza questa
+              autorizzazione; revocabile in seguito dall&apos;area genitore)
+            </span>
           </label>
         </div>
       </section>

@@ -16,6 +16,10 @@ import {
   EnrollmentFeesConfigError,
   resolveCategoryEnrollmentFees,
 } from "@/lib/enrollment-fees";
+import {
+  buildEnrollmentConsentAuditFields,
+  requireCurrentLegalDocuments,
+} from "@/lib/legal/legal-documents";
 import { sendAdminEnrollmentNotification } from "@/lib/mail";
 
 export const runtime = "nodejs";
@@ -216,6 +220,21 @@ export async function POST(request: Request) {
     );
   }
 
+  const legalDocs = await requireCurrentLegalDocuments([
+    "PRIVACY_NOTICE",
+    "SOCIETY_REGULATION",
+    "IMAGE_MEDIA_CONSENT",
+  ]);
+  if (!legalDocs.ok) {
+    return NextResponse.json(
+      {
+        error:
+          "Documenti informativi non configurati. Contatta la segreteria prima di completare l'iscrizione.",
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     const created = await prisma.$transaction(async (tx) => {
       let category =
@@ -276,6 +295,13 @@ export async function POST(request: Request) {
       });
 
       const submittedAt = new Date();
+      const consentAudit = buildEnrollmentConsentAuditFields({
+        privacyNotice: legalDocs.documents.PRIVACY_NOTICE,
+        regulation: legalDocs.documents.SOCIETY_REGULATION,
+        imageConsentDoc: legalDocs.documents.IMAGE_MEDIA_CONSENT,
+        imageConsentGranted: parsed.data.imageConsent,
+        recordedAt: submittedAt,
+      });
 
       const enrollment = await tx.enrollment.create({
         data: {
@@ -294,11 +320,26 @@ export async function POST(request: Request) {
           privacyConsent: parsed.data.privacyConsent,
           regulationConsent: parsed.data.regulationConsent,
           imageConsent: parsed.data.imageConsent,
+          ...consentAudit,
           status: "SUBMITTED",
           submittedAt,
           notes: parsed.data.enrollmentNotes || null,
         },
       });
+
+      if (parsed.data.imageConsent) {
+        await tx.athleteImageConsentEvent.create({
+          data: {
+            athleteId: athlete.id,
+            granted: true,
+            documentVersion: legalDocs.documents.IMAGE_MEDIA_CONSENT.version,
+            documentContentSha256: legalDocs.documents.IMAGE_MEDIA_CONSENT.contentSha256,
+            recordedAt: submittedAt,
+            actedByUserId: session.user.id,
+            source: "enrollment",
+          },
+        });
+      }
 
       const depositAmount = fees.deposit;
       const balanceAmount = fees.balance;

@@ -69,10 +69,10 @@ export const enrollmentSchema = z.object({
 
   privacyConsent: z
     .boolean()
-    .refine((value) => value, "Devi accettare l'informativa privacy."),
+    .refine((value) => value, "Devi confermare la presa visione dell'informativa privacy."),
   regulationConsent: z
     .boolean()
-    .refine((value) => value, "Devi accettare il regolamento."),
+    .refine((value) => value, "Devi accettare il regolamento societario."),
   imageConsent: z.boolean(),
 });
 
