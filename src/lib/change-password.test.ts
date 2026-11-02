@@ -4,29 +4,38 @@ import { changePasswordSchema } from "./validation/account";
 import { buildPasswordHashUpdateData } from "./admin-password-reset";
 
 describe("change password validation", () => {
-  it("accepts a valid payload", () => {
+  it("accepts a valid strong payload", () => {
     const parsed = changePasswordSchema.safeParse({
-      currentPassword: "oldpass1",
-      newPassword: "newpass1",
-      confirmPassword: "newpass1",
+      currentPassword: "oldpass12",
+      newPassword: "newpass1234",
+      confirmPassword: "newpass1234",
     });
     assert.equal(parsed.success, true);
   });
 
+  it("rejects short new passwords", () => {
+    const parsed = changePasswordSchema.safeParse({
+      currentPassword: "oldpass12",
+      newPassword: "short1",
+      confirmPassword: "short1",
+    });
+    assert.equal(parsed.success, false);
+  });
+
   it("rejects mismatched confirmation", () => {
     const parsed = changePasswordSchema.safeParse({
-      currentPassword: "oldpass1",
-      newPassword: "newpass1",
-      confirmPassword: "different",
+      currentPassword: "oldpass12",
+      newPassword: "newpass1234",
+      confirmPassword: "different12",
     });
     assert.equal(parsed.success, false);
   });
 
   it("rejects new password equal to current", () => {
     const parsed = changePasswordSchema.safeParse({
-      currentPassword: "samepass",
-      newPassword: "samepass",
-      confirmPassword: "samepass",
+      currentPassword: "samepass12",
+      newPassword: "samepass12",
+      confirmPassword: "samepass12",
     });
     assert.equal(parsed.success, false);
   });

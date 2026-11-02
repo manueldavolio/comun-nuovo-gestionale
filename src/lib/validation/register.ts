@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { newPasswordSchema, validateNewPasswordStrength } from "@/lib/validation/password-policy";
 
 export const registerSchema = z
   .object({
@@ -11,12 +12,18 @@ export const registerSchema = z
       .trim()
       .min(1, "Il cognome e obbligatorio."),
     email: z.email("Inserisci un'email valida."),
-    password: z
-      .string()
-      .min(6, "La password deve contenere almeno 6 caratteri."),
+    password: newPasswordSchema,
     confirmPassword: z.string(),
   })
   .superRefine(({ password, confirmPassword }, ctx) => {
+    const strengthError = validateNewPasswordStrength(password);
+    if (strengthError) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: strengthError,
+      });
+    }
     if (password !== confirmPassword) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

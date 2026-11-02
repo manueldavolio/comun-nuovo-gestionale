@@ -3,6 +3,10 @@ import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import {
+  consumeAuthRateLimit,
+  getClientIpFromHeaders,
+} from "@/lib/auth-rate-limit";
+import {
   sendAdminNewUserNotification,
   sendRegistrationConfirmationEmail,
 } from "@/lib/mail";
@@ -77,6 +81,18 @@ function buildPlaceholderTaxCode() {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIpFromHeaders(request.headers);
+  const rate = await consumeAuthRateLimit({ action: "register", identity: ip });
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "Troppi tentativi. Riprova tra qualche minuto." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      },
+    );
+  }
+
   let payload: unknown;
 
   try {

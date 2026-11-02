@@ -2,15 +2,21 @@ import { getServerSession, type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { authDebugLog } from "@/lib/auth-debug";
+import { consumeAuthRateLimit, hashEmailForRateLimit } from "@/lib/auth-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { applyJwtRoleFromDb } from "@/lib/auth-jwt-role";
 
 const AUTH_DEBUG_PREFIX = "[AUTH_DEBUG]";
 
+/** 30 giorni — allineato al default JWT NextAuth, esplicitato senza ridurre le sessioni attive. */
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   pages: {
     signIn: "/login",
@@ -23,8 +29,8 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.info(`${AUTH_DEBUG_PREFIX} authorize: start`, {
-          email: credentials?.email?.toLowerCase().trim() ?? null,
+        authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: start`, {
+          hasEmail: Boolean(credentials?.email),
         });
 
         if (!credentials?.email || !credentials.password) {
@@ -32,6 +38,15 @@ export const authOptions: NextAuthOptions = {
         }
 
         const normalizedEmail = credentials.email.toLowerCase().trim();
+        const rate = await consumeAuthRateLimit({
+          action: "login_email",
+          identity: hashEmailForRateLimit(normalizedEmail),
+        });
+        if (!rate.allowed) {
+          authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: rate limited`);
+          return null;
+        }
+
         const user = await prisma.user.findUnique({
           where: {
             email: normalizedEmail,
@@ -47,37 +62,27 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user) {
-          console.info(`${AUTH_DEBUG_PREFIX} authorize: user not found`, {
-            email: normalizedEmail,
-          });
+          authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: user not found`);
           return null;
         }
 
         if (!user.passwordHash) {
-          console.info(`${AUTH_DEBUG_PREFIX} authorize: invalid password`, {
-            email: normalizedEmail,
-          });
+          authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: invalid password`);
           return null;
         }
 
         if (!user.isActive) {
-          console.info(`${AUTH_DEBUG_PREFIX} authorize: inactive user`, {
-            email: normalizedEmail,
-          });
+          authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: inactive user`);
           return null;
         }
 
         const isValidPassword = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!isValidPassword) {
-          console.info(`${AUTH_DEBUG_PREFIX} authorize: invalid password`, {
-            email: normalizedEmail,
-          });
+          authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: invalid password`);
           return null;
         }
 
-        console.info(`${AUTH_DEBUG_PREFIX} authorize: success`, {
-          userId: user.id,
-          email: user.email,
+        authDebugLog(`${AUTH_DEBUG_PREFIX} authorize: success`, {
           role: user.role,
         });
 
@@ -92,13 +97,10 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      console.info(`${AUTH_DEBUG_PREFIX} jwt: incoming`, {
-        tokenSub: token.sub,
+      authDebugLog(`${AUTH_DEBUG_PREFIX} jwt: incoming`, {
+        hasTokenSub: Boolean(token.sub),
         tokenRole: token.role,
         hasUser: Boolean(user),
-        userId: user?.id,
-        userEmail: user?.email,
-        userRole: (user as { role?: UserRole } | undefined)?.role,
       });
 
       if (user) {
@@ -146,16 +148,13 @@ export const authOptions: NextAuthOptions = {
           }
 
           if (previousRole !== token.role) {
-            console.info(`${AUTH_DEBUG_PREFIX} jwt: role refreshed from db`, {
-              tokenSub: token.sub,
+            authDebugLog(`${AUTH_DEBUG_PREFIX} jwt: role refreshed from db`, {
               previousRole,
               tokenRole: token.role,
             });
           }
         } catch (error) {
           console.error(`${AUTH_DEBUG_PREFIX} jwt: db unreachable, keeping token role`, {
-            tokenSub: token.sub,
-            tokenRole: token.role,
             error: error instanceof Error ? error.message : "unknown",
           });
           const kept = applyJwtRoleFromDb(token, null, { dbUnreachable: true });
@@ -163,8 +162,8 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      console.info(`${AUTH_DEBUG_PREFIX} jwt: outgoing`, {
-        tokenSub: token.sub,
+      authDebugLog(`${AUTH_DEBUG_PREFIX} jwt: outgoing`, {
+        hasTokenSub: Boolean(token.sub),
         tokenRole: token.role,
       });
 
@@ -179,9 +178,8 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      console.info(`${AUTH_DEBUG_PREFIX} session: outgoing`, {
-        sessionUserId: session.user?.id,
-        sessionUserEmail: session.user?.email,
+      authDebugLog(`${AUTH_DEBUG_PREFIX} session: outgoing`, {
+        hasSessionUser: Boolean(session.user?.id),
         sessionUserRole: session.user?.role,
       });
 
@@ -206,10 +204,8 @@ export const authOptions: NextAuthOptions = {
       const mappedRolePath = roleFromQuery ? roleHomeByRole[roleFromQuery] : undefined;
       const finalUrl = mappedRolePath ? `${baseUrl}${mappedRolePath}` : resolvedUrl.toString();
 
-      console.info(`${AUTH_DEBUG_PREFIX} redirect callback`, {
-        requestedUrl: url,
-        baseUrl,
-        finalUrl,
+      authDebugLog(`${AUTH_DEBUG_PREFIX} redirect callback`, {
+        hasMappedRole: Boolean(mappedRolePath),
       });
 
       return finalUrl;

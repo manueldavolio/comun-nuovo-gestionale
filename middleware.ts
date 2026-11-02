@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isAuthDebugEnabled } from "@/lib/auth-debug";
 import { decideMiddlewareAuth } from "@/lib/middleware-auth";
 
 const AUTH_DEBUG_PREFIX = "[AUTH_DEBUG]";
@@ -13,12 +14,14 @@ export async function middleware(request: NextRequest) {
     hasToken: Boolean(token),
   });
 
-  console.info(`${AUTH_DEBUG_PREFIX} middleware: decision`, {
-    pathname,
-    hasToken: Boolean(token),
-    tokenRole: token?.role,
-    decision,
-  });
+  if (isAuthDebugEnabled()) {
+    console.info(`${AUTH_DEBUG_PREFIX} middleware: decision`, {
+      pathname,
+      hasToken: Boolean(token),
+      tokenRole: token?.role,
+      decisionType: decision.type,
+    });
+  }
 
   if (decision.type === "block") {
     return new NextResponse(null, { status: decision.status });
