@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  MediaReviewPanel,
+  type MediaReviewItem,
+} from "@/components/admin/media-review-panel";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MediaItemForm } from "@/components/media/media-item-form";
 import { MediaGallery } from "@/components/media/media-gallery";
-import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { resolveAthleteImageConsent } from "@/lib/image-consent";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 import {
   categoryListWhereForAdminRole,
   youthDirectorMediaItemWhere,
@@ -36,12 +41,9 @@ export default async function AdminMediaPage() {
     }),
     prisma.mediaItem.findMany({
       where: {
-        publishedAt: {
-          not: null,
-        },
         ...(isYouthDirector ? youthDirectorMediaItemWhere() : {}),
       },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ createdAt: "desc" }],
       take: 120,
       select: {
         id: true,
@@ -51,24 +53,94 @@ export default async function AdminMediaPage() {
         mediaUrl: true,
         filePath: true,
         publishedAt: true,
-        category: { select: { name: true } },
+        reviewStatus: true,
+        subjectsDeclaredComplete: true,
+        categoryId: true,
+        subjects: { select: { athleteId: true } },
+        category: { select: { id: true, name: true } },
         createdBy: { select: { name: true } },
       },
     }),
   ]);
 
-  const galleryItems = mediaItems.map((item) => ({
-    ...item,
-    categoryName: item.category.name,
-    createdByName: item.createdBy.name,
-  }));
+  const categoryIds = Array.from(new Set(mediaItems.map((item) => item.categoryId)));
+  const athletesByCategory = new Map<
+    string,
+    Array<{ id: string; firstName: string; lastName: string }>
+  >();
+
+  if (categoryIds.length > 0) {
+    const athletes = await prisma.athlete.findMany({
+      where: { categoryId: { in: categoryIds } },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true, categoryId: true },
+    });
+    for (const athlete of athletes) {
+      const list = athletesByCategory.get(athlete.categoryId) ?? [];
+      list.push({
+        id: athlete.id,
+        firstName: athlete.firstName,
+        lastName: athlete.lastName,
+      });
+      athletesByCategory.set(athlete.categoryId, list);
+    }
+  }
+
+  const allAthleteIds = Array.from(
+    new Set(
+      Array.from(athletesByCategory.values())
+        .flat()
+        .map((athlete) => athlete.id),
+    ),
+  );
+  const consentEntries = await Promise.all(
+    allAthleteIds.map(async (athleteId) => {
+      const state = await resolveAthleteImageConsent(athleteId);
+      return [athleteId, state] as const;
+    }),
+  );
+  const consentByAthleteId = new Map(consentEntries);
+
+  const reviewItems: MediaReviewItem[] = mediaItems.map((item) => {
+    const categoryAthletes = athletesByCategory.get(item.categoryId) ?? [];
+    return {
+      id: item.id,
+      title: item.title,
+      mediaType: item.mediaType,
+      categoryId: item.categoryId,
+      categoryName: item.category.name,
+      reviewStatus: item.reviewStatus,
+      subjectsDeclaredComplete: item.subjectsDeclaredComplete,
+      publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
+      mediaUrl: item.mediaUrl,
+      filePath: item.filePath,
+      selectedAthleteIds: item.subjects.map((subject) => subject.athleteId),
+      athletes: categoryAthletes.map((athlete) => {
+        const consent = consentByAthleteId.get(athlete.id);
+        return {
+          id: athlete.id,
+          label: `${athlete.lastName} ${athlete.firstName}`,
+          consentGranted: Boolean(consent?.granted),
+          consentSource: consent?.source ?? "none",
+        };
+      }),
+    };
+  });
+
+  const galleryItems = mediaItems
+    .filter((item) => item.reviewStatus === "READY" && item.publishedAt)
+    .map((item) => ({
+      ...item,
+      categoryName: item.category.name,
+      createdByName: item.createdBy.name,
+    }));
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
         <AreaHeader
           title="Media per categoria (Admin)"
-          subtitle="Gestione foto e video di tutte le categorie"
+          subtitle="Creazione, revisione consensi e pubblicazione controllata"
           userName={session.user.name ?? "Amministratore"}
         />
 
@@ -95,9 +167,16 @@ export default async function AdminMediaPage() {
           <MediaItemForm categories={categories} title="Nuovo media categoria (Admin)" />
         )}
 
+        <MediaReviewPanel items={reviewItems} />
+
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Galleria media</h2>
-          <p className="mt-1 text-sm text-zinc-600">Visualizzi tutti i media pubblicati dalle aree abilitate.</p>
+          <h2 className="text-lg font-semibold text-zinc-900">
+            Galleria pubblicata verso i genitori
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Solo contenuti READY con pubblicazione attiva. I media storici non pubblicabili
+            restano comunque nella coda di revisione sopra.
+          </p>
           <div className="mt-4">
             <MediaGallery items={galleryItems} emptyMessage="Nessun media pubblicato." />
           </div>

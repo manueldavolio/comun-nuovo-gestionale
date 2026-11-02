@@ -22,6 +22,9 @@ export const createMediaItemSchema = z
     filePath: z.string().trim().optional().nullable(),
     mediaUrl: z.string().trim().url("URL media non valido.").optional().nullable(),
     publishedAt: publicationDateSchema,
+    /** Atleti identificabili dichiarati (non tutta la categoria). */
+    subjectAthleteIds: z.array(z.string().cuid()).max(80).optional().default([]),
+    subjectsDeclaredComplete: z.boolean().optional().default(false),
   })
   .superRefine((value, ctx) => {
     const hasFilePath = Boolean(value.filePath?.trim());
@@ -31,6 +34,13 @@ export const createMediaItemSchema = z
         code: z.ZodIssueCode.custom,
         path: ["mediaUrl"],
         message: "Inserisci almeno un mediaUrl o un filePath.",
+      });
+    }
+    if (value.subjectsDeclaredComplete && value.subjectAthleteIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["subjectAthleteIds"],
+        message: "Dichiarare almeno un soggetto identificabile oppure lasciare incompleto per revisione.",
       });
     }
   });

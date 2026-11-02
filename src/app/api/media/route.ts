@@ -5,6 +5,10 @@ import { createMediaItemSchema } from "@/lib/validation/media";
 import { parseDateInputToUTC } from "@/lib/date-input";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { assertCanAccessCategoryData } from "@/lib/youth-director-data-access";
+import {
+  computeMediaReviewStatus,
+  resolveAthletesImageConsentMap,
+} from "@/lib/image-consent";
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
@@ -66,14 +70,45 @@ export async function POST(request: Request) {
     }
   }
 
-  const publishedAt =
+  const subjectAthleteIds = Array.from(new Set(parsed.data.subjectAthleteIds));
+  if (subjectAthleteIds.length > 0) {
+    const athletes = await prisma.athlete.findMany({
+      where: {
+        id: { in: subjectAthleteIds },
+        categoryId: parsed.data.categoryId,
+      },
+      select: { id: true },
+    });
+    if (athletes.length !== subjectAthleteIds.length) {
+      return NextResponse.json(
+        {
+          error:
+            "Uno o più soggetti non appartengono alla categoria selezionata. Controlla gli atleti dichiarati.",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  const consentMap = await resolveAthletesImageConsentMap(subjectAthleteIds);
+  const subjectsDeclaredComplete = Boolean(parsed.data.subjectsDeclaredComplete);
+  const reviewStatus = computeMediaReviewStatus({
+    subjectAthleteIds,
+    subjectsDeclaredComplete,
+    consentByAthleteId: consentMap,
+  });
+
+  const requestedPublishedAt =
     parsed.data.publishedAt && parsed.data.publishedAt.trim()
       ? parseDateInputToUTC(parsed.data.publishedAt)
       : new Date();
 
-  if (!publishedAt) {
+  if (!requestedPublishedAt) {
     return NextResponse.json({ error: "Data pubblicazione non valida." }, { status: 400 });
   }
+
+  // Solo READY può risultare pubblicato verso i genitori.
+  const publishedAt = reviewStatus === "READY" ? requestedPublishedAt : null;
 
   try {
     const created = await prisma.mediaItem.create({
@@ -86,11 +121,30 @@ export async function POST(request: Request) {
         filePath: parsed.data.filePath?.trim() ? parsed.data.filePath.trim() : null,
         mediaUrl: parsed.data.mediaUrl?.trim() ? parsed.data.mediaUrl.trim() : null,
         publishedAt,
+        subjectsDeclaredComplete,
+        reviewStatus,
+        subjects: subjectAthleteIds.length
+          ? {
+              create: subjectAthleteIds.map((athleteId) => ({ athleteId })),
+            }
+          : undefined,
       },
-      select: { id: true },
+      select: { id: true, reviewStatus: true, publishedAt: true },
     });
 
-    return NextResponse.json({ success: true, data: created }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        data: created,
+        message:
+          reviewStatus === "READY"
+            ? "Media pubblicato (consensi soggetti verificati)."
+            : reviewStatus === "BLOCKED_CONSENT"
+              ? "Media salvato ma bloccato: manca il consenso di uno o più soggetti."
+              : "Media salvato in revisione: dichiara i soggetti identificabili prima della pubblicazione.",
+      },
+      { status: 201 },
+    );
   } catch {
     return NextResponse.json({ error: "Errore durante la creazione media." }, { status: 500 });
   }

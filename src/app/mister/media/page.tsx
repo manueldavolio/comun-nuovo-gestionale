@@ -36,12 +36,8 @@ export default async function CoachMediaPage() {
             categoryId: {
               in: coachCategoryIds,
             },
-            publishedAt: {
-              not: null,
-              lte: now,
-            },
           },
-          orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+          orderBy: [{ createdAt: "desc" }],
           take: 80,
           select: {
             id: true,
@@ -51,17 +47,23 @@ export default async function CoachMediaPage() {
             mediaUrl: true,
             filePath: true,
             publishedAt: true,
+            reviewStatus: true,
             category: { select: { name: true } },
             createdBy: { select: { name: true } },
           },
         }),
   ]);
 
-  const galleryItems = mediaItems.map((item) => ({
-    ...item,
-    categoryName: item.category.name,
-    createdByName: item.createdBy.name,
-  }));
+  const galleryItems = mediaItems
+    .filter((item) => item.reviewStatus === "READY" && item.publishedAt && item.publishedAt <= now)
+    .map((item) => ({
+      ...item,
+      categoryName: item.category.name,
+      createdByName: item.createdBy.name,
+    }));
+  const pendingReviewCount = mediaItems.filter(
+    (item) => item.reviewStatus === "NEEDS_REVIEW" || item.reviewStatus === "BLOCKED_CONSENT",
+  ).length;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 to-blue-100 p-4 md:p-8">
@@ -89,8 +91,16 @@ export default async function CoachMediaPage() {
           <MediaItemForm categories={categories} title="Nuovo media categoria (Mister)" />
         )}
 
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <p className="text-sm text-zinc-800">
+            Media in revisione o bloccati per consenso: <strong>{pendingReviewCount}</strong>. I
+            nuovi caricamenti restano non visibili ai genitori finché i soggetti identificabili e i
+            relativi consensi non sono verificati dalla segreteria.
+          </p>
+        </section>
+
         <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900">Galleria categorie assegnate</h2>
+          <h2 className="text-lg font-semibold text-zinc-900">Galleria pubblicata (categorie assegnate)</h2>
           <div className="mt-4">
             <MediaGallery items={galleryItems} emptyMessage="Nessun media disponibile per le tue categorie." />
           </div>

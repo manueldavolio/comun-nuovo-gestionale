@@ -70,9 +70,16 @@ export function MediaItemForm({ categories, title = "Nuovo media" }: MediaItemFo
       const response = await fetch("/api/media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({
+          ...parsed.data,
+          subjectAthleteIds: [],
+          subjectsDeclaredComplete: false,
+        }),
       });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
 
       if (!response.ok) {
         setError(body?.error ?? "Operazione non riuscita. Riprova.");
@@ -80,7 +87,10 @@ export function MediaItemForm({ categories, title = "Nuovo media" }: MediaItemFo
         return;
       }
 
-      setOk("Media pubblicato correttamente.");
+      setOk(
+        body?.message ??
+          "Media salvato. Dichiarare i soggetti identificabili e i consensi prima della pubblicazione ai genitori.",
+      );
       setFormData((prev) => ({
         ...prev,
         title: "",
@@ -101,7 +111,9 @@ export function MediaItemForm({ categories, title = "Nuovo media" }: MediaItemFo
     <form onSubmit={onSubmit} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Inserisci URL o filePath stabile. Upload cloud avanzato non ancora attivo.
+        Inserisci URL o filePath stabile. Upload cloud avanzato non ancora attivo. I nuovi media
+        restano in revisione finché non si dichiarano i soggetti identificabili e i relativi
+        consensi foto/video (non si presume tutta la categoria).
       </p>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
