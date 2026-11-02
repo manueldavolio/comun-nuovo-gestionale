@@ -4,7 +4,12 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EnrollmentFileField } from "@/components/enrollment/enrollment-file-field";
-import { enrollmentSchema, type EnrollmentInput } from "@/lib/validation/enrollment";
+import {
+  enrollmentSchemaDualImage,
+  enrollmentSchemaLegacyImage,
+  type EnrollmentInputDual,
+  type EnrollmentInputLegacy,
+} from "@/lib/validation/enrollment";
 import {
   ENROLLMENT_DOCUMENT_FORM_FIELD,
   ENROLLMENT_DOCUMENT_TYPES_ORDER,
@@ -20,6 +25,8 @@ type CategoryOption = {
 
 type NewEnrollmentFormProps = {
   categories: CategoryOption[];
+  /** legacy_v1 finché dual 1.1 non è attivato esplicitamente. */
+  imageConsentMode?: "legacy_v1" | "dual_v1_1";
   defaultParentData: {
     firstName: string;
     lastName: string;
@@ -33,9 +40,24 @@ type NewEnrollmentFormProps = {
   };
 };
 
-type EnrollmentFieldErrors = Partial<Record<keyof EnrollmentInput, string>>;
+type ImageConsentChoiceValue = "GRANTED" | "DENIED" | "DEFERRED";
+type EnrollmentFormState = Omit<
+  EnrollmentInputLegacy,
+  "imageConsent"
+> & {
+  imageConsent: boolean;
+  imageConsentInternal: ImageConsentChoiceValue | null;
+  imageConsentExternal: ImageConsentChoiceValue | null;
+};
+type EnrollmentFieldErrors = Partial<Record<keyof EnrollmentFormState, string>>;
 type EnrollmentFileFieldName = keyof typeof ENROLLMENT_DOCUMENT_FORM_FIELD;
 type EnrollmentFileErrors = Partial<Record<EnrollmentFileFieldName, string>>;
+
+const IMAGE_CONSENT_OPTIONS: Array<{ value: ImageConsentChoiceValue; label: string }> = [
+  { value: "GRANTED", label: "AUTORIZZO" },
+  { value: "DENIED", label: "NON AUTORIZZO" },
+  { value: "DEFERRED", label: "DECIDERÒ PIÙ AVANTI" },
+];
 
 type UploadedEnrollmentDocument = {
   documentType: EnrollmentFileFieldName;
@@ -85,7 +107,7 @@ function assertNoBinaryPayload(value: unknown, path = "payload"): void {
 }
 
 function buildEnrollmentSubmitPayload(
-  enrollment: EnrollmentInput,
+  enrollment: EnrollmentInputLegacy | EnrollmentInputDual,
   documents: EnrollmentDocumentReferencesPayload,
   uploadedDocuments: UploadedEnrollmentDocument[],
 ) {
@@ -153,10 +175,14 @@ async function uploadEnrollmentDocument(
   };
 }
 
-export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollmentFormProps) {
+export function NewEnrollmentForm({
+  categories,
+  defaultParentData,
+  imageConsentMode = "legacy_v1",
+}: NewEnrollmentFormProps) {
   const router = useRouter();
   const firstCategory = categories[0];
-  const [formData, setFormData] = useState<EnrollmentInput>({
+  const [formData, setFormData] = useState<EnrollmentFormState>({
     athleteFirstName: "",
     athleteLastName: "",
     athleteGender: "MALE",
@@ -185,6 +211,8 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
     privacyConsent: false,
     regulationConsent: false,
     imageConsent: false,
+    imageConsentInternal: null,
+    imageConsentExternal: null,
   });
   const [fieldErrors, setFieldErrors] = useState<EnrollmentFieldErrors>({});
   const [enrollmentFiles, setEnrollmentFiles] = useState<
@@ -210,9 +238,9 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
     setFileErrors((prev) => ({ ...prev, [field]: message }));
   }
 
-  function updateField<Field extends keyof EnrollmentInput>(
+  function updateField<Field extends keyof EnrollmentFormState>(
     field: Field,
-    value: EnrollmentInput[Field],
+    value: EnrollmentFormState[Field],
   ) {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -236,14 +264,24 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
       return;
     }
 
-    const parsed = enrollmentSchema.safeParse(formData);
+    const parsed =
+      imageConsentMode === "dual_v1_1"
+        ? enrollmentSchemaDualImage.safeParse({
+            ...formData,
+            imageConsentInternal: formData.imageConsentInternal ?? undefined,
+            imageConsentExternal: formData.imageConsentExternal ?? undefined,
+          })
+        : enrollmentSchemaLegacyImage.safeParse({
+            ...formData,
+            imageConsent: formData.imageConsent,
+          });
     if (!parsed.success) {
       const nextErrors: EnrollmentFieldErrors = {};
 
       parsed.error.issues.forEach((issue) => {
         const field = issue.path[0];
         if (typeof field === "string" && !(field in nextErrors)) {
-          nextErrors[field as keyof EnrollmentInput] = issue.message;
+          nextErrors[field as keyof EnrollmentFormState] = issue.message;
         }
       });
 
@@ -776,19 +814,74 @@ export function NewEnrollmentForm({ categories, defaultParentData }: NewEnrollme
             </span>
           </label>
 
-          <label className="flex items-start gap-3 rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700">
-            <input
-              type="checkbox"
-              checked={formData.imageConsent}
-              onChange={(event) => updateField("imageConsent", event.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
-            />
-            <span>
-              Autorizzo l&apos;utilizzo di immagini e video dell&apos;atleta per fini
-              istituzionali. (facoltativo — l&apos;iscrizione è possibile anche senza questa
-              autorizzazione; revocabile in seguito dall&apos;area genitore)
-            </span>
-          </label>
+          {imageConsentMode === "dual_v1_1" ? (
+            <>
+              <fieldset className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700">
+                <legend className="px-1 font-medium text-zinc-900">
+                  Autorizzazione immagini — uso interno e societario (facoltativa)
+                </legend>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Aree riservate del gestionale e comunicazioni private alle famiglie. Nessuna
+                  opzione è preselezionata. Il rifiuto non impedisce l&apos;iscrizione.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {IMAGE_CONSENT_OPTIONS.map((option) => (
+                    <label key={`internal-${option.value}`} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="imageConsentInternal"
+                        checked={formData.imageConsentInternal === option.value}
+                        onChange={() => updateField("imageConsentInternal", option.value)}
+                        className="h-4 w-4 border-zinc-300 text-blue-700 focus:ring-blue-500"
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <FieldError message={fieldErrors.imageConsentInternal} />
+              </fieldset>
+
+              <fieldset className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700">
+                <legend className="px-1 font-medium text-zinc-900">
+                  Autorizzazione immagini — pubblicazione esterna (facoltativa)
+                </legend>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Sito asdcomunnuovo.it, Facebook e Instagram ufficiali, materiale cartaceo.
+                  Indipendente dall&apos;uso interno. Foto di gruppo: nessun atleta riconoscibile
+                  senza autorizzazione esterna valida.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {IMAGE_CONSENT_OPTIONS.map((option) => (
+                    <label key={`external-${option.value}`} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="imageConsentExternal"
+                        checked={formData.imageConsentExternal === option.value}
+                        onChange={() => updateField("imageConsentExternal", option.value)}
+                        className="h-4 w-4 border-zinc-300 text-blue-700 focus:ring-blue-500"
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <FieldError message={fieldErrors.imageConsentExternal} />
+              </fieldset>
+            </>
+          ) : (
+            <label className="flex items-start gap-3 rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={formData.imageConsent}
+                onChange={(event) => updateField("imageConsent", event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-500"
+              />
+              <span>
+                Autorizzo l&apos;utilizzo di immagini e video dell&apos;atleta per fini
+                istituzionali. (facoltativo — l&apos;iscrizione è possibile anche senza questa
+                autorizzazione; revocabile in seguito dall&apos;area genitore)
+              </span>
+            </label>
+          )}
         </div>
       </section>
 

@@ -940,7 +940,7 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     },
     {
       href: "/genitore/media",
-      label: "Foto",
+      label: "Privacy e foto",
       icon: Camera,
       tone: "border-sky-200 bg-sky-50 text-sky-950",
       iconWrap: "bg-sky-600 text-white",

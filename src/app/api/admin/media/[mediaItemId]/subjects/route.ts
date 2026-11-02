@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthSession } from "@/lib/auth";
 import {
+  allowsExternalPublication,
   computeMediaReviewStatus,
   resolveAthletesImageConsentMap,
 } from "@/lib/image-consent";
@@ -101,7 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
   });
 
   const missingConsentAthleteIds = subjectAthleteIds.filter(
-    (id) => !consentMap.get(id)?.granted,
+    (id) => !allowsExternalPublication(consentMap.get(id)),
   );
 
   if (parsed.data.publish) {
@@ -110,8 +111,8 @@ export async function POST(request: Request, context: RouteContext) {
         {
           error:
             reviewStatus === "BLOCKED_CONSENT"
-              ? "Pubblicazione non consentita: uno o più soggetti non hanno autorizzazione immagini attiva."
-              : "Pubblicazione non consentita: completa la dichiarazione dei soggetti identificabili.",
+              ? "Pubblicazione non consentita: uno o più soggetti non hanno autorizzazione esterna 1.1 valida. Una foto di gruppo non è automaticamente autorizzata."
+              : "Pubblicazione non consentita: completa la dichiarazione dei soggetti identificabili (nessuna autorizzazione automatica di squadra).",
           reviewStatus,
           missingConsentCount: missingConsentAthleteIds.length,
         },

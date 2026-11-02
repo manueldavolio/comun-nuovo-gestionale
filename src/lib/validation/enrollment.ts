@@ -7,7 +7,7 @@ const seasonRegex = /^\d{4}\/\d{4}$/;
 const phoneRegex = /^[+\d\s().-]{7,20}$/;
 const athleteGenderValues = ["MALE", "FEMALE", "OTHER"] as const;
 
-export const enrollmentSchema = z.object({
+const enrollmentBaseSchema = z.object({
   athleteFirstName: z.string().trim().min(1, "Il nome atleta e obbligatorio."),
   athleteLastName: z.string().trim().min(1, "Il cognome atleta e obbligatorio."),
   athleteGender: z.enum(athleteGenderValues),
@@ -73,7 +73,32 @@ export const enrollmentSchema = z.object({
   regulationConsent: z
     .boolean()
     .refine((value) => value, "Devi accettare il regolamento societario."),
+});
+
+const imageConsentChoiceSchema = z.enum(["GRANTED", "DENIED", "DEFERRED"], {
+  message: "Seleziona un'opzione per l'autorizzazione immagini.",
+});
+
+/** Legacy 1.0: checkbox facoltativa (boolean). */
+export const enrollmentSchemaLegacyImage = enrollmentBaseSchema.extend({
   imageConsent: z.boolean(),
 });
 
-export type EnrollmentInput = z.infer<typeof enrollmentSchema>;
+/** Dual 1.1: due scelte obbligatorie tra tre opzioni, senza default. */
+export const enrollmentSchemaDualImage = enrollmentBaseSchema.extend({
+  imageConsentInternal: imageConsentChoiceSchema,
+  imageConsentExternal: imageConsentChoiceSchema,
+});
+
+/** Compat: accetta entrambi i payload; la route valida col modo runtime corretto. */
+export const enrollmentSchema = z.union([enrollmentSchemaDualImage, enrollmentSchemaLegacyImage]);
+
+export type EnrollmentInputLegacy = z.infer<typeof enrollmentSchemaLegacyImage>;
+export type EnrollmentInputDual = z.infer<typeof enrollmentSchemaDualImage>;
+export type EnrollmentInput = EnrollmentInputLegacy | EnrollmentInputDual;
+
+export function isDualEnrollmentPayload(
+  value: EnrollmentInput,
+): value is EnrollmentInputDual {
+  return "imageConsentInternal" in value && "imageConsentExternal" in value;
+}

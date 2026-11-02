@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
-import { enrollmentSchema } from "@/lib/validation/enrollment";
+import {
+  enrollmentSchemaDualImage,
+  enrollmentSchemaLegacyImage,
+} from "@/lib/validation/enrollment";
 import {
   applyUploadedEnrollmentDocumentMetadata,
   parseEnrollmentDocumentReferences,
@@ -16,8 +19,10 @@ import {
   EnrollmentFeesConfigError,
   resolveCategoryEnrollmentFees,
 } from "@/lib/enrollment-fees";
+import { resolveImageConsentRuntimeMode } from "@/lib/legal/image-consent-activation";
 import {
   buildEnrollmentConsentAuditFields,
+  buildEnrollmentConsentAuditFieldsDual,
   requireCurrentLegalDocuments,
 } from "@/lib/legal/legal-documents";
 import { sportsSeasonLabelFromInstant } from "@/lib/date-input";
@@ -145,7 +150,11 @@ export async function POST(request: Request) {
   const payload = body as Record<string, unknown>;
   const { documents: documentsPayload, ...enrollmentPayload } = payload;
 
-  const parsed = enrollmentSchema.safeParse(enrollmentPayload);
+  const imageConsentMode = await resolveImageConsentRuntimeMode();
+  const parsed =
+    imageConsentMode === "dual_v1_1"
+      ? enrollmentSchemaDualImage.safeParse(enrollmentPayload)
+      : enrollmentSchemaLegacyImage.safeParse(enrollmentPayload);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Dati non validi." },
@@ -219,11 +228,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const legalDocs = await requireCurrentLegalDocuments([
-    "PRIVACY_NOTICE",
-    "SOCIETY_REGULATION",
-    "IMAGE_MEDIA_CONSENT",
-  ]);
+  const legalDocs = await requireCurrentLegalDocuments(
+    imageConsentMode === "dual_v1_1"
+      ? ["PRIVACY_NOTICE", "SOCIETY_REGULATION", "IMAGE_CONSENT_INTERNAL", "IMAGE_CONSENT_EXTERNAL"]
+      : ["PRIVACY_NOTICE", "SOCIETY_REGULATION", "IMAGE_MEDIA_CONSENT"],
+  );
   if (!legalDocs.ok) {
     return NextResponse.json(
       {
@@ -294,13 +303,32 @@ export async function POST(request: Request) {
       });
 
       const submittedAt = new Date();
-      const consentAudit = buildEnrollmentConsentAuditFields({
-        privacyNotice: legalDocs.documents.PRIVACY_NOTICE,
-        regulation: legalDocs.documents.SOCIETY_REGULATION,
-        imageConsentDoc: legalDocs.documents.IMAGE_MEDIA_CONSENT,
-        imageConsentGranted: parsed.data.imageConsent,
-        recordedAt: submittedAt,
-      });
+      const dualPayload = parsed.data as {
+        imageConsentInternal?: "GRANTED" | "DENIED" | "DEFERRED";
+        imageConsentExternal?: "GRANTED" | "DENIED" | "DEFERRED";
+        imageConsent?: boolean;
+      };
+      const imageConsentGranted =
+        imageConsentMode === "dual_v1_1"
+          ? dualPayload.imageConsentExternal === "GRANTED"
+          : Boolean(dualPayload.imageConsent);
+
+      const consentAudit =
+        imageConsentMode === "dual_v1_1"
+          ? buildEnrollmentConsentAuditFieldsDual({
+              privacyNotice: legalDocs.documents.PRIVACY_NOTICE,
+              regulation: legalDocs.documents.SOCIETY_REGULATION,
+              imageConsentExternalDoc: legalDocs.documents.IMAGE_CONSENT_EXTERNAL,
+              imageConsentExternalChoice: dualPayload.imageConsentExternal!,
+              recordedAt: submittedAt,
+            })
+          : buildEnrollmentConsentAuditFields({
+              privacyNotice: legalDocs.documents.PRIVACY_NOTICE,
+              regulation: legalDocs.documents.SOCIETY_REGULATION,
+              imageConsentDoc: legalDocs.documents.IMAGE_MEDIA_CONSENT,
+              imageConsentGranted,
+              recordedAt: submittedAt,
+            });
 
       const enrollment = await tx.enrollment.create({
         data: {
@@ -318,7 +346,7 @@ export async function POST(request: Request) {
           receiptEmail: parsed.data.receiptEmail.toLowerCase().trim(),
           privacyConsent: parsed.data.privacyConsent,
           regulationConsent: parsed.data.regulationConsent,
-          imageConsent: parsed.data.imageConsent,
+          imageConsent: imageConsentGranted,
           ...consentAudit,
           status: "SUBMITTED",
           submittedAt,
@@ -326,13 +354,48 @@ export async function POST(request: Request) {
         },
       });
 
-      if (parsed.data.imageConsent) {
+      if (imageConsentMode === "dual_v1_1") {
+        const internalDoc = legalDocs.documents.IMAGE_CONSENT_INTERNAL;
+        const externalDoc = legalDocs.documents.IMAGE_CONSENT_EXTERNAL;
+        await tx.athleteImageConsentEvent.createMany({
+          data: [
+            {
+              athleteId: athlete.id,
+              granted: dualPayload.imageConsentInternal === "GRANTED",
+              purpose: "INTERNAL",
+              choice: dualPayload.imageConsentInternal!,
+              legalDocumentKind: "IMAGE_CONSENT_INTERNAL",
+              documentVersion: internalDoc.version,
+              documentContentSha256: internalDoc.contentSha256,
+              recordedAt: submittedAt,
+              actedByUserId: session.user.id,
+              source: "enrollment",
+            },
+            {
+              athleteId: athlete.id,
+              granted: dualPayload.imageConsentExternal === "GRANTED",
+              purpose: "EXTERNAL",
+              choice: dualPayload.imageConsentExternal!,
+              legalDocumentKind: "IMAGE_CONSENT_EXTERNAL",
+              documentVersion: externalDoc.version,
+              documentContentSha256: externalDoc.contentSha256,
+              recordedAt: submittedAt,
+              actedByUserId: session.user.id,
+              source: "enrollment",
+            },
+          ],
+        });
+      } else if (imageConsentGranted) {
+        const legacyDoc = legalDocs.documents.IMAGE_MEDIA_CONSENT;
         await tx.athleteImageConsentEvent.create({
           data: {
             athleteId: athlete.id,
             granted: true,
-            documentVersion: legalDocs.documents.IMAGE_MEDIA_CONSENT.version,
-            documentContentSha256: legalDocs.documents.IMAGE_MEDIA_CONSENT.contentSha256,
+            purpose: null,
+            choice: null,
+            legalDocumentKind: "IMAGE_MEDIA_CONSENT",
+            documentVersion: legacyDoc.version,
+            documentContentSha256: legacyDoc.contentSha256,
             recordedAt: submittedAt,
             actedByUserId: session.user.id,
             source: "enrollment",

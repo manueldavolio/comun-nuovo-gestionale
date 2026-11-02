@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  IMAGE_MEDIA_CONSENT_V1_BODY,
+  IMAGE_CONSENT_EXTERNAL_V1_1_BODY,
+  IMAGE_CONSENT_INTERNAL_V1_1_BODY,
   PRIVACY_NOTICE_V1_BODY,
   SOCIETY_REGULATION_V1_BODY,
 } from "./document-bodies";
 import { sha256HexOfLegalDocumentBody } from "./hash";
 import { buildEnrollmentConsentAuditFields, formatLegalPublicationDate } from "./consent-audit";
+import { buildLegalDocumentSeedRows } from "./legal-document-seed";
 
 describe("legal document hashing", () => {
   it("hashes are stable for canonical bodies", () => {
@@ -28,7 +30,7 @@ describe("legal document hashing", () => {
 });
 
 describe("enrollment consent audit builder", () => {
-  it("stamps privacy+regulation always and image only when granted", () => {
+  it("stamps privacy+regulation always and image snapshot only when granted", () => {
     const recordedAt = new Date("2026-11-02T12:00:00.000Z");
     const privacy = {
       kind: "PRIVACY_NOTICE" as const,
@@ -46,19 +48,19 @@ describe("enrollment consent audit builder", () => {
       contentSha256: sha256HexOfLegalDocumentBody(SOCIETY_REGULATION_V1_BODY),
       effectiveFrom: null,
     };
-    const image = {
-      kind: "IMAGE_MEDIA_CONSENT" as const,
-      version: "1.0",
-      title: "i",
-      bodyText: IMAGE_MEDIA_CONSENT_V1_BODY,
-      contentSha256: sha256HexOfLegalDocumentBody(IMAGE_MEDIA_CONSENT_V1_BODY),
+    const imageExternal = {
+      kind: "IMAGE_CONSENT_EXTERNAL" as const,
+      version: "1.1",
+      title: "ext",
+      bodyText: IMAGE_CONSENT_EXTERNAL_V1_1_BODY,
+      contentSha256: sha256HexOfLegalDocumentBody(IMAGE_CONSENT_EXTERNAL_V1_1_BODY),
       effectiveFrom: null,
     };
 
     const withoutImage = buildEnrollmentConsentAuditFields({
       privacyNotice: privacy,
       regulation,
-      imageConsentDoc: image,
+      imageConsentDoc: imageExternal,
       imageConsentGranted: false,
       recordedAt,
     });
@@ -71,15 +73,36 @@ describe("enrollment consent audit builder", () => {
     const withImage = buildEnrollmentConsentAuditFields({
       privacyNotice: privacy,
       regulation,
-      imageConsentDoc: image,
+      imageConsentDoc: imageExternal,
       imageConsentGranted: true,
       recordedAt,
     });
-    assert.equal(withImage.imageConsentVersion, "1.0");
+    assert.equal(withImage.imageConsentVersion, "1.1");
     assert.equal(withImage.imageConsentRecordedAt?.toISOString(), recordedAt.toISOString());
   });
 
   it("does not invent a publication date when effectiveFrom is null", () => {
     assert.match(formatLegalPublicationDate(null), /go-live/i);
+  });
+});
+
+describe("legal document seed rows", () => {
+  it("keeps privacy 1.0 and IMAGE_MEDIA_CONSENT 1.0 current; dual 1.1 catalog-only until activation", () => {
+    const rows = buildLegalDocumentSeedRows(new Date("2026-11-02T12:00:00.000Z"));
+    const byKind = Object.fromEntries(rows.map((row) => [row.kind, row]));
+
+    assert.equal(byKind.PRIVACY_NOTICE?.version, "1.0");
+    assert.equal(byKind.PRIVACY_NOTICE?.isCurrent, true);
+    assert.equal(byKind.IMAGE_MEDIA_CONSENT?.version, "1.0");
+    assert.equal(byKind.IMAGE_MEDIA_CONSENT?.isCurrent, true);
+    assert.equal(byKind.IMAGE_CONSENT_INTERNAL?.version, "1.1");
+    assert.equal(byKind.IMAGE_CONSENT_INTERNAL?.isCurrent, false);
+    assert.equal(byKind.IMAGE_CONSENT_EXTERNAL?.version, "1.1");
+    assert.equal(byKind.IMAGE_CONSENT_EXTERNAL?.isCurrent, false);
+    assert.equal(byKind.IMAGE_CONSENT_INTERNAL?.effectiveFrom, null);
+    assert.equal(byKind.IMAGE_CONSENT_EXTERNAL?.effectiveFrom, null);
+    assert.ok(String(byKind.IMAGE_CONSENT_INTERNAL?.bodyText).includes("USO INTERNO"));
+    assert.ok(String(byKind.IMAGE_CONSENT_EXTERNAL?.bodyText).includes("PUBBLICAZIONE ESTERNA"));
+    assert.ok(IMAGE_CONSENT_INTERNAL_V1_1_BODY.includes("DECIDERÒ PIÙ AVANTI"));
   });
 });

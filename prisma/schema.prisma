@@ -102,7 +102,10 @@ enum MediaType {
 enum LegalDocumentKind {
   PRIVACY_NOTICE
   SOCIETY_REGULATION
+  /// Legacy consenso immagini monolitico 1.0 (non convertire in INTERNAL/EXTERNAL).
   IMAGE_MEDIA_CONSENT
+  IMAGE_CONSENT_INTERNAL
+  IMAGE_CONSENT_EXTERNAL
 }
 
 enum ConsentAuditStatus {
@@ -115,6 +118,19 @@ enum MediaReviewStatus {
   READY
   NEEDS_REVIEW
   BLOCKED_CONSENT
+}
+
+/// Finalità autorizzazione immagini 1.1 (indipendenti).
+enum ImageConsentPurpose {
+  INTERNAL
+  EXTERNAL
+}
+
+/// Scelta registrata: DEFERRED non è consenso.
+enum ImageConsentChoice {
+  GRANTED
+  DENIED
+  DEFERRED
 }
 
 enum EvaluationPeriodType {
@@ -272,6 +288,7 @@ model User {
   bankTransferRequestsReviewed BankTransferRequest[] @relation("BankTransferRequestReviewedBy")
   clubBankSettingsUpdated ClubBankSettings[] @relation("ClubBankSettingsUpdatedBy")
   imageConsentEventsActed AthleteImageConsentEvent[] @relation("AthleteImageConsentEventActedBy")
+  privacyNoticeAcknowledgements PrivacyNoticeAcknowledgement[]
 
   @@index([role])
   @@index([isActive])
@@ -1606,23 +1623,44 @@ model LegalDocument {
   @@index([kind, isCurrent])
 }
 
-/// Storico grant/revoke consenso immagini per atleta (non altera Enrollment storici).
+/// Storico scelte autorizzazione immagini per atleta (non altera Enrollment storici).
+/// Eventi legacy (purpose/choice null): consenso 1.0 monolitico — non abilitano nuove pubblicazioni EXTERNAL.
 model AthleteImageConsentEvent {
-  id                 String   @id @default(cuid())
-  athleteId          String
-  granted            Boolean
-  documentVersion    String
+  id                    String               @id @default(cuid())
+  athleteId             String
+  /// true solo se choice=GRANTED (o legacy granted); DEFERRED/DENIED => false.
+  granted               Boolean
+  purpose               ImageConsentPurpose?
+  choice                ImageConsentChoice?
+  legalDocumentKind     LegalDocumentKind?
+  documentVersion       String
   documentContentSha256 String
-  recordedAt         DateTime @default(now())
-  actedByUserId      String
-  source             String?
-  note               String?
+  recordedAt            DateTime             @default(now())
+  actedByUserId         String
+  source                String?
+  note                  String?
 
   athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   actedBy User    @relation("AthleteImageConsentEventActedBy", fields: [actedByUserId], references: [id], onDelete: Restrict)
 
   @@index([athleteId, recordedAt])
+  @@index([athleteId, purpose, recordedAt])
   @@index([actedByUserId])
+}
+
+/// Presa visione informativa privacy (famiglie già iscritte), separata dai consensi immagini.
+model PrivacyNoticeAcknowledgement {
+  id                    String   @id @default(cuid())
+  userId                String
+  documentVersion       String
+  documentContentSha256 String
+  acknowledgedAt        DateTime @default(now())
+  source                String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentVersion])
+  @@index([userId, acknowledgedAt])
 }
 
 /// Soggetti identificabili dichiarati in un media (non tutta la categoria).

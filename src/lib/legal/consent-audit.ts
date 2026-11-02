@@ -1,4 +1,4 @@
-import type { LegalDocumentKind } from "@prisma/client";
+import type { ImageConsentChoice, LegalDocumentKind } from "@prisma/client";
 
 export type CurrentLegalDocument = {
   kind: LegalDocumentKind;
@@ -43,6 +43,22 @@ export function buildEnrollmentConsentAuditFields(input: {
     imageConsentRecordedAt: input.imageConsentGranted ? input.recordedAt : null,
     consentAuditStatus: "COMPLETE",
   };
+}
+
+export function buildEnrollmentConsentAuditFieldsDual(input: {
+  privacyNotice: CurrentLegalDocument;
+  regulation: CurrentLegalDocument;
+  imageConsentExternalDoc: CurrentLegalDocument;
+  imageConsentExternalChoice: ImageConsentChoice;
+  recordedAt: Date;
+}): EnrollmentConsentAuditFields {
+  return buildEnrollmentConsentAuditFields({
+    privacyNotice: input.privacyNotice,
+    regulation: input.regulation,
+    imageConsentDoc: input.imageConsentExternalDoc,
+    imageConsentGranted: input.imageConsentExternalChoice === "GRANTED",
+    recordedAt: input.recordedAt,
+  });
 }
 
 export function formatLegalPublicationDate(effectiveFrom: Date | null): string {

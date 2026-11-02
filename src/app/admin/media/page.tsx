@@ -8,7 +8,10 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { MediaItemForm } from "@/components/media/media-item-form";
 import { MediaGallery } from "@/components/media/media-gallery";
 import { getAuthSession } from "@/lib/auth";
-import { resolveAthleteImageConsent } from "@/lib/image-consent";
+import {
+  allowsExternalPublication,
+  resolveAthleteImageConsent,
+} from "@/lib/image-consent";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
@@ -120,7 +123,7 @@ export default async function AdminMediaPage() {
         return {
           id: athlete.id,
           label: `${athlete.lastName} ${athlete.firstName}`,
-          consentGranted: Boolean(consent?.granted),
+          consentGranted: allowsExternalPublication(consent),
           consentSource: consent?.source ?? "none",
         };
       }),

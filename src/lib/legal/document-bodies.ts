@@ -133,3 +133,74 @@ export const IMAGE_MEDIA_CONSENT_V1_TITLE = "Autorizzazione immagini e video (fa
 export const IMAGE_MEDIA_CONSENT_V1_VERSION = "1.0";
 export const IMAGE_MEDIA_CONSENT_V1_BODY =
   "Autorizzo l'utilizzo di immagini e video dell'atleta per fini istituzionali.";
+
+export const IMAGE_CONSENT_INTERNAL_V1_1_TITLE =
+  "Autorizzazione immagini — uso interno e societario (facoltativa)";
+export const IMAGE_CONSENT_INTERNAL_V1_1_VERSION = "1.1";
+export const IMAGE_CONSENT_INTERNAL_V1_1_BODY = `AUTORIZZAZIONE ALL'UTILIZZO DI IMMAGINI E VIDEO — USO INTERNO E SOCIETARIO
+ASD Comun Nuovo — Versione 1.1
+Documento facoltativo e indipendente dall'informativa privacy e dall'autorizzazione alla pubblicazione esterna.
+
+Io sottoscritto/a genitore/tutore legale dell'atleta indicato,
+
+AUTORIZZO / NON AUTORIZZO / DECIDERÒ PIÙ AVANTI
+
+ASD Comun Nuovo a realizzare e utilizzare fotografie e video dell'atleta (anche in gruppo), ripresi esclusivamente durante allenamenti ufficiali, partite, tornei ed eventi organizzati o co-organizzati dalla Società, alle seguenti condizioni.
+
+Finalità consentite (solo se AUTORIZZO):
+• documentazione interna dell'attività sportiva;
+• condivisione nelle aree riservate del gestionale della Società, accessibili agli utenti autorizzati secondo il proprio profilo;
+• comunicazioni private indirizzate alle famiglie (es. email o messaggi inviati dalla Società alle famiglie degli atleti interessati).
+
+Limiti:
+• i contenuti non possono essere pubblicati sul sito pubblico, sui profili social ufficiali né su materiale promozionale cartaceo in forza di questa sola autorizzazione;
+• per ogni pubblicazione esterna è necessaria l'autorizzazione specifica "Pubblicazione esterna", se concessa.
+
+Carattere del consenso:
+• facoltativo: il rifiuto o la scelta DECIDERÒ PIÙ AVANTI non impediscono l'iscrizione né la partecipazione sportiva;
+• specifico per questa sola finalità (uso interno e societario);
+• revocabile in qualsiasi momento tramite le funzioni del gestionale o scrivendo a info@asdcomunnuovo.it;
+• la revoca ha effetto per il futuro e non pregiudica gli usi lecitamente effettuati prima della revoca;
+• DECIDERÒ PIÙ AVANTI non costituisce consenso: se sostituisce una precedente autorizzazione, i nuovi utilizzi per questa finalità restano sospesi.
+
+Base giuridica: art. 6(1)(a) GDPR (consenso).
+Versione del testo: 1.1.`;
+
+export const IMAGE_CONSENT_EXTERNAL_V1_1_TITLE =
+  "Autorizzazione immagini — pubblicazione esterna (facoltativa)";
+export const IMAGE_CONSENT_EXTERNAL_V1_1_VERSION = "1.1";
+export const IMAGE_CONSENT_EXTERNAL_V1_1_BODY = `AUTORIZZAZIONE ALL'UTILIZZO DI IMMAGINI E VIDEO — PUBBLICAZIONE ESTERNA
+ASD Comun Nuovo — Versione 1.1
+Documento facoltativo e indipendente dall'informativa privacy e dall'autorizzazione all'uso interno e societario.
+
+Io sottoscritto/a genitore/tutore legale dell'atleta indicato,
+
+AUTORIZZO / NON AUTORIZZO / DECIDERÒ PIÙ AVANTI
+
+ASD Comun Nuovo a realizzare e utilizzare fotografie e video dell'atleta (anche in gruppo), ripresi esclusivamente durante allenamenti ufficiali, partite, tornei ed eventi organizzati o co-organizzati dalla Società, alle seguenti condizioni.
+
+Finalità consentite (solo se AUTORIZZO):
+• informazione istituzionale sull'attività della Società;
+• promozione non commerciale della Società e delle sue attività.
+
+Canali di diffusione consentiti (solo se AUTORIZZO):
+• sito web ufficiale asdcomunnuovo.it;
+• profilo Facebook ufficiale della Società;
+• profilo Instagram ufficiale della Società;
+• materiale promozionale cartaceo della Società (es. locandine, brochure, manifesti).
+
+Esclusioni e regola operativa per i gruppi:
+• nessun uso pubblicitario di terzi o sponsor senza ulteriore autorizzazione specifica;
+• nessun trasferimento dei contenuti a soggetti estranei ai canali sopra elencati, salvo obblighi di legge;
+• nessuna pubblicazione riconoscibile di atleti senza autorizzazione esterna valida per ciascuno dei soggetti identificabili; una foto o un video di squadra/gruppo non è automaticamente autorizzato;
+• questa autorizzazione non sostituisce né implica l'autorizzazione all'uso interno e societario, che resta indipendente.
+
+Carattere del consenso:
+• facoltativo: il rifiuto o la scelta DECIDERÒ PIÙ AVANTI non impediscono l'iscrizione né la partecipazione sportiva;
+• specifico per questa sola finalità (pubblicazione esterna);
+• revocabile in qualsiasi momento tramite le funzioni del gestionale o scrivendo a info@asdcomunnuovo.it;
+• la revoca ha effetto per il futuro; la Società rimuoverà, ove tecnicamente possibile, i contenuti dai canali da essa controllati; non può garantire la rimozione di copie già diffuse da terzi;
+• DECIDERÒ PIÙ AVANTI non costituisce consenso: se sostituisce una precedente autorizzazione, i nuovi utilizzi per questa finalità restano sospesi.
+
+Base giuridica: art. 6(1)(a) GDPR (consenso).
+Versione del testo: 1.1.`;

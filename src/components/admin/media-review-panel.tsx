@@ -7,7 +7,7 @@ export type MediaReviewAthleteOption = {
   id: string;
   label: string;
   consentGranted: boolean;
-  consentSource: "event" | "enrollment" | "none";
+  consentSource: "event" | "enrollment" | "none" | "legacy";
 };
 
 export type MediaReviewItem = {
@@ -30,7 +30,7 @@ function statusLabel(status: MediaReviewItem["reviewStatus"]) {
     case "READY":
       return "Pronto / pubblicabile";
     case "BLOCKED_CONSENT":
-      return "Bloccato: consenso mancante o revocato";
+      return "Bloccato: autorizzazione esterna mancante/revocata o solo storico 1.0";
     case "DRAFT":
       return "Bozza";
     default:
@@ -241,19 +241,21 @@ export function MediaReviewPanel({ items }: { items: MediaReviewItem[] }) {
                         <span>
                           <span className="font-medium text-zinc-900">{athlete.label}</span>
                           <span className="mt-0.5 block text-xs text-zinc-600">
-                            Consenso immagini:{" "}
+                            Autorizzazione esterna 1.1:{" "}
                             {athlete.consentGranted ? (
-                              <span className="font-semibold text-emerald-700">presente</span>
+                              <span className="font-semibold text-emerald-700">valida</span>
                             ) : (
                               <span className="font-semibold text-red-700">
-                                mancante o revocato
+                                mancante, revocata, differita o solo storico 1.0
                               </span>
                             )}
-                            {athlete.consentSource === "enrollment"
-                              ? " (da iscrizione)"
-                              : athlete.consentSource === "event"
-                                ? " (aggiornato)"
-                                : ""}
+                            {athlete.consentSource === "legacy"
+                              ? " (storico 1.0 non convertito)"
+                              : athlete.consentSource === "enrollment"
+                                ? " (da iscrizione)"
+                                : athlete.consentSource === "event"
+                                  ? " (aggiornato)"
+                                  : ""}
                           </span>
                         </span>
                       </label>
