@@ -38,6 +38,27 @@ function statusLabel(status: MediaReviewItem["reviewStatus"]) {
   }
 }
 
+/** Deterministic IT datetime for SSR/client parity (avoids toLocaleString hydration drift). */
+function formatPublishedAtRome(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "non attiva";
+  }
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Rome",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("day")}/${value("month")}/${value("year")}, ${value("hour")}:${value("minute")}:${value("second")}`;
+}
+
 export function MediaReviewPanel({ items }: { items: MediaReviewItem[] }) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Record<string, { selected: string[]; complete: boolean }>>(
@@ -179,7 +200,7 @@ export function MediaReviewPanel({ items }: { items: MediaReviewItem[] }) {
                   <p className="text-xs text-zinc-500">
                     Pubblicazione genitori:{" "}
                     {item.publishedAt && item.reviewStatus === "READY"
-                      ? new Date(item.publishedAt).toLocaleString("it-IT")
+                      ? formatPublishedAtRome(item.publishedAt)
                       : "non attiva"}
                   </p>
                 </div>
