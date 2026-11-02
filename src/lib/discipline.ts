@@ -3,6 +3,7 @@ import type {
   DisciplinarySanctionType,
   SuspensionServeStatus,
 } from "@prisma/client";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { currentSeasonRange } from "@/lib/parent-season";
 
 export const DISCIPLINARY_SANCTION_TYPES = [
@@ -22,7 +23,8 @@ export const DISCIPLINARY_SANCTION_LABEL: Record<DisciplinarySanctionType, strin
 };
 
 export function seasonLabelFromDate(now = new Date()): string {
-  const season = currentSeasonRange(now);
+  const wall = nowAsEuropeRomeWallClockUtc(now);
+  const season = currentSeasonRange(wall);
   const startYear = season.start.getUTCFullYear();
   return `${startYear}/${startYear + 1}`;
 }

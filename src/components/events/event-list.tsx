@@ -28,14 +28,19 @@ type EventListProps = {
   eventDeleteEndpointBase?: string;
 };
 
-const dateFormatter = new Intl.DateTimeFormat("it-IT", {
-  weekday: "short",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+function formatEventWallClock(startAt: string | Date): string {
+  const date = typeof startAt === "string" ? new Date(startAt) : startAt;
+  const weekday = new Intl.DateTimeFormat("it-IT", {
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(date);
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${weekday} ${day}/${month}/${year}, ${hours}:${minutes}`;
+}
 
 export function EventList({
   title,
@@ -75,7 +80,7 @@ export function EventList({
                     </p>
                   </div>
                   <p className="text-sm font-medium text-zinc-800">
-                    {dateFormatter.format(new Date(event.startAt))}
+                    {formatEventWallClock(event.startAt)}
                   </p>
                 </div>
                 <div className="mt-2 flex flex-col gap-1 text-sm text-zinc-600">

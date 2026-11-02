@@ -2,26 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { assertCanManageCategoryForEvents } from "@/lib/category-event-access";
+import {
+  addWallClockDaysUTC,
+  combineWallClockDateAndTime,
+  parseDateInputToUTC,
+  toDateInputValueUTC,
+  wallClockWeekdayUTC,
+} from "@/lib/date-input";
 import { bulkTrainingSchema } from "@/lib/validation/events";
 
 const MAX_BULK_EVENTS = 500;
-
-function buildTrainingDate(date: string, time: string) {
-  return new Date(`${date}T${time}:00`);
-}
-
-function formatDateForInput(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function toDateOnly(date: Date) {
-  const onlyDate = new Date(date);
-  onlyDate.setHours(0, 0, 0, 0);
-  return onlyDate;
-}
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
@@ -69,29 +59,49 @@ export async function POST(request: Request) {
   }
 
   const weekdays = new Set(parsed.data.weekdays);
-  const startDate = toDateOnly(new Date(`${parsed.data.startDate}T00:00:00`));
-  const endDate = toDateOnly(new Date(`${parsed.data.endDate}T00:00:00`));
-  const data: { startAt: Date; title: string; type: "TRAINING"; location: string | null; description: string | null; categoryId: string; createdById: string }[] =
-    [];
+  const startDate = parseDateInputToUTC(parsed.data.startDate);
+  const endDate = parseDateInputToUTC(parsed.data.endDate);
+  if (!startDate || !endDate) {
+    return NextResponse.json({ error: "Date non valide." }, { status: 400 });
+  }
+
+  const data: {
+    startAt: Date;
+    title: string;
+    type: "TRAINING";
+    location: string | null;
+    description: string | null;
+    categoryId: string;
+    createdById: string;
+  }[] = [];
 
   for (
-    const currentDate = new Date(startDate);
+    let currentDate = startDate;
     currentDate.getTime() <= endDate.getTime();
-    currentDate.setDate(currentDate.getDate() + 1)
+    currentDate = addWallClockDaysUTC(currentDate, 1)
   ) {
-    if (!weekdays.has(currentDate.getDay())) {
+    if (!weekdays.has(wallClockWeekdayUTC(currentDate))) {
       continue;
+    }
+
+    const startAt = combineWallClockDateAndTime(
+      toDateInputValueUTC(currentDate),
+      parsed.data.time,
+    );
+    if (!startAt) {
+      return NextResponse.json({ error: "Orario non valido." }, { status: 400 });
     }
 
     data.push({
       title: `Allenamento ${category.name}`,
       type: "TRAINING",
-      startAt: buildTrainingDate(formatDateForInput(currentDate), parsed.data.time),
+      startAt,
       location: parsed.data.location || null,
       description: parsed.data.notes || null,
       categoryId: category.id,
       createdById: session.user.id,
     });
+
   }
 
   if (data.length === 0) {

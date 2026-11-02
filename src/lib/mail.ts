@@ -4,6 +4,7 @@ import {
   formatConvocationWallClockDate,
   formatConvocationWallClockTime,
 } from "@/lib/convocation-times";
+import { formatWallClockDateTimeIt } from "@/lib/date-input";
 import { formatEventType } from "@/lib/events";
 import { dispatchConvocationEmails } from "@/lib/convocation-email";
 
@@ -340,13 +341,8 @@ function buildAnnouncementEmailText(input: { title: string; content: string }): 
 }
 
 function formatEventDateTime(date: Date): string {
-  return new Intl.DateTimeFormat("it-IT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  // Event.startAt is wall-clock in UTC fields — do not use host TZ.
+  return formatWallClockDateTimeIt(date);
 }
 
 function buildEventEmailText(input: {

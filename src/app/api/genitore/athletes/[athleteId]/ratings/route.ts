@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { isMissingDisciplineSchemaError } from "@/lib/discipline-db";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { currentSeasonRange, MATCH_EVENT_TYPES } from "@/lib/parent-season";
 import {
   buildParentSeasonRatingSummary,
@@ -51,7 +52,7 @@ export async function GET(_request: Request, context: RouteContext) {
     );
   }
 
-  const season = currentSeasonRange();
+  const season = currentSeasonRange(nowAsEuropeRomeWallClockUtc());
 
   try {
     const rows = await prisma.matchPlayerRating.findMany({

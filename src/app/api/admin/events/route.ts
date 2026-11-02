@@ -3,6 +3,7 @@ import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { assertCanManageCategoryForEvents } from "@/lib/category-event-access";
+import { parseWallClockDateTimeInput } from "@/lib/date-input";
 import { createEventSchema } from "@/lib/validation/events";
 import {
   buildCompetitionPersistFields,
@@ -90,7 +91,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
   }
 
-  const startAt = new Date(parsed.data.startAt);
+  const startAt = parseWallClockDateTimeInput(parsed.data.startAt);
+  if (!startAt) {
+    return NextResponse.json({ error: "Data e ora non valide." }, { status: 400 });
+  }
   const competition = buildCompetitionPersistFields({
     type: parsed.data.type,
     competitionKind: parsed.data.competitionKind,

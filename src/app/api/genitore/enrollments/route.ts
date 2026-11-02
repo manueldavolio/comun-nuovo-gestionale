@@ -20,6 +20,7 @@ import {
   buildEnrollmentConsentAuditFields,
   requireCurrentLegalDocuments,
 } from "@/lib/legal/legal-documents";
+import { sportsSeasonLabelFromInstant } from "@/lib/date-input";
 import { sendAdminEnrollmentNotification } from "@/lib/mail";
 
 export const runtime = "nodejs";
@@ -31,9 +32,7 @@ const DEFAULT_CATEGORY_NAME = "Iscrizione generale";
 const DEFAULT_BIRTH_YEARS_LABEL = "Tutte le annate";
 
 function getDefaultSeasonLabel() {
-  const now = new Date();
-  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
-  return `${year}/${year + 1}`;
+  return sportsSeasonLabelFromInstant();
 }
 
 async function getFallbackCategory(tx: Prisma.TransactionClient) {

@@ -1,4 +1,8 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import {
+  formatEuropeRomeInstantDate,
+  formatWallClockDateIt,
+} from "@/lib/date-input";
 
 export type ReceiptPdfData = {
   receiptNumber: string;
@@ -20,12 +24,14 @@ export type ReceiptPdfData = {
   paymentMethod?: string;
 };
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("it-IT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
+/** paidAt / issueDate are real instants → Europe/Rome calendar day. */
+function formatIssueDate(date: Date): string {
+  return formatEuropeRomeInstantDate(date);
+}
+
+/** Birth dates are date-only wall-clock in UTC fields. */
+function formatBirthDate(date: Date): string {
+  return formatWallClockDateIt(date);
 }
 
 function formatEuro(amount: string): string {
@@ -86,7 +92,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
     color: rgb(0.1, 0.1, 0.1),
   });
 
-  page.drawText(`Data emissione: ${formatDate(data.issueDate)}`, {
+  page.drawText(`Data emissione: ${formatIssueDate(data.issueDate)}`, {
     x: width - margin - 170,
     y: cursorY,
     size: 11,
@@ -112,7 +118,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
     ["P.I./C.F.", data.companyVatOrTaxCode],
     ["Atleta", data.athleteFullName],
     ["Codice fiscale atleta", data.athleteTaxCode],
-    ["Data nascita atleta", formatDate(data.athleteBirthDate)],
+    ["Data nascita atleta", formatBirthDate(data.athleteBirthDate)],
     ["Intestatario/Genitore", data.parentFullName],
     ["Codice fiscale genitore", data.parentTaxCode],
     ["Indirizzo genitore", data.parentAddress?.trim() || "-"],

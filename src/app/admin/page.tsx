@@ -34,6 +34,7 @@ import { ROLE_HOME_PATH } from "@/lib/permissions";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
 import { getMedicalVisitReminderTargets } from "@/lib/medical-visits/reminders/search";
 import { ANNOUNCEMENT_AUDIENCE_LABEL } from "@/lib/announcements";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { euroFormatter } from "@/lib/finance";
 import { currentSeasonRange, isMatchEventType } from "@/lib/parent-season";
 
@@ -41,15 +42,18 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+  timeZone: "UTC",
 });
 
-const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+function formatAdminEventWallClock(startAt: string | Date): string {
+  const date = typeof startAt === "string" ? new Date(startAt) : startAt;
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${day}/${month}/${year}, ${hours}:${minutes}`;
+}
 
 type DecimalLike = {
   toString: () => string;
@@ -78,12 +82,12 @@ export default async function AdminDashboardPage() {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
 
-  const now = new Date();
+  const wallNow = nowAsEuropeRomeWallClockUtc();
   const role = session.user.role;
   const canViewFinance = role === "ADMIN";
   const isAdmin = role === "ADMIN";
   const isYouthDirector = role === "YOUTH_DIRECTOR";
-  const seasonLabel = seasonLabelFromConfig(now);
+  const seasonLabel = seasonLabelFromConfig(wallNow);
 
   // YD: tutte le categorie YOUTH (non le sole assegnazioni coach). ADMIN: nessuna restrizione.
   const manageableCategoryIds = isYouthDirector
@@ -155,7 +159,7 @@ export default async function AdminDashboardPage() {
       where: {
         ...eventCategoryFilter,
         startAt: {
-          gte: now,
+          gte: wallNow,
         },
         type: {
           in: COACH_VISIBLE_EVENT_TYPES,
@@ -178,7 +182,7 @@ export default async function AdminDashboardPage() {
       },
     }),
     isAdmin
-      ? getMedicalVisitReminderTargets({ now })
+      ? getMedicalVisitReminderTargets({ now: wallNow })
       : Promise.resolve({ expiring: [], expired: [] }),
     prisma.enrollment.findMany({
       where: enrollmentWidgetWhereForRole(role),
@@ -638,7 +642,7 @@ export default async function AdminDashboardPage() {
                   Prossima gestione su{" "}
                   <strong className="text-zinc-900">{nextConvocationEvent.title}</strong>
                   <p className="mt-1 text-[11px] text-zinc-500">
-                    {dateTimeFormatter.format(new Date(nextConvocationEvent.startAt))}
+                    {formatAdminEventWallClock(nextConvocationEvent.startAt)}
                   </p>
                 </div>
               ) : (
@@ -673,7 +677,7 @@ export default async function AdminDashboardPage() {
                       {formatEventType(event.type)} · {event.category?.name ?? "Senza categoria"}
                     </p>
                     <p className="text-xs text-zinc-500">
-                      {dateTimeFormatter.format(new Date(event.startAt))}
+                      {formatAdminEventWallClock(event.startAt)}
                     </p>
                   </li>
                 ))}
@@ -709,7 +713,7 @@ export default async function AdminDashboardPage() {
                         </p>
                         <p className="text-[11px] text-zinc-500">
                           {event.category?.name ?? "—"} ·{" "}
-                          {dateTimeFormatter.format(new Date(event.startAt))}
+                          {formatAdminEventWallClock(event.startAt)}
                         </p>
                       </li>
                     ))}
@@ -737,7 +741,7 @@ export default async function AdminDashboardPage() {
                         </p>
                         <p className="text-[11px] text-zinc-500">
                           {event.category?.name ?? "—"} ·{" "}
-                          {dateTimeFormatter.format(new Date(event.startAt))}
+                          {formatAdminEventWallClock(event.startAt)}
                         </p>
                       </li>
                     ))}

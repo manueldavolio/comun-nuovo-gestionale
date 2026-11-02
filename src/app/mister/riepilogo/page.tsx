@@ -17,6 +17,7 @@ import {
   type RecentEventSummary,
 } from "@/lib/mister-stats";
 import { buildMisterSeasonAthleteStats } from "@/lib/mister-season-stats";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { currentSeasonRange } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
@@ -54,8 +55,9 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
       ? requestedCategoryId
       : coachCategoryIds[0] ?? "";
 
-  const now = new Date();
-  const rangeStart = subDays(now, LOOKBACK_DAYS);
+  const wallNow = nowAsEuropeRomeWallClockUtc();
+  const now = wallNow;
+  const rangeStart = subDays(wallNow, LOOKBACK_DAYS);
 
   const categories =
     coachCategoryIds.length === 0

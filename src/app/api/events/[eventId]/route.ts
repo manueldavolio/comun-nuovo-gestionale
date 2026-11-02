@@ -9,6 +9,7 @@ import {
   buildCompetitionPersistFields,
   updateEventCompatible,
 } from "@/lib/event-competition-persist";
+import { parseWallClockDateTimeInput } from "@/lib/date-input";
 import { updateEventSchema } from "@/lib/validation/events";
 
 type RouteContext = {
@@ -64,7 +65,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
   }
 
-  const startAt = new Date(parsed.data.startAt);
+  const startAt = parseWallClockDateTimeInput(parsed.data.startAt);
+  if (!startAt) {
+    return NextResponse.json({ error: "Data e ora non valide." }, { status: 400 });
+  }
   const competition = buildCompetitionPersistFields({
     type: parsed.data.type,
     competitionKind: parsed.data.competitionKind,

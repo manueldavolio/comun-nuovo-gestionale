@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { upsertCategorySchema } from "@/lib/validation/categories";
 
 function getDefaultSeasonLabel(now = new Date()): string {
-  const year = now.getFullYear();
+  // Etichetta categoria: anno solare Europe/Rome → YYYY/YYYY+1 (invariata come semantica).
+  const wall = nowAsEuropeRomeWallClockUtc(now);
+  const year = wall.getUTCFullYear();
   return `${year}/${year + 1}`;
 }
 

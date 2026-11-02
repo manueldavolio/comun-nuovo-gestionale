@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  parseDateInputToUTC,
+  parseWallClockDateTimeInput,
+} from "@/lib/date-input";
 
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -11,13 +15,16 @@ const dateTimeLocalSchema = z
   .string()
   .trim()
   .min(1, "Data e ora obbligatorie")
-  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Data e ora non valide");
+  .refine(
+    (value) => parseWallClockDateTimeInput(value) != null,
+    "Data e ora non valide",
+  );
 
 const dateSchema = z
   .string()
   .trim()
   .min(1, "Data obbligatoria")
-  .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime()), "Data non valida");
+  .refine((value) => parseDateInputToUTC(value) != null, "Data non valida");
 
 export const createEventSchema = z.object({
   title: z.string().trim().min(3, "Titolo troppo corto").max(120, "Titolo troppo lungo"),
@@ -55,13 +62,14 @@ export const bulkTrainingSchema = z
     location: z.string().trim().max(120, "Luogo troppo lungo").optional().default(""),
     notes: z.string().trim().max(1000, "Note troppo lunghe").optional().default(""),
   })
-  .refine(
-    (value) => new Date(`${value.endDate}T00:00:00`).getTime() >= new Date(`${value.startDate}T00:00:00`).getTime(),
-    {
-      path: ["endDate"],
-      message: "La data finale deve essere successiva o uguale alla data iniziale",
-    },
-  );
+  .refine((value) => {
+    const start = parseDateInputToUTC(value.startDate);
+    const end = parseDateInputToUTC(value.endDate);
+    return start != null && end != null && end.getTime() >= start.getTime();
+  }, {
+    path: ["endDate"],
+    message: "La data finale deve essere successiva o uguale alla data iniziale",
+  });
 
 export const bulkDeleteEventsSchema = z
   .object({
@@ -70,15 +78,14 @@ export const bulkDeleteEventsSchema = z
     endDate: dateSchema,
     type: z.enum(["TRAINING", "LEAGUE_MATCH", "FRIENDLY", "TOURNAMENT", "ALL"]).default("TRAINING"),
   })
-  .refine(
-    (value) =>
-      new Date(`${value.endDate}T00:00:00`).getTime() >=
-      new Date(`${value.startDate}T00:00:00`).getTime(),
-    {
-      path: ["endDate"],
-      message: "La data finale deve essere successiva o uguale alla data iniziale",
-    },
-  );
+  .refine((value) => {
+    const start = parseDateInputToUTC(value.startDate);
+    const end = parseDateInputToUTC(value.endDate);
+    return start != null && end != null && end.getTime() >= start.getTime();
+  }, {
+    path: ["endDate"],
+    message: "La data finale deve essere successiva o uguale alla data iniziale",
+  });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;

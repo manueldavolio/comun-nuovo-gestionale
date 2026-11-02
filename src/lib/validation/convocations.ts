@@ -1,5 +1,6 @@
 import { ConvocationResponseStatus } from "@prisma/client";
 import { z } from "zod";
+import { parseWallClockDateTimeInput } from "@/lib/date-input";
 
 const cuidSchema = z.string().cuid("Identificativo non valido.");
 
@@ -7,7 +8,10 @@ const dateTimeLocalSchema = z
   .string()
   .trim()
   .min(1, "Orario convocazione obbligatorio.")
-  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Orario convocazione non valido.");
+  .refine(
+    (value) => parseWallClockDateTimeInput(value) != null,
+    "Orario convocazione non valido.",
+  );
 
 export const saveConvocationSchema = z
   .object({

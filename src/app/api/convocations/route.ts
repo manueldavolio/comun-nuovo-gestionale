@@ -5,6 +5,7 @@ import {
   CONVOCATIONS_SCHEMA_MISSING_MESSAGE,
   isMissingConvocationsSchemaError,
 } from "@/lib/convocations-db";
+import { parseWallClockDateTimeInput } from "@/lib/date-input";
 import { saveConvocationSchema } from "@/lib/validation/convocations";
 import { canManageCategoryForConvocations } from "@/lib/convocations";
 import { sendConvocationEmails } from "@/lib/mail";
@@ -130,6 +131,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const meetingAt = parseWallClockDateTimeInput(parsed.data.meetingAt);
+  if (!meetingAt) {
+    return NextResponse.json({ error: "Data e ora di convocazione non valide." }, { status: 400 });
+  }
+
   let convocationId = "";
   let savedMeetingAt: Date | null = null;
   try {
@@ -138,8 +144,6 @@ export async function POST(request: Request) {
         where: { eventId: event.id },
         select: { id: true },
       });
-
-      const meetingAt = new Date(parsed.data.meetingAt);
 
       if (existingConvocation) {
         await tx.convocation.update({

@@ -3,19 +3,12 @@ import type { EventType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { assertCanManageCategoryForEvents } from "@/lib/category-event-access";
+import {
+  endOfWallClockDayUTC,
+  parseDateInputToUTC,
+  startOfWallClockDayUTC,
+} from "@/lib/date-input";
 import { bulkDeleteEventsSchema } from "@/lib/validation/events";
-
-function toDateOnly(date: Date) {
-  const onlyDate = new Date(date);
-  onlyDate.setHours(0, 0, 0, 0);
-  return onlyDate;
-}
-
-function endOfDay(date: Date) {
-  const result = new Date(date);
-  result.setHours(23, 59, 59, 999);
-  return result;
-}
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
@@ -61,8 +54,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Categoria non trovata." }, { status: 404 });
   }
 
-  const rangeStart = toDateOnly(new Date(`${parsed.data.startDate}T00:00:00`));
-  const rangeEnd = endOfDay(toDateOnly(new Date(`${parsed.data.endDate}T00:00:00`)));
+  const startDay = parseDateInputToUTC(parsed.data.startDate);
+  const endDay = parseDateInputToUTC(parsed.data.endDate);
+  if (!startDay || !endDay) {
+    return NextResponse.json({ error: "Date non valide." }, { status: 400 });
+  }
+
+  const rangeStart = startOfWallClockDayUTC(startDay);
+  const rangeEnd = endOfWallClockDayUTC(endDay);
 
   const typeFilter: Prisma.EventWhereInput =
     parsed.data.type === "ALL"
