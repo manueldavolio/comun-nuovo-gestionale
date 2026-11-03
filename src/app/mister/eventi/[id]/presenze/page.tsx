@@ -5,6 +5,7 @@ import { MatchPostMatchPanel } from "@/components/mister/match-post-match-panel"
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
 import { defaultCompetitionKindFromEventType } from "@/lib/competition-kind";
+import { sanitizeAttendanceStatusForNonAdminHealth } from "@/lib/health-data-access";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
@@ -102,17 +103,23 @@ export default async function MisterAttendancePage({ params }: MisterAttendanceP
   const matchMode = isMatchEventType(event.type);
   const trainingMode = event.type === "TRAINING";
 
-  const athletes = event.category.athletes.map((athlete) => ({
-    id: athlete.id,
-    firstName: athlete.firstName,
-    lastName: athlete.lastName,
-    position: athlete.position,
-    shirtNumber: athlete.shirtNumber,
-    status: athlete.attendances[0]?.status ?? null,
-    goals: athlete.matchStats[0]?.goals ?? 0,
-    assists: athlete.matchStats[0]?.assists ?? 0,
-    goalsConceded: athlete.matchStats[0]?.goalsConceded ?? null,
-  }));
+  const athletes = event.category.athletes.map((athlete) => {
+    const rawStatus = athlete.attendances[0]?.status ?? null;
+    return {
+      id: athlete.id,
+      firstName: athlete.firstName,
+      lastName: athlete.lastName,
+      position: athlete.position,
+      shirtNumber: athlete.shirtNumber,
+      // Mai esporre INJURED ai coach nel payload SSR.
+      status: rawStatus
+        ? sanitizeAttendanceStatusForNonAdminHealth(rawStatus, session.user.role)
+        : null,
+      goals: athlete.matchStats[0]?.goals ?? 0,
+      assists: athlete.matchStats[0]?.assists ?? 0,
+      goalsConceded: athlete.matchStats[0]?.goalsConceded ?? null,
+    };
+  });
 
   const competitionKind = defaultCompetitionKindFromEventType(event.type);
   let initialRatings: Array<{

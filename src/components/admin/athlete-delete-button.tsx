@@ -10,6 +10,8 @@ type AthleteDeleteButtonProps = {
   lastName: string;
   categoryName: string;
   categorySeasonLabel: string;
+  /** Blocco lato UI (certificati/allegati sanitari). L'API applica lo stesso controllo. */
+  blockedReason?: string | null;
 };
 
 export function AthleteDeleteButton({
@@ -18,6 +20,7 @@ export function AthleteDeleteButton({
   lastName,
   categoryName,
   categorySeasonLabel,
+  blockedReason = null,
 }: AthleteDeleteButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -66,6 +69,21 @@ export function AthleteDeleteButton({
       setError("Errore di rete. Riprova.");
       setIsDeleting(false);
     }
+  }
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          disabled
+          className="inline-flex cursor-not-allowed items-center rounded-lg border border-red-200 bg-red-100 px-4 py-2 text-sm font-semibold text-red-400"
+        >
+          Elimina atleta
+        </button>
+        <p className="text-sm text-red-700">{blockedReason}</p>
+      </div>
+    );
   }
 
   return (

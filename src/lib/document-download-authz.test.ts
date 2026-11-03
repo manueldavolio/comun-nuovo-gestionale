@@ -20,6 +20,20 @@ describe("document download authorization source guards", () => {
     );
     assert.match(source, /assertUserParentAssociatedToAthlete/);
     assert.match(source, /role !== "PARENT"/);
+    assert.match(source, /recordSensitiveDocumentAccessRequired/);
+  });
+
+  it("admin medical certificate download excludes COACH and YOUTH_DIRECTOR", () => {
+    const source = readFileSync(
+      path.join(
+        root,
+        "src/app/api/admin/medical-visits/[medicalVisitId]/certificate/download/route.ts",
+      ),
+      "utf8",
+    );
+    assert.match(source, /role !== "ADMIN"/);
+    assert.match(source, /recordSensitiveDocumentAccessRequired/);
+    assert.doesNotMatch(source, /YOUTH_DIRECTOR/);
   });
 
   it("parent enrollment document download asserts association", () => {

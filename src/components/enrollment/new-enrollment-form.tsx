@@ -201,7 +201,6 @@ export function NewEnrollmentForm({
     athletePostalCode: "",
     athleteProvince: "",
     athleteClothingSize: "",
-    athleteMedicalNotes: "",
     receiptFirstName: defaultParentData.firstName,
     receiptLastName: defaultParentData.lastName,
     receiptTaxCode: defaultParentData.taxCode,
@@ -575,19 +574,6 @@ export function NewEnrollmentForm({
             <FieldError message={fieldErrors.athleteClothingSize} />
           </div>
 
-          <div className="md:col-span-2">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="athleteMedicalNotes">
-              Eventuali note mediche
-            </label>
-            <textarea
-              id="athleteMedicalNotes"
-              rows={3}
-              value={formData.athleteMedicalNotes ?? ""}
-              onChange={(event) => updateField("athleteMedicalNotes", event.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
-            />
-            <FieldError message={fieldErrors.athleteMedicalNotes} />
-          </div>
         </div>
       </section>
 

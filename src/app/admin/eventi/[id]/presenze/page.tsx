@@ -4,6 +4,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { AttendanceManager } from "@/components/attendance/attendance-manager";
 import { getAuthSession } from "@/lib/auth";
 import { canManageEventAttendance } from "@/lib/attendance";
+import { sanitizeAttendanceStatusForNonAdminHealth } from "@/lib/health-data-access";
 import { isMatchEventType } from "@/lib/parent-season";
 import { prisma } from "@/lib/prisma";
 
@@ -84,17 +85,22 @@ export default async function AdminAttendancePage({ params }: AdminAttendancePag
   const matchMode = isMatchEventType(event.type);
 
   const athletes = event.category
-    ? event.category.athletes.map((athlete) => ({
-        id: athlete.id,
-        firstName: athlete.firstName,
-        lastName: athlete.lastName,
-        position: athlete.position,
-        shirtNumber: athlete.shirtNumber,
-        status: athlete.attendances[0]?.status ?? null,
-        goals: athlete.matchStats[0]?.goals ?? 0,
-        assists: athlete.matchStats[0]?.assists ?? 0,
-        goalsConceded: athlete.matchStats[0]?.goalsConceded ?? null,
-      }))
+    ? event.category.athletes.map((athlete) => {
+        const rawStatus = athlete.attendances[0]?.status ?? null;
+        return {
+          id: athlete.id,
+          firstName: athlete.firstName,
+          lastName: athlete.lastName,
+          position: athlete.position,
+          shirtNumber: athlete.shirtNumber,
+          status: rawStatus
+            ? sanitizeAttendanceStatusForNonAdminHealth(rawStatus, session.user.role)
+            : null,
+          goals: athlete.matchStats[0]?.goals ?? 0,
+          assists: athlete.matchStats[0]?.assists ?? 0,
+          goalsConceded: athlete.matchStats[0]?.goalsConceded ?? null,
+        };
+      })
     : [];
 
   return (

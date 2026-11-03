@@ -1509,6 +1509,7 @@ model DisciplinaryAuditLog {
 enum SensitiveDocumentResourceType {
   ENROLLMENT_DOCUMENT
   ARCHIVE_DOCUMENT
+  MEDICAL_VISIT_CERTIFICATE
 }
 
 enum SensitiveDocumentAccessAction {

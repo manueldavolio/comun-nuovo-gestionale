@@ -162,3 +162,52 @@ describe("download route authz source guards (FASE 2)", () => {
     assert.match(source, /validateEnrollmentDocumentStoragePath/);
   });
 });
+
+describe("medical certificate download audit (FASE 3A)", () => {
+  const root = process.cwd();
+
+  it("admin medical certificate download is ADMIN-only with fail-closed ALLOWED audit", () => {
+    const source = readFileSync(
+      path.join(
+        root,
+        "src/app/api/admin/medical-visits/[medicalVisitId]/certificate/download/route.ts",
+      ),
+      "utf8",
+    );
+    assert.match(source, /role !== "ADMIN"/);
+    assert.match(source, /resourceType: "MEDICAL_VISIT_CERTIFICATE"/);
+    assert.match(source, /recordSensitiveDocumentAccessRequired/);
+    assert.match(source, /SensitiveDocumentAccessLogError/);
+    assert.match(source, /status: 503/);
+    assert.doesNotMatch(source, /YOUTH_DIRECTOR/);
+  });
+
+  it("parent medical certificate download audits and requires association", () => {
+    const source = readFileSync(
+      path.join(
+        root,
+        "src/app/api/genitore/medical-visits/[medicalVisitId]/certificate/download/route.ts",
+      ),
+      "utf8",
+    );
+    assert.match(source, /role !== "PARENT"/);
+    assert.match(source, /assertUserParentAssociatedToAthlete/);
+    assert.match(source, /resourceType: "MEDICAL_VISIT_CERTIFICATE"/);
+    assert.match(source, /recordSensitiveDocumentAccessRequired/);
+    assert.match(source, /SensitiveDocumentAccessLogError/);
+  });
+
+  it("schema enum includes MEDICAL_VISIT_CERTIFICATE", () => {
+    const schema = readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");
+    assert.match(schema, /enum SensitiveDocumentResourceType/);
+    assert.match(schema, /MEDICAL_VISIT_CERTIFICATE/);
+    const migration = readFileSync(
+      path.join(
+        root,
+        "prisma/migrations/20261103140000_sensitive_doc_medical_certificate/migration.sql",
+      ),
+      "utf8",
+    );
+    assert.match(migration, /ADD VALUE 'MEDICAL_VISIT_CERTIFICATE'/);
+  });
+});

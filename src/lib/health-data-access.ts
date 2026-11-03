@@ -3,7 +3,7 @@
  * Staff: solo ADMIN. Genitori: solo sul proprio figlio (assert parent separati).
  * COACH / YOUTH_DIRECTOR: nessun dato sanitario; solo partecipazione operativa binaria.
  */
-import type { UserRole } from "@prisma/client";
+import type { AttendanceStatus, UserRole } from "@prisma/client";
 import {
   isOperationalStatusType,
   resolveOperationalStatus,
@@ -144,9 +144,9 @@ export function denyHealthOperationalWriteForNonAdmin(input: {
 }
 
 export function sanitizeAttendanceStatusForNonAdminHealth(
-  status: string,
+  status: AttendanceStatus,
   role: string | null | undefined,
-): string {
+): AttendanceStatus {
   if (canStaffAccessAthleteHealthData(role)) return status;
   if (status === "INJURED") return "ABSENT";
   return status;

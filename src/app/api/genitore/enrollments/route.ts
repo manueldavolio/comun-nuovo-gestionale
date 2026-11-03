@@ -319,7 +319,8 @@ export async function POST(request: Request) {
           postalCode: parsed.data.athletePostalCode,
           province: parsed.data.athleteProvince,
           clothingSize: parsed.data.athleteClothingSize || null,
-          medicalNotes: parsed.data.athleteMedicalNotes || null,
+          // Nuove iscrizioni: non acquisire note mediche libere (FASE 3A).
+          medicalNotes: null,
           parentId: parentProfile.id,
           categoryId: category.id,
         },

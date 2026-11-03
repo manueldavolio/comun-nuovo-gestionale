@@ -4,7 +4,9 @@ import type { PrismaClient } from "@prisma/client";
 import {
   ATHLETE_DELETE_CONFIRM_TOKEN,
   ATHLETE_NOT_DELETABLE_FINANCIAL_MESSAGE,
+  ATHLETE_NOT_DELETABLE_HEALTH_ATTACHMENTS_MESSAGE,
   assessAthleteFinancialDeletability,
+  assessAthleteHealthAttachmentDeletability,
   deleteAthleteAsAdmin,
 } from "./admin-athlete-delete";
 
@@ -83,6 +85,39 @@ describe("assessAthleteFinancialDeletability", () => {
 describe("ATHLETE_DELETE_CONFIRM_TOKEN", () => {
   it("requires typing ELIMINA", () => {
     assert.equal(ATHLETE_DELETE_CONFIRM_TOKEN, "ELIMINA");
+  });
+});
+
+describe("assessAthleteHealthAttachmentDeletability", () => {
+  it("blocks when a medical visit certificate path exists", () => {
+    const result = assessAthleteHealthAttachmentDeletability({
+      medicalVisits: [{ certificateFilePath: "medical-visits/cert.pdf" }],
+      documents: [],
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "MEDICAL_VISIT_CERTIFICATE");
+      assert.equal(result.message, ATHLETE_NOT_DELETABLE_HEALTH_ATTACHMENTS_MESSAGE);
+    }
+  });
+
+  it("blocks archive MEDICAL_CERTIFICATE documents", () => {
+    const result = assessAthleteHealthAttachmentDeletability({
+      medicalVisits: [{ certificateFilePath: null }],
+      documents: [{ type: "MEDICAL_CERTIFICATE", filePath: "manual/cert.pdf" }],
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.reason, "ARCHIVE_MEDICAL_CERTIFICATE");
+    }
+  });
+
+  it("allows delete when no health attachments exist", () => {
+    const result = assessAthleteHealthAttachmentDeletability({
+      medicalVisits: [{ certificateFilePath: null }, { certificateFilePath: "  " }],
+      documents: [{ type: "ID_CARD", filePath: "id.pdf" }],
+    });
+    assert.equal(result.ok, true);
   });
 });
 
@@ -217,7 +252,45 @@ describe("deleteAthleteAsAdmin", () => {
     }
   });
 
-  it("deletes athlete with only PENDING payments and does not delete parent/user/category", async () => {
+  it("blocks delete when medical certificate attachments exist (no storage deletion)", async () => {
+    let deleted = false;
+    const result = await deleteAthleteAsAdmin({
+      athleteId: "ath-1",
+      prisma: asPrisma({
+        athlete: {
+          findUnique: async () => ({
+            id: "ath-1",
+            firstName: "A",
+            lastName: "B",
+            parentId: "parent-1",
+            categoryId: "cat-1",
+            documents: [{ type: "ID_CARD", filePath: "id.pdf" }],
+            medicalVisits: [{ certificateFilePath: "medical/cert.pdf" }],
+            enrollments: [
+              {
+                documents: [],
+                payments: [payment({ status: "PENDING" })],
+              },
+            ],
+          }),
+        },
+        $transaction: async () => {
+          deleted = true;
+        },
+      }),
+      cleanupEnrollmentStorage: async () => ({ removed: [], failed: [] }),
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 409);
+      assert.equal(result.reason, "MEDICAL_VISIT_CERTIFICATE");
+      assert.equal(result.error, ATHLETE_NOT_DELETABLE_HEALTH_ATTACHMENTS_MESSAGE);
+    }
+    assert.equal(deleted, false);
+  });
+
+  it("deletes athlete with only PENDING payments and no health attachments", async () => {
     const calls: string[] = [];
     const cleanupPaths: string[] = [];
 
@@ -231,8 +304,8 @@ describe("deleteAthleteAsAdmin", () => {
             lastName: "prova",
             parentId: "parent-keep",
             categoryId: "cat-keep",
-            documents: [{ filePath: "manual/doc.pdf" }],
-            medicalVisits: [{ certificateFilePath: "medical/cert.pdf" }],
+            documents: [{ type: "ID_CARD", filePath: "manual/doc.pdf" }],
+            medicalVisits: [{ certificateFilePath: null }],
             enrollments: [
               {
                 documents: [{ filePath: "enrollment-documents/enr1/id.pdf" }],
@@ -277,7 +350,6 @@ describe("deleteAthleteAsAdmin", () => {
       assert.equal(result.categoryId, "cat-keep");
       assert.deepEqual(cleanupPaths, ["enrollment-documents/enr1/id.pdf"]);
       assert.ok(result.leftoverStoragePaths.includes("manual/doc.pdf"));
-      assert.ok(result.leftoverStoragePaths.includes("medical/cert.pdf"));
     }
 
     assert.equal(calls.length, 2);

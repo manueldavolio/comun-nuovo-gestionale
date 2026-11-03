@@ -1,10 +1,14 @@
-import type { PaymentStatus, PrismaClient } from "@prisma/client";
+import type { DocumentType, PaymentStatus, PrismaClient } from "@prisma/client";
 import { deleteEnrollmentDocumentsBestEffort } from "@/lib/enrollment-documents";
+import { isHealthArchiveDocumentType } from "@/lib/health-data-access";
 
 export const ATHLETE_DELETE_CONFIRM_TOKEN = "ELIMINA";
 
 export const ATHLETE_NOT_DELETABLE_FINANCIAL_MESSAGE =
   "Atleta non eliminabile: sono presenti pagamenti o movimenti contabili.";
+
+export const ATHLETE_NOT_DELETABLE_HEALTH_ATTACHMENTS_MESSAGE =
+  "Atleta non eliminabile: sono presenti certificati medici o allegati sanitari. Contatta la segreteria per una procedura guidata; i file non vengono cancellati automaticamente.";
 
 type PaymentFinancialSnapshot = {
   id: string;
@@ -77,11 +81,56 @@ export type AdminAthleteDeleteSuccess = {
   };
 };
 
+export type AthleteHealthAttachmentAssessment =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "MEDICAL_VISIT_CERTIFICATE" | "ARCHIVE_MEDICAL_CERTIFICATE";
+      message: string;
+    };
+
+/**
+ * Blocca l'eliminazione definitiva se esistono allegati sanitari (certificati).
+ * Non cancella file: solo valutazione.
+ */
+export function assessAthleteHealthAttachmentDeletability(input: {
+  medicalVisits: Array<{ certificateFilePath: string | null }>;
+  documents: Array<{ type?: DocumentType | string | null; filePath?: string | null }>;
+}): AthleteHealthAttachmentAssessment {
+  for (const visit of input.medicalVisits) {
+    if (visit.certificateFilePath?.trim()) {
+      return {
+        ok: false,
+        reason: "MEDICAL_VISIT_CERTIFICATE",
+        message: ATHLETE_NOT_DELETABLE_HEALTH_ATTACHMENTS_MESSAGE,
+      };
+    }
+  }
+
+  for (const document of input.documents) {
+    if (isHealthArchiveDocumentType(document.type ?? null)) {
+      return {
+        ok: false,
+        reason: "ARCHIVE_MEDICAL_CERTIFICATE",
+        message: ATHLETE_NOT_DELETABLE_HEALTH_ATTACHMENTS_MESSAGE,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 export type AdminAthleteDeleteFailure = {
   ok: false;
   status: 404 | 409;
   error: string;
-  reason?: "PAID_PAYMENT" | "PAID_AT" | "RECEIPT" | "ACCOUNTING_ENTRY";
+  reason?:
+    | "PAID_PAYMENT"
+    | "PAID_AT"
+    | "RECEIPT"
+    | "ACCOUNTING_ENTRY"
+    | "MEDICAL_VISIT_CERTIFICATE"
+    | "ARCHIVE_MEDICAL_CERTIFICATE";
 };
 
 export type AdminAthleteDeleteResult = AdminAthleteDeleteSuccess | AdminAthleteDeleteFailure;
@@ -105,7 +154,7 @@ export async function deleteAthleteAsAdmin(options: {
       parentId: true,
       categoryId: true,
       documents: {
-        select: { filePath: true },
+        select: { type: true, filePath: true },
       },
       medicalVisits: {
         select: { certificateFilePath: true },
@@ -141,6 +190,19 @@ export async function deleteAthleteAsAdmin(options: {
       status: 409,
       error: assessment.message,
       reason: assessment.reason,
+    };
+  }
+
+  const healthAssessment = assessAthleteHealthAttachmentDeletability({
+    medicalVisits: athlete.medicalVisits,
+    documents: athlete.documents,
+  });
+  if (!healthAssessment.ok) {
+    return {
+      ok: false,
+      status: 409,
+      error: healthAssessment.message,
+      reason: healthAssessment.reason,
     };
   }
 

@@ -34,7 +34,8 @@ const enrollmentBaseSchema = z.object({
     .toUpperCase()
     .regex(provinceRegex, "La provincia atleta deve essere di 2 lettere."),
   athleteClothingSize: z.string().trim().max(20, "Taglia troppo lunga.").optional(),
-  athleteMedicalNotes: z.string().trim().max(1000, "Note mediche troppo lunghe.").optional(),
+  // FASE 3A: note mediche libere non più acquisite dalle nuove iscrizioni.
+  // Valori storici su Athlete.medicalNotes restano intatti.
 
   receiptFirstName: z.string().trim().min(1, "Il nome per ricevuta e obbligatorio."),
   receiptLastName: z.string().trim().min(1, "Il cognome per ricevuta e obbligatorio."),

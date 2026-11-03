@@ -15,10 +15,14 @@ import { getAuthSession } from "@/lib/auth";
 import { computeMedicalVisitStatus } from "@/lib/expiry-status";
 import { AthleteDeleteButton } from "@/components/admin/athlete-delete-button";
 import { AthleteEnrollmentDocuments } from "@/components/admin/athlete-enrollment-documents";
+import { AthleteMedicalNotesPanel } from "@/components/admin/athlete-medical-notes-panel";
 import { AthleteReactivateButton } from "@/components/admin/athlete-reactivate-button";
 import { AthleteWithdrawButton } from "@/components/admin/athlete-withdraw-button";
 import { ChangeAthleteCategoryInline } from "@/components/admin/change-athlete-category-inline";
-import { assessAthleteFinancialDeletability } from "@/lib/admin-athlete-delete";
+import {
+  assessAthleteFinancialDeletability,
+  assessAthleteHealthAttachmentDeletability,
+} from "@/lib/admin-athlete-delete";
 import {
   ATHLETE_ROSTER_STATUS_LABEL,
   isAthleteActive,
@@ -192,8 +196,28 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
   const payments = athlete.enrollments.flatMap((enrollment) => enrollment.payments);
   const financialAssessment = assessAthleteFinancialDeletability(payments);
   const hasPaidEvidence = !financialAssessment.ok;
+  const healthAttachmentAssessment = canAccessHealthData
+    ? assessAthleteHealthAttachmentDeletability({
+        medicalVisits:
+          "medicalVisits" in athlete
+            ? (
+                athlete as {
+                  medicalVisits: Array<{ certificateFilePath: string | null }>;
+                }
+              ).medicalVisits
+            : [],
+        documents: athlete.documents,
+      })
+    : ({ ok: true } as const);
+  const deleteBlockedReason = !healthAttachmentAssessment.ok
+    ? healthAttachmentAssessment.message
+    : null;
   const isActive = isAthleteActive(athlete.rosterStatus);
   const initials = `${athlete.firstName.charAt(0)}${athlete.lastName.charAt(0)}`.toUpperCase();
+  const historicalMedicalNotes =
+    canAccessHealthData && "medicalNotes" in athlete
+      ? ((athlete as { medicalNotes?: string | null }).medicalNotes ?? null)
+      : null;
 
   return (
     <main className="p-4 md:p-6 lg:p-8">
@@ -567,14 +591,22 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
           </section>
         ) : null}
 
+        {canAccessHealthData ? (
+          <AthleteMedicalNotesPanel
+            athleteId={athlete.id}
+            medicalNotes={historicalMedicalNotes}
+          />
+        ) : null}
+
         {canManageAthleteCategory ? (
           <section className="rounded-3xl border border-red-200 bg-red-50/70 p-4 shadow-sm sm:p-5">
             <h2 className="text-base font-black text-red-800">Zona pericolo</h2>
             <p className="mt-1 text-sm text-red-700">
               Elimina definitivamente questo atleta e i dati collegati (iscrizione, pagamenti non
               saldati, documenti, convocazioni). Genitore, account utente e categoria non vengono
-              eliminati. Operazione irreversibile e bloccata se esistono pagamenti o movimenti
-              contabili reali.
+              eliminati. Operazione irreversibile e bloccata se esistono pagamenti/movimenti
+              contabili reali oppure certificati medici/allegati sanitari (i file non vengono
+              cancellati automaticamente).
             </p>
             <p className="mt-2 text-xs text-red-600/90">
               ID atleta (verifica prima di eliminare):{" "}
@@ -587,6 +619,7 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
                 lastName={athlete.lastName}
                 categoryName={athlete.category.name}
                 categorySeasonLabel={athlete.category.seasonLabel}
+                blockedReason={deleteBlockedReason}
               />
             </div>
           </section>

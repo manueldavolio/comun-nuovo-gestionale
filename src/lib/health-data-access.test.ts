@@ -9,6 +9,7 @@ import {
   decideStaffHealthDataAccess,
   denyHealthOperationalWriteForNonAdmin,
   isHealthOperationalStatus,
+  sanitizeAttendanceStatusForNonAdminHealth,
   toParticipationView,
 } from "@/lib/health-data-access";
 import {
@@ -146,5 +147,17 @@ describe("attendance INJURED write", () => {
       }).ok,
       true,
     );
+  });
+});
+
+describe("attendance status sanitization for non-admin SSR", () => {
+  it("maps INJURED to ABSENT for COACH and YOUTH_DIRECTOR", () => {
+    assert.equal(sanitizeAttendanceStatusForNonAdminHealth("INJURED", "COACH"), "ABSENT");
+    assert.equal(
+      sanitizeAttendanceStatusForNonAdminHealth("INJURED", "YOUTH_DIRECTOR"),
+      "ABSENT",
+    );
+    assert.equal(sanitizeAttendanceStatusForNonAdminHealth("JUSTIFIED_ABSENCE", "COACH"), "JUSTIFIED_ABSENCE");
+    assert.equal(sanitizeAttendanceStatusForNonAdminHealth("INJURED", "ADMIN"), "INJURED");
   });
 });
