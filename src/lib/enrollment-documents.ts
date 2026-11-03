@@ -1,6 +1,10 @@
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { EnrollmentDocumentType } from "@prisma/client";
+import {
+  enrollmentDocumentPathErrorMessage,
+  validateEnrollmentDocumentStoragePath,
+} from "@/lib/enrollment-document-path";
 
 export const ENROLLMENT_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 export const ENROLLMENT_DOCUMENTS_BUCKET_NAME = "enrollment-documents";
@@ -273,7 +277,15 @@ export async function saveEnrollmentDocument(params: {
 }
 
 export async function readEnrollmentDocument(filePath: string): Promise<Buffer> {
-  const bucketPath = normalizeBucketPath(filePath);
+  const pathCheck = validateEnrollmentDocumentStoragePath(filePath);
+  if (!pathCheck.ok) {
+    throw new EnrollmentDocumentStorageError(enrollmentDocumentPathErrorMessage(pathCheck.code), {
+      stage: "download",
+      bucketPath: filePath,
+      code: `INVALID_DOCUMENT_PATH_${pathCheck.code}`,
+    });
+  }
+  const bucketPath = pathCheck.normalizedPath;
   const { client, bucket } = getSupabaseStorageClient();
   const { data, error } = await client.storage.from(bucket).download(bucketPath);
 

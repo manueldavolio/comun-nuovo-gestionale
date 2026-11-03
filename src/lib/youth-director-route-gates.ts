@@ -50,8 +50,9 @@ export function decideAdminOnlyAthleteMutation(input: {
 }
 
 /**
- * Athlete-scoped admin data (archive document non sanitario, enrollment download).
+ * Athlete-scoped admin data (archivio Document metadata non sanitario).
  * athleteExists false → 404; sector via categorySectorLookup.
+ * Per download documenti identità iscrizione usare decideAdminOnlyEnrollmentIdentityDownload.
  * Per visite mediche / certificati usare decideAdminOnlyHealthDataAccess.
  */
 export function decideAthleteScopedAdminDataAccess(input: {
@@ -85,6 +86,17 @@ export function decideAthleteScopedAdminDataAccess(input: {
 
 /** Dati sanitari (visite, certificati, note): solo ADMIN. */
 export function decideAdminOnlyHealthDataAccess(input: {
+  authenticated: boolean;
+  role: string | null | undefined;
+}): RouteGateResult {
+  return decideAdminOnlyAthleteMutation(input);
+}
+
+/**
+ * Download documenti di identità caricati in iscrizione: solo ADMIN (FASE 2 GDPR).
+ * YOUTH_DIRECTOR escluso di default (nessuna necessità documentata/approvata).
+ */
+export function decideAdminOnlyEnrollmentIdentityDownload(input: {
   authenticated: boolean;
   role: string | null | undefined;
 }): RouteGateResult {

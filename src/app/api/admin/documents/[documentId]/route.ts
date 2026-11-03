@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { validateArchiveDocumentFilePath } from "@/lib/archive-document-path";
 import { upsertDocumentSchema } from "@/lib/validation/documents";
 import { parseDateInputToUTC } from "@/lib/date-input";
 import {
@@ -76,6 +77,11 @@ export async function PUT(
     return NextResponse.json({ error: "Data scadenza non valida." }, { status: 400 });
   }
 
+  const pathCheck = validateArchiveDocumentFilePath(parsed.data.filePath);
+  if (!pathCheck.ok) {
+    return NextResponse.json({ error: "FilePath non valido." }, { status: 400 });
+  }
+
   try {
     await prisma.document.update({
       where: { id: documentId },
@@ -83,7 +89,7 @@ export async function PUT(
         athleteId: parsed.data.athleteId,
         type: parsed.data.type,
         title: parsed.data.title.trim(),
-        filePath: parsed.data.filePath.trim(),
+        filePath: pathCheck.normalizedPath,
         expiryDate,
         notes: parsed.data.notes?.trim() ? parsed.data.notes.trim() : null,
       },

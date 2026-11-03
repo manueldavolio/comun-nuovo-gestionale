@@ -27,6 +27,7 @@
     "test:athlete-personal-goals": "tsx --test src/lib/athlete-personal-goals.test.ts",
     "test:athlete-operational-status": "tsx --test src/lib/athlete-operational-status.test.ts",
     "test:health-data-access": "tsx --test src/lib/health-data-access.test.ts src/lib/youth-director-route-gates.test.ts",
+    "test:document-security": "tsx --test src/lib/enrollment-document-security.test.ts src/lib/document-download-authz.test.ts",
     "test:image-consent": "tsx --test src/lib/image-consent.test.ts src/lib/legal/legal-documents.test.ts src/lib/legal/image-consent-activation.test.ts src/lib/legal/privacy-acknowledgement.test.ts src/lib/media-publishing.test.ts src/lib/validation/enrollment-privacy.test.ts",
     "test:admin-athlete-delete": "tsx --test src/lib/admin-athlete-delete.test.ts",
     "prisma:generate": "prisma generate",

@@ -24,6 +24,7 @@ import {
   isAthleteActive,
 } from "@/lib/athlete-roster-status";
 import { DOCUMENT_TYPE_LABEL } from "@/lib/document-types";
+import { canStaffDownloadEnrollmentIdentityDocuments } from "@/lib/enrollment-document-access-policy";
 import { assertCanAccessAthleteData } from "@/lib/youth-director-data-access";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -390,7 +391,10 @@ export default async function AdminAthleteDetailPage({ params }: AdminAthleteDet
           <p className="mb-4 text-sm text-zinc-600">
             Allegati caricati dal genitore durante l&apos;iscrizione.
           </p>
-          <AthleteEnrollmentDocuments documents={latestEnrollmentDocuments} />
+          <AthleteEnrollmentDocuments
+            documents={latestEnrollmentDocuments}
+            canDownload={canStaffDownloadEnrollmentIdentityDocuments(session.user.role)}
+          />
 
           {(() => {
             const archiveDocs = athlete.documents.filter(

@@ -12,9 +12,14 @@ type EnrollmentDocumentRow = {
 
 type AthleteEnrollmentDocumentsProps = {
   documents: EnrollmentDocumentRow[];
+  /** Download documenti di identità: solo ADMIN (FASE 2 GDPR). */
+  canDownload?: boolean;
 };
 
-export function AthleteEnrollmentDocuments({ documents }: AthleteEnrollmentDocumentsProps) {
+export function AthleteEnrollmentDocuments({
+  documents,
+  canDownload = false,
+}: AthleteEnrollmentDocumentsProps) {
   const documentsByType = new Map(documents.map((document) => [document.type, document]));
 
   return (
@@ -36,13 +41,17 @@ export function AthleteEnrollmentDocuments({ documents }: AthleteEnrollmentDocum
                 <p className="mt-0.5 text-xs text-zinc-500">Non caricato</p>
               )}
             </div>
-            {document ? (
+            {document && canDownload ? (
               <a
                 href={`/api/admin/enrollment-documents/${document.id}/download`}
                 className="inline-flex w-fit items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
               >
                 Scarica
               </a>
+            ) : document ? (
+              <span className="inline-flex w-fit items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-500">
+                Solo amministrazione
+              </span>
             ) : (
               <span className="inline-flex w-fit items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-500">
                 Non caricato

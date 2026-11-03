@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   decideAdminOnlyAthleteMutation,
+  decideAdminOnlyEnrollmentIdentityDownload,
   decideAnnouncementCreateAccess,
   decideAnnouncementDeleteAccess,
   decideAthleteCategoryMoveApiAccess,
@@ -57,7 +58,23 @@ describe("anonymous and role gates", () => {
 });
 
 describe("athlete-scoped medical/documents/enrollment", () => {
-  it("YD allowed on YOUTH; denied FIRST_TEAM / NULL / missing / no athlete", () => {
+  it("enrollment identity download is ADMIN-only (YD denied by default)", () => {
+    assert.equal(
+      decideAdminOnlyEnrollmentIdentityDownload({
+        authenticated: true,
+        role: "ADMIN",
+      }).ok,
+      true,
+    );
+    const yd = decideAdminOnlyEnrollmentIdentityDownload({
+      authenticated: true,
+      role: "YOUTH_DIRECTOR",
+    });
+    assert.equal(yd.ok, false);
+    if (!yd.ok) assert.equal(yd.status, 403);
+  });
+
+  it("YD allowed on YOUTH archive scope; denied FIRST_TEAM / NULL / missing / no athlete", () => {
     assert.equal(
       decideAthleteScopedAdminDataAccess({
         authenticated: true,

@@ -127,17 +127,30 @@ export async function assertCanAccessArchiveDocumentData(options: {
   return { ok: true, athleteId: doc.athleteId, categoryId: athleteAccess.categoryId };
 }
 
+/**
+ * Download documenti identità iscrizione (EnrollmentDocument) in area staff.
+ * GDPR FASE 2: solo ADMIN. YOUTH_DIRECTOR può vedere metadati in UI ma non scaricare.
+ */
 export async function assertCanAccessEnrollmentDocumentData(options: {
   userId: string;
   role: UserRole;
   documentId: string;
 }): Promise<
-  | { ok: true; athleteId: string; categoryId: string }
+  | { ok: true; athleteId: string; categoryId: string; documentType: string }
   | { ok: false; status: 403 | 404; error: string }
 > {
+  if (options.role !== "ADMIN") {
+    return {
+      ok: false,
+      status: 403,
+      error: "Download documenti di identità riservato agli amministratori.",
+    };
+  }
+
   const doc = await prisma.enrollmentDocument.findUnique({
     where: { id: options.documentId },
     select: {
+      type: true,
       enrollment: {
         select: { athleteId: true },
       },
@@ -158,6 +171,7 @@ export async function assertCanAccessEnrollmentDocumentData(options: {
     ok: true,
     athleteId: doc.enrollment.athleteId,
     categoryId: athleteAccess.categoryId,
+    documentType: doc.type,
   };
 }
 

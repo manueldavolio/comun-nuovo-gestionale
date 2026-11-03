@@ -7,6 +7,11 @@ import {
 } from "@/lib/enrollment-documents";
 import { assertUserParentAssociatedToAthlete } from "@/lib/parent-athletes";
 import { prisma } from "@/lib/prisma";
+import {
+  recordSensitiveDocumentAccess,
+  recordSensitiveDocumentAccessRequired,
+  SensitiveDocumentAccessLogError,
+} from "@/lib/sensitive-document-access-log";
 
 export const runtime = "nodejs";
 
@@ -27,15 +32,25 @@ function detectContentType(fileName: string, mimeType: string): string {
 
 export async function GET(_request: Request, context: RouteContext) {
   const session = await getAuthSession();
-  if (!session?.user?.id) {
+  const { documentId } = await context.params;
+
+  if (!session?.user?.id || !session.user.role) {
     return NextResponse.json({ error: "Sessione non valida." }, { status: 401 });
   }
 
   if (session.user.role !== "PARENT") {
+    await recordSensitiveDocumentAccess({
+      userId: session.user.id,
+      userRole: session.user.role,
+      action: "DOWNLOAD",
+      resourceType: "ENROLLMENT_DOCUMENT",
+      resourceId: documentId || "unknown",
+      outcome: "DENIED",
+      reason: "Ruolo non PARENT.",
+    });
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 
-  const { documentId } = await context.params;
   if (!documentId) {
     return NextResponse.json({ error: "Documento non valido." }, { status: 400 });
   }
@@ -46,6 +61,7 @@ export async function GET(_request: Request, context: RouteContext) {
       filePath: true,
       fileName: true,
       mimeType: true,
+      type: true,
       enrollment: {
         select: {
           athleteId: true,
@@ -55,6 +71,15 @@ export async function GET(_request: Request, context: RouteContext) {
   });
 
   if (!document) {
+    await recordSensitiveDocumentAccess({
+      userId: session.user.id,
+      userRole: session.user.role,
+      action: "DOWNLOAD",
+      resourceType: "ENROLLMENT_DOCUMENT",
+      resourceId: documentId,
+      outcome: "DENIED",
+      reason: "Documento non trovato.",
+    });
     return NextResponse.json({ error: "Documento non trovato." }, { status: 404 });
   }
 
@@ -63,6 +88,17 @@ export async function GET(_request: Request, context: RouteContext) {
     athleteId: document.enrollment.athleteId,
   });
   if (!access.ok) {
+    await recordSensitiveDocumentAccess({
+      userId: session.user.id,
+      userRole: session.user.role,
+      action: "DOWNLOAD",
+      resourceType: "ENROLLMENT_DOCUMENT",
+      resourceId: documentId,
+      documentType: document.type,
+      athleteId: document.enrollment.athleteId,
+      outcome: "DENIED",
+      reason: "Genitore non associato all'atleta (IDOR).",
+    });
     return NextResponse.json({ error: "Operazione non consentita." }, { status: 403 });
   }
 
@@ -70,6 +106,17 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const fileBuffer = await readEnrollmentDocument(document.filePath);
+    // Fail-closed: nessun download/view ALLOWED senza riga di audit.
+    await recordSensitiveDocumentAccessRequired({
+      userId: session.user.id,
+      userRole: session.user.role,
+      action: document.mimeType.startsWith("image/") ? "VIEW" : "DOWNLOAD",
+      resourceType: "ENROLLMENT_DOCUMENT",
+      resourceId: documentId,
+      documentType: document.type,
+      athleteId: document.enrollment.athleteId,
+      outcome: "ALLOWED",
+    });
     const body = new Uint8Array(fileBuffer);
     return new NextResponse(body, {
       status: 200,
@@ -78,10 +125,26 @@ export async function GET(_request: Request, context: RouteContext) {
         "Content-Disposition": `${
           document.mimeType.startsWith("image/") ? "inline" : "attachment"
         }; filename="${fileName}"`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error) {
+    if (error instanceof SensitiveDocumentAccessLogError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
     if (error instanceof EnrollmentDocumentStorageError) {
+      await recordSensitiveDocumentAccess({
+        userId: session.user.id,
+        userRole: session.user.role,
+        action: "DOWNLOAD",
+        resourceType: "ENROLLMENT_DOCUMENT",
+        resourceId: documentId,
+        documentType: document.type,
+        athleteId: document.enrollment.athleteId,
+        outcome: "DENIED",
+        reason: error.details.code ?? error.message,
+      });
       if (error.details.code === "SUPABASE_STORAGE_ENV_MISSING") {
         return NextResponse.json(
           {
@@ -91,7 +154,10 @@ export async function GET(_request: Request, context: RouteContext) {
           { status: 500 },
         );
       }
-      if (error.details.code === "DOCUMENT_NOT_FOUND") {
+      if (
+        error.details.code === "DOCUMENT_NOT_FOUND" ||
+        error.details.code?.startsWith("INVALID_DOCUMENT_PATH_")
+      ) {
         return NextResponse.json({ error: "Documento non disponibile." }, { status: 404 });
       }
     }

@@ -289,6 +289,7 @@ model User {
   clubBankSettingsUpdated ClubBankSettings[] @relation("ClubBankSettingsUpdatedBy")
   imageConsentEventsActed AthleteImageConsentEvent[] @relation("AthleteImageConsentEventActedBy")
   privacyNoticeAcknowledgements PrivacyNoticeAcknowledgement[]
+  sensitiveDocumentAccessLogs SensitiveDocumentAccessLog[]
 
   @@index([role])
   @@index([isActive])
@@ -1502,6 +1503,43 @@ model DisciplinaryAuditLog {
 
   @@index([entityType, entityId, createdAt])
   @@index([userId])
+}
+
+/// Audit accessi/download documenti sensibili (identità iscrizione). Mai il contenuto del file.
+enum SensitiveDocumentResourceType {
+  ENROLLMENT_DOCUMENT
+  ARCHIVE_DOCUMENT
+}
+
+enum SensitiveDocumentAccessAction {
+  DOWNLOAD
+  VIEW
+}
+
+enum SensitiveDocumentAccessOutcome {
+  ALLOWED
+  DENIED
+}
+
+model SensitiveDocumentAccessLog {
+  id           String                          @id @default(cuid())
+  userId       String
+  userRole     UserRole
+  action       SensitiveDocumentAccessAction
+  resourceType SensitiveDocumentResourceType
+  resourceId   String
+  documentType String?
+  athleteId    String?
+  outcome      SensitiveDocumentAccessOutcome
+  reason       String?
+  createdAt    DateTime                        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([resourceType, resourceId, createdAt])
+  @@index([userId, createdAt])
+  @@index([athleteId, createdAt])
+  @@index([outcome, createdAt])
 }
 
 /// Valutazione postpartita (1–10 per criterio). Riservata allo staff; mai ai genitori.
