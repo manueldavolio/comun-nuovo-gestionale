@@ -750,15 +750,19 @@ export function NewEnrollmentForm({
 
           <div className="md:col-span-2">
             <label className="text-sm font-medium text-zinc-700" htmlFor="enrollmentNotes">
-              Note eventuali
+              Note organizzative (non inserire dati sanitari)
             </label>
             <textarea
               id="enrollmentNotes"
               rows={3}
               value={formData.enrollmentNotes ?? ""}
               onChange={(event) => updateField("enrollmentNotes", event.target.value)}
+              placeholder="Inserisci solo informazioni organizzative, non dati sanitari"
               className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2"
             />
+            <p className="mt-1 text-xs text-zinc-500">
+              Per informazioni mediche contatta direttamente la segreteria.
+            </p>
             <FieldError message={fieldErrors.enrollmentNotes} />
           </div>
         </div>

@@ -68,7 +68,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "File ricevuta non disponibile." }, { status: 404 });
   }
 
-  console.info("[receipts] download file path", { receiptId, filePath: receipt.filePath });
+  console.info("[receipts] download started", { receiptId });
   try {
     const fileBuffer = await readReceiptPdf(receipt.filePath);
     const body = new Uint8Array(fileBuffer);
@@ -77,6 +77,7 @@ export async function GET(_request: Request, context: RouteContext) {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${receipt.receiptNumber}.pdf"`,
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (error) {
@@ -85,7 +86,6 @@ export async function GET(_request: Request, context: RouteContext) {
         receiptId,
         reason: error.details.reason ?? "RECEIPT_STORAGE_ERROR",
         stage: error.details.stage,
-        bucketPath: error.details.bucketPath,
       });
       const status = error.details.reason === "SUPABASE_DOWNLOAD_NOT_FOUND" ? 404 : 500;
       return NextResponse.json({ error: "File ricevuta non disponibile." }, { status });
