@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EnrollmentFileField } from "@/components/enrollment/enrollment-file-field";
+import { PrivacyNoticeLeadBanner } from "@/components/legal/privacy-notice-lead-banner";
 import {
   enrollmentSchemaDualImage,
   enrollmentSchemaLegacyImage,
@@ -27,6 +28,9 @@ type NewEnrollmentFormProps = {
   categories: CategoryOption[];
   /** legacy_v1 finché dual 1.1 non è attivato esplicitamente. */
   imageConsentMode?: "legacy_v1" | "dual_v1_1";
+  /** Versione/hash informativa privacy pubblicata e mostrata (SSR). */
+  privacyNoticeVersion?: string | null;
+  privacyNoticeContentSha256?: string | null;
   defaultParentData: {
     firstName: string;
     lastName: string;
@@ -43,7 +47,7 @@ type NewEnrollmentFormProps = {
 type ImageConsentChoiceValue = "GRANTED" | "DENIED" | "DEFERRED";
 type EnrollmentFormState = Omit<
   EnrollmentInputLegacy,
-  "imageConsent"
+  "imageConsent" | "shownPrivacyNoticeVersion" | "shownPrivacyNoticeContentSha256"
 > & {
   imageConsent: boolean;
   imageConsentInternal: ImageConsentChoiceValue | null;
@@ -179,6 +183,8 @@ export function NewEnrollmentForm({
   categories,
   defaultParentData,
   imageConsentMode = "legacy_v1",
+  privacyNoticeVersion = null,
+  privacyNoticeContentSha256 = null,
 }: NewEnrollmentFormProps) {
   const router = useRouter();
   const firstCategory = categories[0];
@@ -264,15 +270,29 @@ export function NewEnrollmentForm({
       return;
     }
 
+    if (!privacyNoticeVersion || !privacyNoticeContentSha256) {
+      setError(
+        "Informativa privacy non disponibile. Ricarica la pagina e riprova, oppure contatta la segreteria.",
+      );
+      return;
+    }
+
+    const privacyShownFields = {
+      shownPrivacyNoticeVersion: privacyNoticeVersion,
+      shownPrivacyNoticeContentSha256: privacyNoticeContentSha256,
+    };
+
     const parsed =
       imageConsentMode === "dual_v1_1"
         ? enrollmentSchemaDualImage.safeParse({
             ...formData,
+            ...privacyShownFields,
             imageConsentInternal: formData.imageConsentInternal ?? undefined,
             imageConsentExternal: formData.imageConsentExternal ?? undefined,
           })
         : enrollmentSchemaLegacyImage.safeParse({
             ...formData,
+            ...privacyShownFields,
             imageConsent: formData.imageConsent,
           });
     if (!parsed.success) {
@@ -354,10 +374,18 @@ export function NewEnrollmentForm({
         body: enrollmentBody,
       });
 
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        code?: string;
+      } | null;
 
       if (!response.ok) {
-        setError(data?.error ?? "Iscrizione non riuscita. Riprova.");
+        setError(
+          data?.error ??
+            (data?.code === "PRIVACY_NOTICE_CHANGED"
+              ? "L'informativa privacy è cambiata. Ricarica la pagina e conferma di nuovo la presa visione."
+              : "Iscrizione non riuscita. Riprova."),
+        );
         setIsSubmitting(false);
         return;
       }
@@ -373,6 +401,8 @@ export function NewEnrollmentForm({
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-6">
+      <PrivacyNoticeLeadBanner version={privacyNoticeVersion} />
+
       <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-zinc-900">Sezione A - Dati atleta</h2>
         <p className="mt-1 text-sm text-zinc-600">
@@ -786,7 +816,7 @@ export function NewEnrollmentForm({
               >
                 informativa privacy
               </Link>
-              {" "}
+              {privacyNoticeVersion ? ` (versione ${privacyNoticeVersion})` : ""}{" "}
               (obbligatorio). La presa visione non equivale a un consenso generico a tutti i
               trattamenti.
               <FieldError message={fieldErrors.privacyConsent} />

@@ -72,3 +72,19 @@ export function formatLegalPublicationDate(effectiveFrom: Date | null): string {
     timeZone: "Europe/Rome",
   });
 }
+
+/**
+ * Confronta la versione/hash mostrati al genitore con il documento corrente server-side.
+ * I valori "shown" servono solo al controllo mismatch: lo stamp usa sempre i campi current.
+ */
+export function privacyNoticeShownMatchesCurrent(input: {
+  shownVersion: string;
+  shownContentSha256: string;
+  currentVersion: string;
+  currentContentSha256: string;
+}): boolean {
+  return (
+    input.shownVersion === input.currentVersion &&
+    input.shownContentSha256 === input.currentContentSha256
+  );
+}

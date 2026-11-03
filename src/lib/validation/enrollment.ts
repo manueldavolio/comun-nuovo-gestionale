@@ -70,6 +70,21 @@ const enrollmentBaseSchema = z.object({
   privacyConsent: z
     .boolean()
     .refine((value) => value, "Devi confermare la presa visione dell'informativa privacy."),
+  /**
+   * Versione/hash mostrati al genitore (SSR). Non sono la fonte di verità dello stamp:
+   * il server li confronta con il documento corrente e rifiuta se non coincidono.
+   */
+  shownPrivacyNoticeVersion: z
+    .string()
+    .trim()
+    .min(1, "Informativa privacy non caricata. Ricarica la pagina e riprova."),
+  shownPrivacyNoticeContentSha256: z
+    .string()
+    .trim()
+    .regex(
+      /^[a-f0-9]{64}$/i,
+      "Informativa privacy non valida. Ricarica la pagina e riprova.",
+    ),
   regulationConsent: z
     .boolean()
     .refine((value) => value, "Devi accettare il regolamento societario."),

@@ -4,6 +4,7 @@ import { AreaHeader } from "@/components/layout/area-header";
 import { NewEnrollmentForm } from "@/components/enrollment/new-enrollment-form";
 import { getAuthSession } from "@/lib/auth";
 import { resolveImageConsentRuntimeMode } from "@/lib/legal/image-consent-activation";
+import { getCurrentLegalDocument } from "@/lib/legal/legal-documents";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_CATEGORY_ID = "__DEFAULT_CATEGORY__";
@@ -25,7 +26,7 @@ export default async function NewParentEnrollmentPage() {
     redirect("/unauthorized");
   }
 
-  const [categories, parentProfile, imageConsentMode] = await Promise.all([
+  const [categories, parentProfile, imageConsentMode, privacyNotice] = await Promise.all([
     prisma.category.findMany({
       // Solo categorie attive: le categorie disattivate (es. Under 15)
       // non sono selezionabili nelle nuove iscrizioni.
@@ -57,6 +58,7 @@ export default async function NewParentEnrollmentPage() {
       },
     }),
     resolveImageConsentRuntimeMode(),
+    getCurrentLegalDocument("PRIVACY_NOTICE"),
   ]);
 
   if (!parentProfile) {
@@ -104,6 +106,8 @@ export default async function NewParentEnrollmentPage() {
         <NewEnrollmentForm
           categories={categoriesForForm}
           imageConsentMode={imageConsentMode}
+          privacyNoticeVersion={privacyNotice?.version ?? null}
+          privacyNoticeContentSha256={privacyNotice?.contentSha256 ?? null}
           defaultParentData={{
             firstName: parentProfile.firstName,
             lastName: parentProfile.lastName,

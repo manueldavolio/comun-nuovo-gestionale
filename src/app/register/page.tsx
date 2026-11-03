@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/auth/register-form";
 import { getAuthSession } from "@/lib/auth";
+import { getCurrentLegalDocument } from "@/lib/legal/legal-documents";
 import { ROLE_HOME_PATH } from "@/lib/permissions";
 
 export default async function RegisterPage() {
@@ -9,6 +10,8 @@ export default async function RegisterPage() {
   if (session?.user?.role) {
     redirect(ROLE_HOME_PATH[session.user.role]);
   }
+
+  const privacyNotice = await getCurrentLegalDocument("PRIVACY_NOTICE");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-sky-50 to-blue-100 px-4 py-8">
@@ -20,7 +23,7 @@ export default async function RegisterPage() {
           </p>
         </div>
 
-        <RegisterForm />
+        <RegisterForm privacyNoticeVersion={privacyNotice?.version ?? null} />
 
         <p className="mt-6 text-center text-sm text-zinc-600">
           Hai gia un account?{" "}

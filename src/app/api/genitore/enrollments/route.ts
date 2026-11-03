@@ -20,11 +20,13 @@ import {
   resolveCategoryEnrollmentFees,
 } from "@/lib/enrollment-fees";
 import { resolveImageConsentRuntimeMode } from "@/lib/legal/image-consent-activation";
+import { privacyNoticeShownMatchesCurrent } from "@/lib/legal/consent-audit";
 import {
   buildEnrollmentConsentAuditFields,
   buildEnrollmentConsentAuditFieldsDual,
   requireCurrentLegalDocuments,
 } from "@/lib/legal/legal-documents";
+import { recordPrivacyNoticeAcknowledgement } from "@/lib/legal/privacy-acknowledgement";
 import { sportsSeasonLabelFromInstant } from "@/lib/date-input";
 import { sendAdminEnrollmentNotification } from "@/lib/mail";
 
@@ -243,6 +245,27 @@ export async function POST(request: Request) {
     );
   }
 
+  const currentPrivacy = legalDocs.documents.PRIVACY_NOTICE;
+  // Confronto con quanto mostrato al genitore: non fidarsi dei valori client come stamp;
+  // se non coincidono con il documento corrente, rifiuta senza creare presa visione falsa.
+  if (
+    !privacyNoticeShownMatchesCurrent({
+      shownVersion: parsed.data.shownPrivacyNoticeVersion,
+      shownContentSha256: parsed.data.shownPrivacyNoticeContentSha256,
+      currentVersion: currentPrivacy.version,
+      currentContentSha256: currentPrivacy.contentSha256,
+    })
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "L'informativa privacy è stata aggiornata mentre compilavi il modulo. Ricarica la pagina, rileggi l'informativa e conferma di nuovo la presa visione.",
+        code: "PRIVACY_NOTICE_CHANGED",
+      },
+      { status: 409 },
+    );
+  }
+
   try {
     const created = await prisma.$transaction(async (tx) => {
       let category =
@@ -353,6 +376,22 @@ export async function POST(request: Request) {
           notes: parsed.data.enrollmentNotes || null,
         },
       });
+
+      // Presa visione esplicita (checkbox obbligatoria): allinea anche PrivacyNoticeAcknowledgement
+      // alla versione/hash effettivamente mostrati e pubblicati. Nessun invento su iscrizioni storiche.
+      if (parsed.data.privacyConsent) {
+        const privacyDoc = legalDocs.documents.PRIVACY_NOTICE;
+        await recordPrivacyNoticeAcknowledgement(
+          {
+            userId: session.user.id,
+            documentVersion: privacyDoc.version,
+            documentContentSha256: privacyDoc.contentSha256,
+            source: "enrollment",
+            acknowledgedAt: submittedAt,
+          },
+          tx,
+        );
+      }
 
       if (imageConsentMode === "dual_v1_1") {
         const internalDoc = legalDocs.documents.IMAGE_CONSENT_INTERNAL;

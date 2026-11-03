@@ -7,7 +7,11 @@ import {
   SOCIETY_REGULATION_V1_BODY,
 } from "./document-bodies";
 import { sha256HexOfLegalDocumentBody } from "./hash";
-import { buildEnrollmentConsentAuditFields, formatLegalPublicationDate } from "./consent-audit";
+import {
+  buildEnrollmentConsentAuditFields,
+  formatLegalPublicationDate,
+  privacyNoticeShownMatchesCurrent,
+} from "./consent-audit";
 import { buildLegalDocumentSeedRows } from "./legal-document-seed";
 
 describe("legal document hashing", () => {
@@ -66,8 +70,17 @@ describe("enrollment consent audit builder", () => {
     });
     assert.equal(withoutImage.consentAuditStatus, "COMPLETE");
     assert.equal(withoutImage.privacyNoticeVersion, "1.0");
+    assert.equal(
+      withoutImage.privacyNoticeContentSha256,
+      sha256HexOfLegalDocumentBody(PRIVACY_NOTICE_V1_BODY),
+    );
+    assert.equal(
+      withoutImage.privacyNoticeAcknowledgedAt.toISOString(),
+      recordedAt.toISOString(),
+    );
     assert.equal(withoutImage.regulationVersion, "1.0");
     assert.equal(withoutImage.imageConsentVersion, null);
+    assert.equal(withoutImage.imageConsentContentSha256, null);
     assert.equal(withoutImage.imageConsentRecordedAt, null);
 
     const withImage = buildEnrollmentConsentAuditFields({
@@ -77,12 +90,44 @@ describe("enrollment consent audit builder", () => {
       imageConsentGranted: true,
       recordedAt,
     });
+    assert.equal(withImage.privacyNoticeVersion, "1.0");
     assert.equal(withImage.imageConsentVersion, "1.1");
     assert.equal(withImage.imageConsentRecordedAt?.toISOString(), recordedAt.toISOString());
   });
 
   it("does not invent a publication date when effectiveFrom is null", () => {
     assert.match(formatLegalPublicationDate(null), /go-live/i);
+  });
+
+  it("rejects shown privacy version/hash that do not match the current document", () => {
+    const hash = sha256HexOfLegalDocumentBody(PRIVACY_NOTICE_V1_BODY);
+    assert.equal(
+      privacyNoticeShownMatchesCurrent({
+        shownVersion: "1.0",
+        shownContentSha256: hash,
+        currentVersion: "1.0",
+        currentContentSha256: hash,
+      }),
+      true,
+    );
+    assert.equal(
+      privacyNoticeShownMatchesCurrent({
+        shownVersion: "1.0",
+        shownContentSha256: hash,
+        currentVersion: "1.1",
+        currentContentSha256: hash,
+      }),
+      false,
+    );
+    assert.equal(
+      privacyNoticeShownMatchesCurrent({
+        shownVersion: "1.0",
+        shownContentSha256: hash,
+        currentVersion: "1.0",
+        currentContentSha256: "0".repeat(64),
+      }),
+      false,
+    );
   });
 });
 

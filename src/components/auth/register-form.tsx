@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
+import { PrivacyNoticeLeadBanner } from "@/components/legal/privacy-notice-lead-banner";
 import { registerSchema, type RegisterInput } from "@/lib/validation/register";
 
 type RegisterFieldErrors = Partial<Record<keyof RegisterInput, string>>;
@@ -14,7 +15,12 @@ const INITIAL_FORM: RegisterInput = {
   confirmPassword: "",
 };
 
-export function RegisterForm() {
+type RegisterFormProps = {
+  /** Versione informativa privacy pubblicata (es. "1.0"). Nessuna accettazione inventata. */
+  privacyNoticeVersion?: string | null;
+};
+
+export function RegisterForm({ privacyNoticeVersion = null }: RegisterFormProps) {
   const [formData, setFormData] = useState<RegisterInput>(INITIAL_FORM);
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +91,8 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <PrivacyNoticeLeadBanner version={privacyNoticeVersion} context="register" />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <label htmlFor="firstName" className="text-sm font-medium text-zinc-700">
