@@ -8,19 +8,26 @@ type SupabaseStorageConfig = {
   bucket: string;
 };
 
+export type ReceiptStorageMissingEnv =
+  | "SUPABASE_URL"
+  | "SUPABASE_SERVICE_ROLE_KEY"
+  | "SUPABASE_RECEIPTS_BUCKET";
+
 export class ReceiptStorageError extends Error {
   constructor(
     message: string,
     public readonly details: {
-      stage: "upload" | "download";
-      missingEnv?: "SUPABASE_URL" | "SUPABASE_SERVICE_ROLE_KEY";
+      stage: "env" | "upload" | "download";
+      missingEnv?: ReceiptStorageMissingEnv;
       bucket?: string;
       bucketPath?: string;
       code?: string;
       originalMessage?: string;
       reason?:
         | "SUPABASE_DOWNLOAD_NOT_FOUND"
-        | "SUPABASE_DOWNLOAD_ERROR";
+        | "SUPABASE_DOWNLOAD_ERROR"
+        | "SUPABASE_RECEIPTS_BUCKET_MISSING"
+        | "SUPABASE_RECEIPTS_BUCKET_INVALID";
     },
   ) {
     super(message);
@@ -28,17 +35,79 @@ export class ReceiptStorageError extends Error {
   }
 }
 
-const DEFAULT_RECEIPTS_BUCKET = "receipts";
-const DEFAULT_MEDICAL_VISITS_BUCKET = "medical-visit-certificates";
+/** Nome fisso del bucket sanitario — mai usarlo per le ricevute. */
+export const MEDICAL_VISITS_BUCKET_NAME = "medical-visit-certificates";
 
-function getStorageEnv() {
+/**
+ * Risolve la config storage ricevute.
+ * Richiede SUPABASE_RECEIPTS_BUCKET esplicito; nessun fallback a bucket sanitari.
+ */
+export function resolveReceiptsStorageConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): SupabaseStorageConfig {
+  const url = env.SUPABASE_URL?.trim();
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const receiptsBucket = env.SUPABASE_RECEIPTS_BUCKET?.trim();
+  const medicalBucket = env.SUPABASE_MEDICAL_VISITS_BUCKET?.trim();
+
+  if (!url) {
+    throw new ReceiptStorageError("Configurazione Supabase Storage mancante: SUPABASE_URL.", {
+      stage: "env",
+      missingEnv: "SUPABASE_URL",
+      code: "SUPABASE_STORAGE_ENV_MISSING",
+    });
+  }
+  if (!serviceRoleKey) {
+    throw new ReceiptStorageError(
+      "Configurazione Supabase Storage mancante: SUPABASE_SERVICE_ROLE_KEY.",
+      {
+        stage: "env",
+        missingEnv: "SUPABASE_SERVICE_ROLE_KEY",
+        code: "SUPABASE_STORAGE_ENV_MISSING",
+      },
+    );
+  }
+  if (!receiptsBucket) {
+    throw new ReceiptStorageError(
+      "Configurazione Supabase Storage mancante: impostare SUPABASE_RECEIPTS_BUCKET (bucket dedicato alle ricevute). Nessun fallback verso bucket sanitari.",
+      {
+        stage: "env",
+        missingEnv: "SUPABASE_RECEIPTS_BUCKET",
+        code: "SUPABASE_RECEIPTS_BUCKET_MISSING",
+        reason: "SUPABASE_RECEIPTS_BUCKET_MISSING",
+      },
+    );
+  }
+
+  if (
+    receiptsBucket === MEDICAL_VISITS_BUCKET_NAME ||
+    (medicalBucket && receiptsBucket === medicalBucket)
+  ) {
+    throw new ReceiptStorageError(
+      "SUPABASE_RECEIPTS_BUCKET non può coincidere con il bucket dei certificati medici.",
+      {
+        stage: "env",
+        bucket: receiptsBucket,
+        code: "SUPABASE_RECEIPTS_BUCKET_INVALID",
+        reason: "SUPABASE_RECEIPTS_BUCKET_INVALID",
+      },
+    );
+  }
+
   return {
-    url: process.env.SUPABASE_URL,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    bucket:
-      process.env.SUPABASE_RECEIPTS_BUCKET ??
-      process.env.SUPABASE_MEDICAL_VISITS_BUCKET ??
-      DEFAULT_MEDICAL_VISITS_BUCKET,
+    url: new URL(url).origin,
+    serviceRoleKey,
+    bucket: receiptsBucket,
+  };
+}
+
+function getSupabaseStorageClient(): { client: SupabaseClient; bucket: string } {
+  const config = resolveReceiptsStorageConfig();
+  return {
+    client: createClient(config.url, config.serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    }),
+    bucket: config.bucket,
   };
 }
 
@@ -46,32 +115,6 @@ function getSafeBasename(filePath: string): string {
   const normalized = filePath.replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);
   return parts.at(-1) ?? "receipt.pdf";
-}
-
-function getSupabaseStorageConfigOrNull(): SupabaseStorageConfig | null {
-  const env = getStorageEnv();
-  if (!env.url || !env.serviceRoleKey) {
-    return null;
-  }
-  const supabaseUrlOrigin = new URL(env.url).origin;
-  return {
-    url: supabaseUrlOrigin,
-    serviceRoleKey: env.serviceRoleKey,
-    bucket: env.bucket ?? DEFAULT_RECEIPTS_BUCKET,
-  };
-}
-
-function getSupabaseStorageClientOrNull(): { client: SupabaseClient; bucket: string } | null {
-  const config = getSupabaseStorageConfigOrNull();
-  if (!config) {
-    return null;
-  }
-  return {
-    client: createClient(config.url, config.serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    }),
-    bucket: config.bucket,
-  };
 }
 
 function normalizeBucketPath(filePath: string): string {
@@ -91,17 +134,8 @@ function normalizeBucketPath(filePath: string): string {
 
 export async function saveReceiptPdf(fileName: string, pdfBuffer: Buffer): Promise<string> {
   const bucketPath = `receipts/${fileName}`;
-  const supabase = getSupabaseStorageClientOrNull();
-  if (!supabase) {
-    const missingEnv = !process.env.SUPABASE_URL ? "SUPABASE_URL" : "SUPABASE_SERVICE_ROLE_KEY";
-    throw new ReceiptStorageError(`Configurazione Supabase Storage mancante: ${missingEnv}.`, {
-      stage: "upload",
-      missingEnv,
-      code: "SUPABASE_STORAGE_ENV_MISSING",
-    });
-  }
+  const { client, bucket } = getSupabaseStorageClient();
 
-  const { client, bucket } = supabase;
   const { error } = await client.storage.from(bucket).upload(bucketPath, pdfBuffer, {
     contentType: "application/pdf",
     upsert: true,
@@ -121,18 +155,8 @@ export async function saveReceiptPdf(fileName: string, pdfBuffer: Buffer): Promi
 
 export async function readReceiptPdf(filePath: string): Promise<Buffer> {
   const bucketPath = normalizeBucketPath(filePath);
-  const supabase = getSupabaseStorageClientOrNull();
-  if (!supabase) {
-    const missingEnv = !process.env.SUPABASE_URL ? "SUPABASE_URL" : "SUPABASE_SERVICE_ROLE_KEY";
-    throw new ReceiptStorageError(`Configurazione Supabase Storage mancante: ${missingEnv}.`, {
-      stage: "download",
-      missingEnv,
-      bucketPath,
-      code: "SUPABASE_STORAGE_ENV_MISSING",
-    });
-  }
+  const { client, bucket } = getSupabaseStorageClient();
 
-  const { client, bucket } = supabase;
   const { data, error } = await client.storage.from(bucket).download(bucketPath);
   if (!error && data) {
     const arrayBuffer = await data.arrayBuffer();
