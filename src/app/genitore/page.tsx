@@ -676,7 +676,8 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     }),
     prisma.convocationAthlete.count({
       where: {
-        athleteId: selectedAthlete.id,
+        // Tutti i figli associati all'account (non solo quello selezionato in dashboard).
+        athlete: athletesAssociatedToParentWhere(parentProfile.id),
         responseStatus: "PENDING",
         convocation: {
           event: {
@@ -983,6 +984,28 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
           }))}
           selectedId={selectedAthlete.id}
         />
+
+        {pendingConvocationsCount > 0 ? (
+          <Link
+            href="/genitore/convocazioni"
+            className="flex items-start justify-between gap-3 rounded-3xl border border-sky-300 bg-gradient-to-br from-sky-100 to-white px-4 py-3.5 shadow-sm ring-1 ring-sky-200 transition hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <div>
+              <p className="text-sm font-black text-sky-950">
+                {pendingConvocationsCount === 1
+                  ? "Hai 1 convocazione da confermare"
+                  : `Hai ${pendingConvocationsCount} convocazioni da confermare`}
+              </p>
+              <p className="mt-1 text-xs font-medium text-sky-900/80">
+                Include tutti i figli collegati al tuo account. Apri la pagina Convocazioni per
+                rispondere.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center rounded-full bg-sky-700 px-3 py-1.5 text-xs font-bold text-white">
+              Apri
+            </span>
+          </Link>
+        ) : null}
 
         <AthleteHeroCard
           firstName={selectedAthlete.firstName}

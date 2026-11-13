@@ -10,11 +10,59 @@ import {
   formatConvocationWallClockDateTime,
   resolveMeetingAt,
 } from "@/lib/convocation-times";
+import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import {
   athletesAssociatedToParentWhere,
   getParentProfileIdForUser,
 } from "@/lib/parent-athletes";
+import {
+  PARENT_CONVOCATIONS_HISTORY_TAKE,
+  mergeParentConvocationEntriesForDisplay,
+  parentPastEventWhere,
+  parentUpcomingEventWhere,
+} from "@/lib/parent-convocations-visibility";
 import { prisma } from "@/lib/prisma";
+
+const convocationAthleteSelect = {
+  id: true,
+  responseStatus: true,
+  athlete: {
+    select: {
+      firstName: true,
+      lastName: true,
+    },
+  },
+  convocation: {
+    select: {
+      notes: true,
+      meetingAt: true,
+      category: {
+        select: {
+          name: true,
+        },
+      },
+      event: {
+        select: {
+          title: true,
+          startAt: true,
+          location: true,
+        },
+      },
+    },
+  },
+} as const;
+
+type ConvocationEntry = {
+  id: string;
+  responseStatus: "PENDING" | "PRESENT" | "ABSENT";
+  athlete: { firstName: string; lastName: string };
+  convocation: {
+    notes: string | null;
+    meetingAt: Date | null;
+    category: { name: string };
+    event: { title: string; startAt: Date; location: string | null } | null;
+  };
+};
 
 export default async function ParentConvocationsPage() {
   const session = await getAuthSession();
@@ -32,65 +80,52 @@ export default async function ParentConvocationsPage() {
     redirect("/unauthorized");
   }
 
-  let convocationEntries: Array<{
-    id: string;
-    responseStatus: "PENDING" | "PRESENT" | "ABSENT";
-    athlete: { firstName: string; lastName: string };
-    convocation: {
-      notes: string | null;
-      meetingAt: Date | null;
-      category: { name: string };
-      event: { title: string; startAt: Date; location: string | null } | null;
-    };
-  }> = [];
+  const wallNow = nowAsEuropeRomeWallClockUtc();
+  const associatedAthleteWhere = athletesAssociatedToParentWhere(parentProfileId);
+
+  let convocationEntries: ConvocationEntry[] = [];
   let isConvocationsSchemaMissing = false;
 
   try {
-    convocationEntries = await prisma.convocationAthlete.findMany({
-      where: {
-        athlete: athletesAssociatedToParentWhere(parentProfileId),
-        convocation: {
-          event: {
-            isNot: null,
+    const [upcomingEntries, recentHistoricalEntries] = await Promise.all([
+      prisma.convocationAthlete.findMany({
+        where: {
+          athlete: associatedAthleteWhere,
+          convocation: {
+            AND: [{ event: { isNot: null } }, { event: { is: parentUpcomingEventWhere(wallNow) } }],
           },
         },
-      },
-      orderBy: {
-        convocation: {
-          event: {
-            startAt: "asc",
-          },
-        },
-      },
-      take: 150,
-      select: {
-        id: true,
-        responseStatus: true,
-        athlete: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-        convocation: {
-          select: {
-            notes: true,
-            meetingAt: true,
-            category: {
-              select: {
-                name: true,
-              },
-            },
+        orderBy: {
+          convocation: {
             event: {
-              select: {
-                title: true,
-                startAt: true,
-                location: true,
-              },
+              startAt: "asc",
             },
           },
         },
-      },
+        select: convocationAthleteSelect,
+      }),
+      prisma.convocationAthlete.findMany({
+        where: {
+          athlete: associatedAthleteWhere,
+          convocation: {
+            AND: [{ event: { isNot: null } }, { event: { is: parentPastEventWhere(wallNow) } }],
+          },
+        },
+        orderBy: {
+          convocation: {
+            event: {
+              startAt: "desc",
+            },
+          },
+        },
+        take: PARENT_CONVOCATIONS_HISTORY_TAKE,
+        select: convocationAthleteSelect,
+      }),
+    ]);
+
+    convocationEntries = mergeParentConvocationEntriesForDisplay({
+      upcoming: upcomingEntries,
+      recentHistorical: recentHistoricalEntries,
     });
   } catch (error) {
     if (isMissingConvocationsSchemaError(error)) {
