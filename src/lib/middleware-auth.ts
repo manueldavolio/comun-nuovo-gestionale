@@ -1,4 +1,5 @@
 import type { UserRole } from "@prisma/client";
+import { ROLE_SYNC_PATH } from "@/lib/auth-role-sync";
 import { ROLE_HOME_PATH, canAccessPath } from "@/lib/permissions";
 import { isPublicReceiptsStaticPath } from "@/lib/payments/mark-paid-disabled";
 
@@ -30,8 +31,8 @@ export function resolveRoleFromToken(tokenRole: unknown): UserRole | undefined {
 
 /**
  * Decisione pura del middleware (senza NextRequest).
- * Garantisce: nessun redirect verso un path ancora vietato per lo stesso ruolo
- * (evita loop: la home del ruolo è sempre accessibile da canAccessPath).
+ * Dopo promozione il cookie può essere stale: login e path non consentiti
+ * vanno a ROLE_SYNC_PATH (riallinea JWT) invece della sola home da cookie.
  */
 export function decideMiddlewareAuth(input: {
   pathname: string;
@@ -44,11 +45,19 @@ export function decideMiddlewareAuth(input: {
     return { type: "block", status: 404 };
   }
 
+  // Pagina di sync: sempre raggiungibile (client aggiorna cookie / fa signOut).
+  if (
+    input.pathname === ROLE_SYNC_PATH ||
+    input.pathname.startsWith(`${ROLE_SYNC_PATH}/`)
+  ) {
+    return { type: "next" };
+  }
+
   const role = resolveRoleFromToken(input.tokenRole);
   const isLoggedIn = Boolean(input.hasToken && role);
 
   if ((input.pathname === "/login" || input.pathname === "/register") && isLoggedIn && role) {
-    return { type: "redirect", to: ROLE_HOME_PATH[role] };
+    return { type: "redirect", to: ROLE_SYNC_PATH };
   }
 
   if (!isProtectedPath(input.pathname)) {
@@ -61,7 +70,8 @@ export function decideMiddlewareAuth(input: {
   }
 
   if (!canAccessPath(role, input.pathname)) {
-    return { type: "redirect", to: ROLE_HOME_PATH[role] };
+    // Cookie stale (es. PARENT dopo promozione a COACH): sync prima della home.
+    return { type: "redirect", to: ROLE_SYNC_PATH };
   }
 
   return { type: "next" };

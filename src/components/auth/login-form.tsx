@@ -38,6 +38,12 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
       return;
     }
 
+    try {
+      sessionStorage.removeItem("comun-nuovo-role-sync-attempt");
+    } catch {
+      // ignore (SSR / privacy mode)
+    }
+
     // Dopo signIn il ruolo aggiornato è nel JWT: usa sempre la home del ruolo
     // (evita di restare su /genitore se l'utente è stato promosso a mister).
     const session = await getSession();

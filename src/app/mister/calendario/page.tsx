@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { MonthCalendar, type CalendarEvent } from "@/components/calendar/month-calendar";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { normalizeCalendarEventType } from "@/lib/calendar-event-type";
 import {
@@ -19,9 +20,7 @@ export default async function CoachCalendarPage() {
     redirect("/login?callbackUrl=/mister/calendario");
   }
 
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
   const wallNow = nowAsEuropeRomeWallClockUtc();

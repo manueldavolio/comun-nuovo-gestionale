@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MatchListClient, type MatchListItem } from "@/components/matches/match-list-client";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { listMatchesForCoach } from "@/lib/match-queries";
 
@@ -11,9 +12,7 @@ export default async function MisterPartitePage() {
   if (!session?.user) {
     redirect("/login?callbackUrl=/mister/partite");
   }
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const wallNow = nowAsEuropeRomeWallClockUtc();
   const rows = await listMatchesForCoach(session.user.id);

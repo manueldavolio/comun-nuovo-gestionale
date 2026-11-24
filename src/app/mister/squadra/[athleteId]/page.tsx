@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AthleteDisciplineClient } from "@/components/mister/athlete-discipline-client";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { canManageAthleteCategory } from "@/lib/athlete-access";
 import { isCompetitionKind } from "@/lib/competition-kind";
 import { seasonLabelFromDate } from "@/lib/discipline";
@@ -21,9 +22,7 @@ export default async function MisterAthleteDisciplinePage({
   if (!session?.user) {
     redirect("/login?callbackUrl=/mister/squadra");
   }
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const { athleteId } = await params;
   const query = searchParams ? await searchParams : {};

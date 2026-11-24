@@ -165,10 +165,6 @@ export default async function ParentDashboardPage({ searchParams }: ParentDashbo
     redirect("/login?callbackUrl=/genitore");
   }
 
-  if (session.user.role !== "PARENT") {
-    redirect("/unauthorized");
-  }
-
   const params = await searchParams;
   const showEnrollmentSuccess = params.enrolled === "1";
 

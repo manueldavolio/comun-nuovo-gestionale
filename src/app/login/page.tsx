@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { getAuthSession } from "@/lib/auth";
-import { ROLE_HOME_PATH } from "@/lib/permissions";
 
 type LoginPageProps = {
   searchParams: Promise<{ callbackUrl?: string; registered?: string }>;
@@ -10,13 +9,14 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await getAuthSession();
   if (session?.user?.role) {
+    // Riallinea il cookie JWT (può essere stale dopo una promozione) prima della home.
     console.info("[AUTH_DEBUG] login page redirect for authenticated user", {
       userId: session.user.id,
       email: session.user.email,
       role: session.user.role,
-      redirectTo: ROLE_HOME_PATH[session.user.role],
+      redirectTo: "/auth/riallinea-ruolo",
     });
-    redirect(ROLE_HOME_PATH[session.user.role]);
+    redirect("/auth/riallinea-ruolo");
   }
 
   const params = await searchParams;

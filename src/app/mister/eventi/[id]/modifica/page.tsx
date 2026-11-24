@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { EditEventForm } from "@/components/events/edit-event-form";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { defaultCompetitionKindFromEventType } from "@/lib/competition-kind";
 import { toDateTimeLocalValueUTC } from "@/lib/date-input";
@@ -20,9 +21,7 @@ export default async function CoachEditEventPage({ params }: CoachEditEventPageP
     redirect(`/login?callbackUrl=/mister/eventi/${id}/modifica`);
   }
 
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
 

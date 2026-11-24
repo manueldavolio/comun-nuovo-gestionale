@@ -8,6 +8,7 @@ import { NextCommitmentCard } from "@/components/mister/next-commitment-card";
 import { WeekTimeline } from "@/components/mister/week-timeline";
 import { getAuthSession } from "@/lib/auth";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { ACTIVE_PERSONAL_GOAL_STATUSES } from "@/lib/athlete-personal-goals";
 import { nowAsEuropeRomeWallClockUtc } from "@/lib/date-input";
 import { COACH_VISIBLE_EVENT_TYPES } from "@/lib/events";
@@ -30,9 +31,7 @@ export default async function CoachDashboardPage() {
     redirect("/login?callbackUrl=/mister");
   }
 
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
   const wallNow = nowAsEuropeRomeWallClockUtc();

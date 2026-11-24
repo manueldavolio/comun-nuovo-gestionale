@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { AthleteRosterEditor } from "@/components/mister/athlete-roster-editor";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { validUntilDateInputValue } from "@/lib/athlete-operational-status";
 import { seasonLabelFromDate } from "@/lib/discipline";
@@ -21,9 +22,7 @@ export default async function MisterSquadraPage({ searchParams }: MisterSquadraP
     redirect("/login?callbackUrl=/mister/squadra");
   }
 
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
   const params = searchParams ? await searchParams : {};

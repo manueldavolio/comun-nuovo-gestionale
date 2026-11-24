@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 
 /**
  * Messaggio chiaro quando un mister tenta di aprire uno strumento
@@ -11,9 +12,7 @@ export default async function MisterMissingCategoryAccessPage() {
   if (!session?.user) {
     redirect("/login?callbackUrl=/mister/senza-accesso-categoria");
   }
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-sky-50 to-blue-100 px-4">

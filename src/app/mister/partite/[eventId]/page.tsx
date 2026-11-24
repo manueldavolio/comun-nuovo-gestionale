@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { AreaHeader } from "@/components/layout/area-header";
 import { MatchDetailView } from "@/components/matches/match-detail-view";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { getCoachMatchDetail } from "@/lib/match-queries";
 
 type PageProps = {
@@ -15,9 +16,7 @@ export default async function MisterPartitaDetailPage({ params }: PageProps) {
   if (!session?.user) {
     redirect(`/login?callbackUrl=/mister/partite/${eventId}`);
   }
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const detail = await getCoachMatchDetail(session.user.id, eventId);
   if (!detail) {

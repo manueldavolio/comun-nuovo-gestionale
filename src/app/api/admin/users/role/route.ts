@@ -1,6 +1,7 @@
 import type { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/lib/auth";
+import { ensureCoachProfileForUser } from "@/lib/coach-profile-ensure";
 import { ADMIN_ASSIGNABLE_ROLES } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -39,7 +40,7 @@ export async function PATCH(request: Request) {
 
   const targetUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, name: true },
   });
 
   if (!targetUser) {
@@ -47,13 +48,46 @@ export async function PATCH(request: Request) {
   }
 
   if (targetUser.role === role) {
-    return NextResponse.json({ success: true }, { status: 200 });
+    return NextResponse.json(
+      {
+        success: true,
+        reauthRecommended: false,
+        coachProfileCreated: false,
+      },
+      { status: 200 },
+    );
   }
 
-  await prisma.user.update({
-    where: { id: targetUser.id },
-    data: { role },
+  const previousRole = targetUser.role;
+
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: targetUser.id },
+      data: { role },
+    });
+
+    let coachProfileCreated = false;
+    if (role === "COACH") {
+      const ensured = await ensureCoachProfileForUser(tx, {
+        userId: targetUser.id,
+        name: targetUser.name,
+      });
+      coachProfileCreated = ensured.created;
+    }
+
+    return { coachProfileCreated };
   });
 
-  return NextResponse.json({ success: true }, { status: 200 });
+  return NextResponse.json(
+    {
+      success: true,
+      previousRole,
+      role,
+      reauthRecommended: true,
+      coachProfileCreated: result.coachProfileCreated,
+      message:
+        "Ruolo aggiornato. L'utente potrebbe dover rieffettuare l'accesso (o aggiornare la sessione) per vedere l'area corretta.",
+    },
+    { status: 200 },
+  );
 }

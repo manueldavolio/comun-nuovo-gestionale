@@ -39,13 +39,27 @@ export function ChangeUserRoleInline({ userId, currentRole }: ChangeUserRoleInli
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+        reauthRecommended?: boolean;
+        coachProfileCreated?: boolean;
+      } | null;
       if (!response.ok) {
         setMessage(payload?.error ?? "Aggiornamento non riuscito.");
         return;
       }
 
-      setMessage("Ruolo aggiornato.");
+      const parts = [
+        payload?.message ??
+          (payload?.reauthRecommended
+            ? "Ruolo aggiornato. L'utente potrebbe dover rieffettuare l'accesso."
+            : "Ruolo aggiornato."),
+        payload?.coachProfileCreated
+          ? "Profilo mister creato (categorie da assegnare in Staff)."
+          : null,
+      ].filter(Boolean);
+      setMessage(parts.join(" "));
       startTransition(() => {
         router.refresh();
       });

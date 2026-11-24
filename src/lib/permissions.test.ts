@@ -3,6 +3,12 @@ import { describe, it } from "node:test";
 import type { UserRole } from "@prisma/client";
 import { ROLE_HOME_PATH, canAccessPath, canUseSocialStudio } from "@/lib/permissions";
 import { applyJwtRoleFromDb, expectedHomeForRole } from "@/lib/auth-jwt-role";
+import {
+  ROLE_SYNC_PATH,
+  assertSafeRoleHome,
+  decideAreaRoleGate,
+  decideRoleSyncFromSession,
+} from "@/lib/auth-role-sync";
 import { decideMiddlewareAuth, wouldRedirectLoop } from "@/lib/middleware-auth";
 
 const ROLES: UserRole[] = [
@@ -67,7 +73,7 @@ describe("multi-profile (ParentProfile + CoachProfile) uses User.role only", () 
       tokenRole: "COACH",
       hasToken: true,
     });
-    assert.deepEqual(decision, { type: "redirect", to: "/mister" });
+    assert.deepEqual(decision, { type: "redirect", to: ROLE_SYNC_PATH });
   });
 
   it("pure parent still reaches /genitore", () => {
@@ -92,13 +98,19 @@ describe("middleware redirects without loops", () => {
     });
   }
 
-  it("COACH on /genitore redirects once to /mister then next", () => {
+  it("COACH on /genitore goes to role sync then /mister is next", () => {
     const first = decideMiddlewareAuth({
       pathname: "/genitore",
       tokenRole: "COACH",
       hasToken: true,
     });
-    assert.deepEqual(first, { type: "redirect", to: "/mister" });
+    assert.deepEqual(first, { type: "redirect", to: ROLE_SYNC_PATH });
+    const syncPage = decideMiddlewareAuth({
+      pathname: ROLE_SYNC_PATH,
+      tokenRole: "COACH",
+      hasToken: true,
+    });
+    assert.deepEqual(syncPage, { type: "next" });
     const second = decideMiddlewareAuth({
       pathname: "/mister",
       tokenRole: "COACH",
@@ -107,31 +119,31 @@ describe("middleware redirects without loops", () => {
     assert.deepEqual(second, { type: "next" });
   });
 
-  it("PARENT on /mister redirects once to /genitore then next", () => {
+  it("PARENT on /mister goes to role sync (stale cookie / wrong area)", () => {
     const first = decideMiddlewareAuth({
       pathname: "/mister",
       tokenRole: "PARENT",
       hasToken: true,
     });
-    assert.deepEqual(first, { type: "redirect", to: "/genitore" });
-    const second = decideMiddlewareAuth({
-      pathname: "/genitore",
-      tokenRole: "PARENT",
+    assert.deepEqual(first, { type: "redirect", to: ROLE_SYNC_PATH });
+    const afterSyncCookie = decideMiddlewareAuth({
+      pathname: "/mister",
+      tokenRole: "COACH",
       hasToken: true,
     });
-    assert.deepEqual(second, { type: "next" });
+    assert.deepEqual(afterSyncCookie, { type: "next" });
   });
 
-  it("SOCIAL_MEDIA_MANAGER on /admin redirects to social calendar", () => {
+  it("SOCIAL_MEDIA_MANAGER on /admin redirects to role sync", () => {
     const decision = decideMiddlewareAuth({
       pathname: "/admin",
       tokenRole: "SOCIAL_MEDIA_MANAGER",
       hasToken: true,
     });
-    assert.deepEqual(decision, { type: "redirect", to: "/social/calendario" });
+    assert.deepEqual(decision, { type: "redirect", to: ROLE_SYNC_PATH });
   });
 
-  it("logged-in user on /login redirects to role home (not back to /login)", () => {
+  it("logged-in user on /login redirects to role sync (not back to /login)", () => {
     for (const role of ROLES) {
       const decision = decideMiddlewareAuth({
         pathname: "/login",
@@ -140,10 +152,36 @@ describe("middleware redirects without loops", () => {
       });
       assert.equal(decision.type, "redirect");
       if (decision.type === "redirect") {
-        assert.equal(decision.to, ROLE_HOME_PATH[role]);
+        assert.equal(decision.to, ROLE_SYNC_PATH);
         assert.notEqual(decision.to, "/login");
       }
     }
+  });
+
+  it("stale PARENT cookie after promotion: /mister → sync → no loop to /unauthorized", () => {
+    const denied = decideMiddlewareAuth({
+      pathname: "/mister",
+      tokenRole: "PARENT",
+      hasToken: true,
+    });
+    assert.deepEqual(denied, { type: "redirect", to: ROLE_SYNC_PATH });
+    const syncOk = decideMiddlewareAuth({
+      pathname: ROLE_SYNC_PATH,
+      tokenRole: "PARENT",
+      hasToken: true,
+    });
+    assert.deepEqual(syncOk, { type: "next" });
+    const homeAfter = decideRoleSyncFromSession({
+      hasSessionUser: true,
+      sessionRole: "COACH",
+    });
+    assert.deepEqual(homeAfter, { type: "goto", path: "/mister" });
+    const final = decideMiddlewareAuth({
+      pathname: "/mister",
+      tokenRole: "COACH",
+      hasToken: true,
+    });
+    assert.deepEqual(final, { type: "next" });
   });
 
   it("anonymous on protected path goes to login with callback", () => {
@@ -196,5 +234,79 @@ describe("JWT role refresh", () => {
       { id: "u1", email: "a@b.it", role: "COACH", isActive: false },
     );
     assert.equal(next.role, undefined);
+  });
+});
+
+describe("role sync decisions", () => {
+  it("PARENT→COACH session sync goes to /mister", () => {
+    assert.deepEqual(
+      decideRoleSyncFromSession({ hasSessionUser: true, sessionRole: "COACH" }),
+      { type: "goto", path: "/mister" },
+    );
+  });
+
+  it("COACH→ADMIN session sync goes to /admin", () => {
+    assert.deepEqual(
+      decideRoleSyncFromSession({ hasSessionUser: true, sessionRole: "ADMIN" }),
+      { type: "goto", path: "/admin" },
+    );
+  });
+
+  it("inverse COACH→PARENT session sync goes to /genitore", () => {
+    assert.deepEqual(
+      decideRoleSyncFromSession({ hasSessionUser: true, sessionRole: "PARENT" }),
+      { type: "goto", path: "/genitore" },
+    );
+  });
+
+  it("inactive / missing role forces signout", () => {
+    assert.deepEqual(
+      decideRoleSyncFromSession({ hasSessionUser: true, sessionRole: undefined }),
+      { type: "signout", callbackUrl: "/login" },
+    );
+    assert.deepEqual(
+      decideRoleSyncFromSession({ hasSessionUser: false, sessionRole: null }),
+      { type: "signout", callbackUrl: "/login" },
+    );
+  });
+
+  it("area gate: wrong role → sync, right role → allow, none → login", () => {
+    assert.equal(
+      decideAreaRoleGate({ sessionRole: "COACH", allowedRoles: ["PARENT"] }),
+      "sync",
+    );
+    assert.equal(
+      decideAreaRoleGate({ sessionRole: "PARENT", allowedRoles: ["PARENT"] }),
+      "allow",
+    );
+    assert.equal(
+      decideAreaRoleGate({ sessionRole: undefined, allowedRoles: ["PARENT"] }),
+      "login",
+    );
+  });
+
+  it("safe role home never points to a forbidden path", () => {
+    for (const role of ROLES) {
+      const home = ROLE_HOME_PATH[role];
+      assert.deepEqual(assertSafeRoleHome(role, home), { type: "goto", path: home });
+    }
+    assert.deepEqual(assertSafeRoleHome("PARENT", "/mister"), {
+      type: "signout",
+      callbackUrl: "/login",
+    });
+  });
+
+  it("no escalation: PARENT sync cannot land on /admin", () => {
+    const decision = decideRoleSyncFromSession({
+      hasSessionUser: true,
+      sessionRole: "PARENT",
+    });
+    assert.equal(decision.type, "goto");
+    if (decision.type === "goto") {
+      assert.equal(decision.path, "/genitore");
+      assert.equal(canAccessPath("PARENT", decision.path), true);
+      assert.equal(canAccessPath("PARENT", "/admin"), false);
+      assert.equal(canAccessPath("PARENT", "/mister"), false);
+    }
   });
 });

@@ -4,6 +4,7 @@ import { subDays } from "date-fns";
 import { AreaHeader } from "@/components/layout/area-header";
 import { DashboardCard } from "@/components/layout/dashboard-card";
 import { getAuthSession } from "@/lib/auth";
+import { requireAreaRole } from "@/lib/require-area-role";
 import { getCoachCategoryIdsForUser } from "@/lib/attendance";
 import { COACH_VISIBLE_EVENT_TYPES, formatEventType } from "@/lib/events";
 import {
@@ -43,9 +44,7 @@ export default async function MisterRiepilogoPage({ searchParams }: MisterRiepil
     redirect("/login?callbackUrl=/mister/riepilogo");
   }
 
-  if (session.user.role !== "COACH") {
-    redirect("/unauthorized");
-  }
+  requireAreaRole(session.user.role, ["COACH"], "/mister");
 
   const coachCategoryIds = await getCoachCategoryIdsForUser(session.user.id);
   const params = searchParams ? await searchParams : {};
